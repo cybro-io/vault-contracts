@@ -11,19 +11,17 @@ contract JuiceVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     IJuicePool public immutable pool;
-    IERC20 public immutable liquidityToken;
 
     constructor(IERC20Metadata _asset, IJuicePool _pool, string memory name, string memory symbol)
         BaseVault(_asset)
         ERC20(name, symbol)
     {
         pool = _pool;
-        liquidityToken = IERC20(pool.liquidityToken());
         _asset.forceApprove(address(pool), type(uint256).max);
     }
 
     function totalAssets() public view override returns (uint256) {
-        return liquidityToken.balanceOf(address(this));
+        return pool.getDepositAmount(address(this));
     }
 
     function _deposit(uint256 assets) internal override {
@@ -31,7 +29,7 @@ contract JuiceVault is BaseVault {
     }
 
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        assets = shares * liquidityToken.balanceOf(address(this)) / totalSupply();
+        assets = shares * pool.getDepositAmount(address(this)) / totalSupply();
         pool.withdraw(assets);
     }
 }

@@ -21,6 +21,7 @@ contract CompoundVaultTest is Test {
     CompoundVaultETH vaultEth;
     IERC20Metadata usdb;
     IERC20Metadata wbtc;
+    IERC20Metadata weth;
     uint256 amount;
     uint256 wbtcAmount;
     uint256 ethAmount;
@@ -79,15 +80,18 @@ contract CompoundVaultTest is Test {
     }
 
     function test_eth() public fork {
-        deal(user, ethAmount);
-        vaultEth = new CompoundVaultETH(ethPool, "nameVault", "symbolVault");
+        weth = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
+        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        weth.transfer(user, ethAmount);
+        vaultEth = new CompoundVaultETH(weth, ethPool, "nameVault", "symbolVault");
         vm.startPrank(user);
-        vaultEth.approve(address(vaultEth), type(uint256).max);
-        uint256 shares = vaultEth.depositEth{value: ethAmount}(user);
+        weth.approve(address(vaultEth), type(uint256).max);
+        uint256 shares = vaultEth.deposit(ethAmount, user);
 
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
-        vaultEth.redeem(shares, user, user);
+        uint256 underlyingAssets = vaultEth.redeem(shares, user, user);
+        vm.assertApproxEqAbs(weth.balanceOf(user), underlyingAssets, 1);
         vm.stopPrank();
     }
 }

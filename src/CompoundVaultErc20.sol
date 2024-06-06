@@ -86,10 +86,10 @@ contract CompoundVault is ERC20 {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        underlyingAssets = shares * _totalAssetsPrecise() / totalSupply();
+        uint256 balanceBefore = _asset.balanceOf(address(this));
         _redeem(shares);
         _burn(owner, shares);
+        underlyingAssets = _asset.balanceOf(address(this)) - balanceBefore;
         _asset.safeTransfer(receiver, underlyingAssets);
 
         emit Withdraw(_msgSender(), receiver, owner, underlyingAssets, shares);

@@ -70,10 +70,10 @@ contract CompoundVaultETH is ERC20 {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        underlyingAssets = shares * _totalAssetsPrecise() / totalSupply();
+        uint256 balanceBefore = address(this).balance;
         _redeem(shares);
         _burn(owner, shares);
+        underlyingAssets = address(this).balance - balanceBefore;
         (bool success,) = payable(receiver).call{value: underlyingAssets}("");
         require(success, "failed to send ETH");
 

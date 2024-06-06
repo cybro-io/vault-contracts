@@ -18,7 +18,7 @@ contract AaveVaultTest is Test {
     address user;
 
     function setUp() public {
-        forkId = vm.createSelectFork("https://blast.blockpi.network/v1/rpc/public");
+        forkId = vm.createSelectFork("https://rpc.blast.io/");
         aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
         amount = 1e20;
         user = address(100);

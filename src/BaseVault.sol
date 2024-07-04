@@ -82,4 +82,8 @@ abstract contract BaseVault is ERC20Upgradeable {
 
         emit Withdraw(_msgSender(), receiver, owner, assets, shares);
     }
+
+    function _validateTokenToRecover(address token, address poolToken) internal virtual returns (bool) {
+        return token != poolToken;
+    }
 }

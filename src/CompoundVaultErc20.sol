@@ -54,7 +54,7 @@ contract CompoundVault is BaseVault, OwnableUpgradeable {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
             require(success, "failed to send ETH");
-        } else if (token != address(pool)) {
+        } else if (BaseVault._validateTokenToRecover(token, address(pool))) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20(token).balanceOf(address(this)));
         } else {
             revert InvalidTokenToWithdraw(token);

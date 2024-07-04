@@ -50,7 +50,7 @@ contract AaveVault is BaseVault, OwnableUpgradeable {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
             require(success, "failed to send ETH");
-        } else if (token != address(aToken)) {
+        } else if (BaseVault._validateTokenToRecover(token, address(aToken))) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20(token).balanceOf(address(this)));
         } else {
             revert InvalidTokenToWithdraw(token);

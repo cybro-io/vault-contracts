@@ -8,6 +8,10 @@ import {JuiceVault, IERC20Metadata} from "../src/JuiceVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 // 0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a Juice usdb lending pool
 // 0x44f33bC796f7d3df55040cd3C631628B560715C2 Juice weth lending pool
@@ -20,8 +24,12 @@ contract JuiceVaultTest is Test {
     uint256 amount;
     uint256 forkId;
     address user;
+    address internal admin;
+    uint256 internal adminPrivateKey;
 
     function setUp() public {
+        adminPrivateKey = 0xba132ce;
+        admin = vm.addr(adminPrivateKey);
         forkId = vm.createSelectFork("https://rpc.blast.io/");
         usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
         wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
@@ -44,7 +52,17 @@ contract JuiceVaultTest is Test {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         token.transfer(user, amount);
-        vault = new JuiceVault(token, usdbPool, "nameVault", "symbolVault");
+        vm.startPrank(admin);
+        vault = JuiceVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new JuiceVault(token, usdbPool)),
+                    admin,
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault"))
+                )
+            )
+        );
+        vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
         uint256 shares = vault.deposit(amount, user);
@@ -61,7 +79,17 @@ contract JuiceVaultTest is Test {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
         vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         token.transfer(user, amount);
-        vault = new JuiceVault(token, wethPool, "nameVault", "symbolVault");
+        vm.startPrank(admin);
+        vault = JuiceVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new JuiceVault(token, wethPool)),
+                    admin,
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault"))
+                )
+            )
+        );
+        vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
         uint256 shares = vault.deposit(amount, user);

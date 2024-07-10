@@ -3,11 +3,13 @@
 pragma solidity =0.8.26;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract BaseVault is ERC20 {
+abstract contract BaseVault is ERC20Upgradeable {
     using SafeERC20 for IERC20Metadata;
+
+    error InvalidTokenToWithdraw(address token);
 
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
 
@@ -22,6 +24,8 @@ abstract contract BaseVault is ERC20 {
         _asset = asset_;
         _decimals = asset_.decimals();
     }
+
+    function __BaseVault_init() internal onlyInitializing {}
 
     function decimals() public view override returns (uint8) {
         return _decimals;
@@ -77,5 +81,9 @@ abstract contract BaseVault is ERC20 {
         _asset.safeTransfer(receiver, assets);
 
         emit Withdraw(_msgSender(), receiver, owner, assets, shares);
+    }
+
+    function _validateTokenToRecover(address token, address poolToken) internal virtual returns (bool) {
+        return token != poolToken;
     }
 }

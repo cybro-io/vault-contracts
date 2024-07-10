@@ -8,6 +8,10 @@ import {IAavePool} from "../src/interfaces/aave/IPool.sol";
 import {AaveVault, IERC20Metadata} from "../src/AaveVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract AaveVaultTest is Test {
     IAavePool aavePool;
@@ -17,7 +21,12 @@ contract AaveVaultTest is Test {
     uint256 forkId;
     address user;
 
+    address internal admin;
+    uint256 internal adminPrivateKey;
+
     function setUp() public {
+        adminPrivateKey = 0xba132ce;
+        admin = vm.addr(adminPrivateKey);
         forkId = vm.createSelectFork("https://rpc.blast.io/");
         aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
         amount = 1e20;
@@ -30,7 +39,17 @@ contract AaveVaultTest is Test {
     }
 
     function _deposit() internal returns (uint256 shares) {
-        vault = new AaveVault(token, aavePool, "nameVault", "symbolVault");
+        vm.startPrank(admin);
+        vault = AaveVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new AaveVault(token, aavePool)),
+                    admin,
+                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault"))
+                )
+            )
+        );
+        vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
         shares = vault.deposit(amount, user);

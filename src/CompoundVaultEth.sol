@@ -10,7 +10,7 @@ import {CEth} from "./interfaces/compound/IcETH.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract CompoundVaultETH is BaseVault, OwnableUpgradeable {
+contract CompoundVaultETH is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
@@ -28,7 +28,7 @@ contract CompoundVaultETH is BaseVault, OwnableUpgradeable {
 
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         __ERC20_init(name, symbol);
-        __Ownable_init(admin);
+        __BaseVault_init(admin);
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -61,16 +61,8 @@ contract CompoundVaultETH is BaseVault, OwnableUpgradeable {
         return pool.balanceOfUnderlying(address(this));
     }
 
-    /// @notice It is function only used to withdraw funds accidentally sent to the contract.
-    function withdrawFunds(address token) external onlyOwner {
-        if (token == address(0)) {
-            (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
-        } else if (BaseVault._validateTokenToRecover(token, address(pool))) {
-            IERC20Metadata(token).safeTransfer(msg.sender, IERC20(token).balanceOf(address(this)));
-        } else {
-            revert InvalidTokenToWithdraw(token);
-        }
+    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+        return token != address(pool);
     }
 
     receive() external payable {

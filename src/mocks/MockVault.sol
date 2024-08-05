@@ -7,7 +7,7 @@ import {ERC20Mock} from "./ERC20Mock.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract MockVault is BaseVault, OwnableUpgradeable {
+contract MockVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     uint256 liquidityTokenBalance;
@@ -19,7 +19,7 @@ contract MockVault is BaseVault, OwnableUpgradeable {
 
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         __ERC20_init(name, symbol);
-        __Ownable_init(admin);
+        __BaseVault_init(admin);
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -43,13 +43,7 @@ contract MockVault is BaseVault, OwnableUpgradeable {
         liquidityTokenBalance -= assets;
     }
 
-    /// @notice It is function only used to withdraw funds accidentally sent to the contract.
-    function withdrawFunds(address token) external onlyOwner {
-        if (token == address(0)) {
-            (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
-        } else {
-            IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
-        }
+    function _validateTokenToRecover(address) internal virtual override returns (bool) {
+        return true;
     }
 }

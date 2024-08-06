@@ -97,7 +97,7 @@ contract YieldStakingVaultTest is Test {
         vm.assume(amountDeposit > 1e3 && amountDeposit < 1e37);
         vm.assume(addedRewards > 1e3 && addedRewards < 1e20);
         vm.startPrank(user);
-        
+
         USDB.mint(user, amountDeposit);
         USDB.approve(address(vault), type(uint256).max);
 

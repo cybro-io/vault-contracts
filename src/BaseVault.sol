@@ -86,14 +86,14 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable {
         emit Withdraw(_msgSender(), receiver, owner, assets, shares);
     }
 
-    function _validateTokenToRecover(address token) internal virtual returns (bool) {}
+    function _validateTokenToRecover(address token) internal virtual returns (bool);
 
     /// @notice It is function only used to withdraw funds accidentally sent to the contract.
     function withdrawFunds(address token) external virtual onlyOwner {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
             require(success, "failed to send ETH");
-        } else if (BaseVault._validateTokenToRecover(token)) {
+        } else if (_validateTokenToRecover(token)) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
         } else {
             revert InvalidTokenToWithdraw(token);

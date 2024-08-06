@@ -6,9 +6,25 @@ import {Test, console} from "forge-std/Test.sol";
 import {YieldStakingVault, IERC20Metadata, IYieldStaking} from "../src/YieldStakingVault.sol";
 import {YieldStaking} from "@blastup/launchpad-contracts/YieldStaking.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IShares} from "../src/interfaces/IShares.sol";
+import {IWETH} from "../src/interfaces/IWETH.sol";
+
+contract Attack {
+    address weth;
+
+    constructor(address _weth) {
+        weth = _weth;
+    }
+
+    function attack() public payable {
+        address payable addr = payable(weth);
+        selfdestruct(addr);
+    }
+}
 
 contract ForkYieldStakingTest is Test {
     YieldStakingVault vault;
+    Attack attack;
     IYieldStaking staking;
     IERC20Metadata token;
     uint256 amount;
@@ -25,6 +41,7 @@ contract ForkYieldStakingTest is Test {
         user = address(100);
         amount = 1e20;
         staking = IYieldStaking(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D));
+        attack = new Attack(address(0x4300000000000000000000000000000000000004));
     }
 
     modifier fork() {
@@ -64,8 +81,12 @@ contract ForkYieldStakingTest is Test {
         token.transfer(user, amount);
         uint256 shares = _deposit();
 
+        vm.startPrank(address(0xB341285d5683C74935ad14c446E137c8c8829549));
+        IShares(address(token)).addValue(IShares(address(token)).count() * 3);
+        vm.stopPrank();
+
         _redeem(shares);
-        console.log(token.balanceOf(user));
+        vm.assertGt(token.balanceOf(user), amount);
     }
 
     function test_weth() public fork {
@@ -74,7 +95,16 @@ contract ForkYieldStakingTest is Test {
         token.transfer(user, amount);
         uint256 shares = _deposit();
 
+        vm.startPrank(address(0x59a661F1C909ca13ba3E9114BFDd81E5a420705D));
+        console.log("totalSupply", token.totalSupply(), "price", IWETH(address(token)).price());
+        attack.attack{value: address(0x59a661F1C909ca13ba3E9114BFDd81E5a420705D).balance}();
+        console.log("totalSupply", token.totalSupply(), "price", IWETH(address(token)).price());
+        vm.stopPrank();
+        vm.startPrank(address(0x4300000000000000000000000000000000000000));
+        IShares(address(token)).addValue(0);
+        vm.stopPrank();
+
         _redeem(shares);
-        console.log(token.balanceOf(user));
+        vm.assertGt(token.balanceOf(user), amount);
     }
 }

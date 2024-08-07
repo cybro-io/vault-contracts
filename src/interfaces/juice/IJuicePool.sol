@@ -2,7 +2,6 @@
 pragma solidity 0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-// import { UD60x18, ud } from "@prb/math/src/UD60x18.sol";
 
 interface IJuicePool {
     function liquidityToken() external view returns (address);

@@ -1,8 +1,2 @@
 @openzeppelin/=lib/openzeppelin-contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
-@prb/math/=lib/prb-math/
-@uniswap/v3-core/=lib/v3-core/
-@uniswap/v3-periphery/=lib/v3-periphery/
-@cryptoalgebra/integral-core/=lib/Algebra/src/core/
-@cryptoalgebra/integral-periphery/=lib/Algebra/src/periphery/
-@blastup/launchpad-contracts/=lib/launchpad-contracts/src/

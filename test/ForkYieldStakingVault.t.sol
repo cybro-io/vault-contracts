@@ -4,27 +4,12 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {YieldStakingVault, IERC20Metadata, IYieldStaking} from "../src/YieldStakingVault.sol";
-import {YieldStaking} from "@blastup/launchpad-contracts/YieldStaking.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IShares} from "../src/interfaces/IShares.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 
-contract Attack {
-    address weth;
-
-    constructor(address _weth) {
-        weth = _weth;
-    }
-
-    function attack() public payable {
-        address payable addr = payable(weth);
-        selfdestruct(addr);
-    }
-}
-
 contract ForkYieldStakingTest is Test {
     YieldStakingVault vault;
-    Attack attack;
     IYieldStaking staking;
     IERC20Metadata token;
     uint256 amount;
@@ -37,11 +22,10 @@ contract ForkYieldStakingTest is Test {
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("https://rpc.blast.io/");
+        forkId = vm.createSelectFork("blast");
         user = address(100);
         amount = 1e20;
-        staking = IYieldStaking(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D));
-        attack = new Attack(address(0x4300000000000000000000000000000000000004));
+        staking = IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
     }
 
     modifier fork() {
@@ -50,7 +34,7 @@ contract ForkYieldStakingTest is Test {
     }
 
     function _deposit() internal returns (uint256 shares) {
-        vm.startPrank(admin);
+        vm.prank(admin);
         vault = YieldStakingVault(
             payable(
                 address(
@@ -62,7 +46,6 @@ contract ForkYieldStakingTest is Test {
                 )
             )
         );
-        vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
         shares = vault.deposit(amount, user);
@@ -70,9 +53,8 @@ contract ForkYieldStakingTest is Test {
     }
 
     function _redeem(uint256 shares) internal returns (uint256 assets) {
-        vm.startPrank(user);
+        vm.prank(user);
         assets = vault.redeem(shares, user, user);
-        vm.stopPrank();
     }
 
     function test_usdb() public fork {
@@ -95,14 +77,10 @@ contract ForkYieldStakingTest is Test {
         token.transfer(user, amount);
         uint256 shares = _deposit();
 
-        vm.startPrank(address(0x59a661F1C909ca13ba3E9114BFDd81E5a420705D));
-        console.log("totalSupply", token.totalSupply(), "price", IWETH(address(token)).price());
-        attack.attack{value: address(0x59a661F1C909ca13ba3E9114BFDd81E5a420705D).balance}();
-        console.log("totalSupply", token.totalSupply(), "price", IWETH(address(token)).price());
-        vm.stopPrank();
-        vm.startPrank(address(0x4300000000000000000000000000000000000000));
+        vm.deal(address(token), address(token).balance * 101 / 100);
+
+        vm.prank(address(0x4300000000000000000000000000000000000000));
         IShares(address(token)).addValue(0);
-        vm.stopPrank();
 
         _redeem(shares);
         vm.assertGt(token.balanceOf(user), amount);

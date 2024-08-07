@@ -7,15 +7,3 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
-[submodule "lib/v3-core"]
-	path = lib/v3-core
-	url = https://github.com/@uniswap/v3-core
-[submodule "lib/v3-periphery"]
-	path = lib/v3-periphery
-	url = https://github.com/@uniswap/v3-periphery
-[submodule "lib/Algebra"]
-	path = lib/Algebra
-	url = https://github.com/cryptoalgebra/Algebra
-[submodule "lib/launchpad-contracts"]
-	path = lib/launchpad-contracts
-	url = https://github.com/blastupio/launchpad-contracts

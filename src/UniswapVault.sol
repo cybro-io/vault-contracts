@@ -8,8 +8,14 @@ import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/call
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {CallbackValidation} from "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol";
+import {PoolAddress} from "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
+    using SafeERC20 for IERC20Metadata;
+
     IUniswapV3Pool public immutable pool;
     uint24 public immutable fee;
 
@@ -26,9 +32,21 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         __BaseDexVault_init(admin);
     }
 
-    function _getCurrentSqrtPrice() internal view override returns (uint160) {
-        (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
-        return sqrtPriceX96;
+    function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
+        (,,,,,,, liquidity,,,,) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+    }
+
+    function _getTokensOwed() internal virtual override returns (uint128 amount0, uint128 amount1) {
+        (,,,,,,,,,, amount0, amount1) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+    }
+
+    function _getCurrentSqrtPrice() internal view override returns (uint160 sqrtPriceX96) {
+        (sqrtPriceX96,,,,,,) = pool.slot0();
+    }
+
+    function _getTicks() internal pure override returns (int24 tickLower, int24 tickUpper) {
+        tickLower = TickMath.MIN_TICK;
+        tickUpper = TickMath.MAX_TICK;
     }
 
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
@@ -43,8 +61,12 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
-    function _mintPosition(uint256 amount0, uint256 amount1) internal override returns (uint256 tokenId) {
-        (tokenId,,,) = INonfungiblePositionManager(positionManager).mint(
+    function _mintPosition(uint256 amount0, uint256 amount1)
+        internal
+        override
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+    {
+        (tokenId, liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -61,8 +83,12 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         );
     }
 
-    function _increaseLiquidity(uint256 amount0, uint256 amount1) internal override returns (uint128 liquidity) {
-        (liquidity,,) = INonfungiblePositionManager(positionManager).increaseLiquidity(
+    function _increaseLiquidity(uint256 amount0, uint256 amount1)
+        internal
+        override
+        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+    {
+        (liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,
@@ -102,6 +128,16 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
-        _swapCallback(amount0Delta, amount1Delta, _data);
+        require(amount0Delta > 0 || amount1Delta > 0);
+        (address tokenIn, address tokenOut, uint24 _fee) = abi.decode(_data, (address, address, uint24));
+        CallbackValidation.verifyCallback(factory, tokenIn, tokenOut, _fee);
+
+        (bool isExactInput, uint256 amountToPay) =
+            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
+        if (isExactInput) {
+            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
+        } else {
+            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
+        }
     }
 }

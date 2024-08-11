@@ -3,28 +3,31 @@
 pragma solidity 0.8.26;
 
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import {CallbackValidation} from "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol";
-
 import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import {FixedPoint96} from "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import {PoolAddress} from "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
+/// @title BaseDexVault
+/// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
+/// @dev This contract is meant to be inherited by specific implementations for different DEXes
 abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
 
+    /// @notice Address of token0 used in the liquidity pool
     address public immutable token0;
+
+    /// @notice Address of token1 used in the liquidity pool
     address public immutable token1;
+
+    /// @notice Address of the factory that created the liquidity pool
     address public immutable factory;
+
+    /// @notice Address of the position manager contract
     address payable public immutable positionManager;
 
     /// @notice The ID of the NFT representing the Dex liquidity position
@@ -47,17 +50,21 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param shares The number of shares burned from the owner
     event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 shares);
 
+    /// @param _positionManager The address of the Dex position manager
+    /// @param _token0 The address of token0
+    /// @param _token1 The address of token1
     constructor(address _positionManager, address _token0, address _token1) {
         positionManager = payable(_positionManager);
         factory = INonfungiblePositionManager(_positionManager).factory();
         token0 = _token0;
         token1 = _token1;
-
-        IERC20Metadata(_token0).forceApprove(positionManager, type(uint256).max);
-        IERC20Metadata(_token1).forceApprove(positionManager, type(uint256).max);
     }
 
+    /// @notice Initializes the contract with the given admin address
+    /// @param admin The address of the admin
     function __BaseDexVault_init(address admin) public onlyInitializing {
+        IERC20Metadata(token0).approve(positionManager, type(uint256).max);
+        IERC20Metadata(token1).approve(positionManager, type(uint256).max);
         __Ownable_init(admin);
     }
 
@@ -98,14 +105,25 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param amount0 The amount of token0 to add to the liquidity position
     /// @param amount1 The amount of token1 to add to the liquidity position
     /// @return tokenId The ID of the newly minted liquidity position
-    function _mintPosition(uint256 amount0, uint256 amount1) internal virtual returns (uint256 tokenId);
+    /// @return liquidity The amount of liquidity added
+    /// @return amount0Used The amount of token0 used in the liquidity provision
+    /// @return amount1Used The amount of token1 used in the liquidity provision
+    function _mintPosition(uint256 amount0, uint256 amount1)
+        internal
+        virtual
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
 
     /// @notice Abstract function to increase the liquidity of an existing Dex position
     /// @dev Must be implemented by the inheriting contract
     /// @param amount0 The amount of token0 to add to the liquidity position
     /// @param amount1 The amount of token1 to add to the liquidity position
     /// @return liquidity The amount of liquidity added to the position
-    function _increaseLiquidity(uint256 amount0, uint256 amount1) internal virtual returns (uint128 liquidity);
+    /// @return amount0Used The amount of token0 used in the liquidity provision
+    /// @return amount1Used The amount of token1 used in the liquidity provision
+    function _increaseLiquidity(uint256 amount0, uint256 amount1)
+        internal
+        virtual
+        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
 
     /// @notice Abstract function to decrease the liquidity of an existing Dex position
     /// @dev Must be implemented by the inheriting contract
@@ -127,33 +145,34 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
 
     /// @notice Retrieves the current liquidity of the Dex position
     /// @return liquidity The current liquidity of the position
-    function _getTokenLiquidity() internal virtual returns (uint128 liquidity) {
-        (,,,,,,, liquidity,,,,) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
-    }
+    function _getTokenLiquidity() internal view virtual returns (uint128 liquidity);
 
     /// @notice Retrieves the amount of tokens owed to the vault from the Dex position
     /// @return amount0 The amount of token0 owed
     /// @return amount1 The amount of token1 owed
-    function _getTokensOwed() internal virtual returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,,, amount0, amount1) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
-    }
+    function _getTokensOwed() internal virtual returns (uint128 amount0, uint128 amount1);
 
     /// @notice Abstract function to retrieve the current square root price of the Dex pool
     /// @dev Must be implemented by the inheriting contract
     /// @return The current square root price
     function _getCurrentSqrtPrice() internal view virtual returns (uint160);
 
+    /// @notice Abstract function to retrieve the current ticks of the Dex pool
+    /// @dev Must be implemented by the inheriting contract
+    /// @return The current ticks of the pool
+    function _getTicks() internal view virtual returns (int24, int24);
+
     /// @notice Deposits tokens into the vault and provides liquidity on Dex
     /// @param inToken0 A boolean indicating whether the deposit is in token0 (true) or token1 (false)
     /// @param amount The amount of the token being deposited
     /// @param receiver The address that will receive the minted shares
-    function deposit(bool inToken0, uint256 amount, address receiver) public {
+    /// @return shares The number of shares minted to the receiver
+    function deposit(bool inToken0, uint256 amount, address receiver) public returns (uint256 shares) {
         if (inToken0) {
             IERC20Metadata(token0).safeTransferFrom(msg.sender, address(this), amount);
         } else {
             IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
         }
-
         uint160 sqrtPriceLower = TickMath.MIN_SQRT_RATIO;
         uint160 sqrtPriceUpper = TickMath.MAX_SQRT_RATIO;
 
@@ -162,23 +181,43 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         uint256 amount0;
         uint256 amount1;
         if (inToken0) {
-            amount0 = amount;
+            amount0 = amountFor0;
             amount1 = _swap(true, amountFor1);
         } else {
             amount0 = _swap(false, amountFor0);
-            amount1 = amount;
+            amount1 = amountFor1;
         }
 
         uint128 liquidityBefore = positionTokenId == 0 ? 0 : _getTokenLiquidity();
         uint128 liquidityReceived;
+        uint256 amount0Used;
+        uint256 amount1Used;
         if (positionTokenId == 0) {
-            positionTokenId = _mintPosition(amount0, amount1);
+            (positionTokenId, liquidityReceived, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
         } else {
-            liquidityReceived = _increaseLiquidity(amount0, amount1);
+            (liquidityReceived, amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
         }
+        // Calculate remaining amounts after liquidity provision
+        amount0 -= amount0Used;
+        amount1 -= amount1Used;
 
-        uint256 shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
-        _mint(msg.sender, shares);
+        shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
+        _mint(receiver, shares);
+
+        // Return remaining tokens to the user
+        if (amount0 > 0 && !inToken0) {
+            amount1 += _swap(true, amount0);
+            IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
+        } else if (amount1 > 0 && inToken0) {
+            amount0 += _swap(false, amount1);
+            IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
+        } else {
+            if (inToken0 && amount0 > 0) {
+                IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
+            } else if (amount1 > 0) {
+                IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
+            }
+        }
 
         emit Deposit(_msgSender(), receiver, liquidityReceived, shares);
     }
@@ -188,46 +227,36 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param shares The number of shares to redeem
     /// @param receiver The address receiving the withdrawn tokens
     /// @param owner The address of the owner of the shares being redeemed
-    function redeem(bool inToken0, uint256 shares, address receiver, address owner) public {
+    /// @return amount0 The amount of token0 sent to the user
+    /// @return amount1 The amount of token1 sent to the user
+    function redeem(bool inToken0, uint256 shares, address receiver, address owner)
+        public
+        returns (uint256 amount0, uint256 amount1)
+    {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-        _burn(msg.sender, shares);
 
         uint128 liquidityToRemove = uint128(shares * _getTokenLiquidity() / totalSupply());
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
-        (uint256 amount0, uint256 amount1) = _decreaseLiquidity(liquidityToRemove);
+        (amount0, amount1) = _decreaseLiquidity(liquidityToRemove);
         (amount0, amount1) = _collect(
             uint128(shares * owed0 / totalSupply() + amount0), uint128(shares * owed1 / totalSupply() + amount1)
         );
 
+        _burn(owner, shares);
+
         if (inToken0) {
             amount0 += _swap(false, amount1);
-            IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
+            amount1 = 0;
+            IERC20Metadata(token0).safeTransfer(receiver, amount0);
         } else {
             amount1 += _swap(true, amount0);
-            IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
+            amount0 = 0;
+            IERC20Metadata(token1).safeTransfer(receiver, amount1);
         }
 
         emit Withdraw(_msgSender(), receiver, owner, shares);
-    }
-
-    /// @notice Callback function for swaps
-    /// @param amount0Delta The change in token0 amount
-    /// @param amount1Delta The change in token1 amount
-    /// @param data Additional data needed to process the callback
-    function _swapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) internal {
-        require(amount0Delta > 0 || amount1Delta > 0);
-        (address tokenIn, address tokenOut, uint24 fee) = abi.decode(data, (address, address, uint24));
-        CallbackValidation.verifyCallback(factory, tokenIn, tokenOut, fee);
-
-        (bool isExactInput, uint256 amountToPay) =
-            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
-        if (isExactInput) {
-            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
-        } else {
-            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
-        }
     }
 
     /// @notice It is function only used to withdraw funds accidentally sent to the contract.

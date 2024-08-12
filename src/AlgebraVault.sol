@@ -17,12 +17,12 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     IAlgebraPool public immutable pool;
 
-    constructor(address _positionManager, address _token0, address _token1)
-        BaseDexVault(_positionManager, _token0, _token1)
-    {
-        pool = IAlgebraPool(IAlgebraFactory(factory).poolByPair(_token0, _token1));
-        IERC20Metadata(_token0).approve(address(pool), type(uint256).max);
-        IERC20Metadata(_token1).approve(address(pool), type(uint256).max);
+    /// @notice Address of the position manager contract
+    INonfungiblePositionManager public immutable positionManager;
+
+    constructor(address payable _positionManager, address _token0, address _token1) BaseDexVault(_token0, _token1) {
+        positionManager = INonfungiblePositionManager(_positionManager);
+        pool = IAlgebraPool(IAlgebraFactory(positionManager.factory()).poolByPair(_token0, _token1));
         _disableInitializers();
     }
 
@@ -31,18 +31,20 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     /// @param name The name of the ERC20 token representing vault shares
     /// @param symbol The symbol of the ERC20 token representing vault shares
     function initialize(address admin, string memory name, string memory symbol) public initializer {
+        IERC20Metadata(token0).approve(address(positionManager), type(uint256).max);
+        IERC20Metadata(token1).approve(address(positionManager), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseDexVault_init(admin);
     }
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
-        (,,,,,, liquidity,,,,) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+        (,,,,,, liquidity,,,,) = positionManager.positions(positionTokenId);
     }
 
     /// @inheritdoc BaseDexVault
     function _getTokensOwed() internal virtual override returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,, amount0, amount1) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+        (,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -54,8 +56,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     /// @inheritdoc BaseDexVault
     function _getTicks() internal view override returns (int24 tickLower, int24 tickUpper) {
         // Retrieve the lower and upper ticks from the pool
-        (,,, tickLower,,) = pool.ticks(TickMath.MIN_TICK);
-        tickUpper = -tickLower;
+        tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
+        tickLower = -tickUpper;
     }
 
     /// @inheritdoc BaseDexVault
@@ -73,18 +75,17 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _mintPosition(uint256 amount0, uint256 amount1)
+    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
         internal
         override
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
-        (int24 tickMin, int24 tickMax) = _getTicks();
-        (tokenId, liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).mint(
+        (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
-                tickLower: tickMin,
-                tickUpper: tickMax,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -101,7 +102,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         override
         returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
-        (liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).increaseLiquidity(
+        (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,
@@ -115,7 +116,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     /// @inheritdoc BaseDexVault
     function _decreaseLiquidity(uint128 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
-        (amount0, amount1) = INonfungiblePositionManager(positionManager).decreaseLiquidity(
+        (amount0, amount1) = positionManager.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: positionTokenId,
                 liquidity: liquidity,
@@ -132,7 +133,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         override
         returns (uint256 amount0, uint256 amount1)
     {
-        (amount0, amount1) = INonfungiblePositionManager(positionManager).collect(
+        (amount0, amount1) = positionManager.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: positionTokenId,
                 recipient: address(this),

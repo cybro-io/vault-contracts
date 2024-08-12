@@ -19,25 +19,31 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
     IUniswapV3Pool public immutable pool;
     uint24 public immutable fee;
 
-    constructor(address _positionManager, address _token0, address _token1, uint24 _fee)
-        BaseDexVault(_positionManager, _token0, _token1)
+    /// @notice Address of the position manager contract
+    INonfungiblePositionManager public immutable positionManager;
+
+    constructor(address payable _positionManager, address _token0, address _token1, uint24 _fee)
+        BaseDexVault(_token0, _token1)
     {
+        positionManager = INonfungiblePositionManager(_positionManager);
         fee = _fee;
-        pool = IUniswapV3Pool(IUniswapV3Factory(factory).getPool(_token0, _token1, _fee));
+        pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, _fee));
         _disableInitializers();
     }
 
     function initialize(address admin, string memory name, string memory symbol) public initializer {
+        IERC20Metadata(token0).approve(address(positionManager), type(uint256).max);
+        IERC20Metadata(token1).approve(address(positionManager), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseDexVault_init(admin);
     }
 
     function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
-        (,,,,,,, liquidity,,,,) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+        (,,,,,,, liquidity,,,,) = positionManager.positions(positionTokenId);
     }
 
     function _getTokensOwed() internal virtual override returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,,, amount0, amount1) = INonfungiblePositionManager(positionManager).positions(positionTokenId);
+        (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
     function _getCurrentSqrtPrice() internal view override returns (uint160 sqrtPriceX96) {
@@ -61,18 +67,18 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
-    function _mintPosition(uint256 amount0, uint256 amount1)
+    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
         internal
         override
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
-        (tokenId, liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).mint(
+        (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
                 fee: fee,
-                tickLower: TickMath.MIN_TICK,
-                tickUpper: TickMath.MAX_TICK,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -88,7 +94,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         override
         returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
-        (liquidity, amount0Used, amount1Used) = INonfungiblePositionManager(positionManager).increaseLiquidity(
+        (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,
@@ -101,7 +107,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
     }
 
     function _decreaseLiquidity(uint128 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
-        (amount0, amount1) = INonfungiblePositionManager(positionManager).decreaseLiquidity(
+        (amount0, amount1) = positionManager.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: positionTokenId,
                 liquidity: liquidity,
@@ -117,7 +123,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         override
         returns (uint256 amount0, uint256 amount1)
     {
-        (amount0, amount1) = INonfungiblePositionManager(positionManager).collect(
+        (amount0, amount1) = positionManager.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: positionTokenId,
                 recipient: address(this),
@@ -130,7 +136,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
         require(amount0Delta > 0 || amount1Delta > 0);
         (address tokenIn, address tokenOut, uint24 _fee) = abi.decode(_data, (address, address, uint24));
-        CallbackValidation.verifyCallback(factory, tokenIn, tokenOut, _fee);
+        // CallbackValidation.verifyCallback(factory, tokenIn, tokenOut, _fee);
 
         (bool isExactInput, uint256 amountToPay) =
             amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));

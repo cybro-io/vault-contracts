@@ -24,17 +24,8 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @notice Address of token1 used in the liquidity pool
     address public immutable token1;
 
-    /// @notice Address of the factory that created the liquidity pool
-    address public immutable factory;
-
-    /// @notice Address of the position manager contract
-    address payable public immutable positionManager;
-
     /// @notice The ID of the NFT representing the Dex liquidity position
     uint256 public positionTokenId;
-
-    /// @notice Error thrown when a swap callback is called by an address other than the position manager
-    error OnlyPositionManager();
 
     /// @notice Emitted when liquidity is deposited into the vault
     /// @param sender The address initiating the deposit
@@ -50,12 +41,9 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param shares The number of shares burned from the owner
     event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 shares);
 
-    /// @param _positionManager The address of the Dex position manager
     /// @param _token0 The address of token0
     /// @param _token1 The address of token1
-    constructor(address _positionManager, address _token0, address _token1) {
-        positionManager = payable(_positionManager);
-        factory = INonfungiblePositionManager(_positionManager).factory();
+    constructor(address _token0, address _token1) {
         token0 = _token0;
         token1 = _token1;
     }
@@ -63,8 +51,6 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @notice Initializes the contract with the given admin address
     /// @param admin The address of the admin
     function __BaseDexVault_init(address admin) public onlyInitializing {
-        IERC20Metadata(token0).approve(positionManager, type(uint256).max);
-        IERC20Metadata(token1).approve(positionManager, type(uint256).max);
         __Ownable_init(admin);
     }
 
@@ -104,11 +90,13 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @dev Must be implemented by the inheriting contract
     /// @param amount0 The amount of token0 to add to the liquidity position
     /// @param amount1 The amount of token1 to add to the liquidity position
+    /// @param tickLower The lower tick of the liquidity position
+    /// @param tickUpper The upper tick of the liquidity position
     /// @return tokenId The ID of the newly minted liquidity position
     /// @return liquidity The amount of liquidity added
     /// @return amount0Used The amount of token0 used in the liquidity provision
     /// @return amount1Used The amount of token1 used in the liquidity provision
-    function _mintPosition(uint256 amount0, uint256 amount1)
+    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
         internal
         virtual
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
@@ -193,7 +181,9 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         uint256 amount0Used;
         uint256 amount1Used;
         if (positionTokenId == 0) {
-            (positionTokenId, liquidityReceived, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
+            (int24 tickLower, int24 tickUpper) = _getTicks();
+            (positionTokenId, liquidityReceived, amount0Used, amount1Used) =
+                _mintPosition(amount0, amount1, tickLower, tickUpper);
         } else {
             (liquidityReceived, amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
         }
@@ -270,8 +260,7 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         }
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external view override returns (bytes4) {
-        if (msg.sender != positionManager) revert OnlyPositionManager();
+    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
 }

@@ -48,7 +48,7 @@ contract ForkFenixVaultTest is Test {
         vault = AlgebraVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new AlgebraVault(address(positionManager), address(token0), address(token1))),
+                    address(new AlgebraVault(payable(address(positionManager)), address(token0), address(token1))),
                     admin,
                     abi.encodeCall(AlgebraVault.initialize, (admin, "nameVault", "symbolVault"))
                 )
@@ -89,11 +89,20 @@ contract ForkFenixVaultTest is Test {
         uint256 sharesUser2 = _deposit(user2, false);
         console.log("shares user 2", sharesUser2);
 
-        (uint256 amount0, uint256 amount1) = _redeem(user, user, false, sharesUser);
+        (uint256 amount0, uint256 amount1) = _redeem(user, user, true, sharesUser);
+        vm.assertEq(amount1, 0);
+        vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e19);
+
         vm.expectRevert();
-        (amount0, amount1) = _redeem(user2, user, true, sharesUser2);
+        _redeem(user2, user, true, sharesUser2);
+
         vm.prank(user2);
         IERC20Metadata(address(vault)).approve(user, sharesUser2);
-        (amount0, amount1) = _redeem(user2, user, true, sharesUser2);
+        (amount0, amount1) = _redeem(user2, user, false, sharesUser2);
+        vm.assertEq(amount0, 0);
+        vm.startPrank(user);
+        token1.transfer(user2, token1.balanceOf(user));
+        vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e19);
+        vm.stopPrank();
     }
 }

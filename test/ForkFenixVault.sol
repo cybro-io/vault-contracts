@@ -89,6 +89,9 @@ contract ForkFenixVaultTest is Test {
         uint256 sharesUser2 = _deposit(user2, false);
         console.log("shares user 2", sharesUser2);
 
+        (uint256 amountInPool0, uint256 amountInPool1) = vault.getAmountsForLiquidity();
+        console.log("amount in pool 0", amountInPool0, "amount in pool 1", amountInPool1);
+
         (uint256 amount0, uint256 amount1) = _redeem(user, user, true, sharesUser);
         vm.assertEq(amount1, 0);
         vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e19);

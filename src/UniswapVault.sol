@@ -50,9 +50,9 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         (sqrtPriceX96,,,,,,) = pool.slot0();
     }
 
-    function _getTicks() internal pure override returns (int24 tickLower, int24 tickUpper) {
-        tickLower = TickMath.MIN_TICK;
-        tickUpper = TickMath.MAX_TICK;
+    function _updateTicks() internal override {
+        tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
+        tickLower = -tickUpper;
     }
 
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
@@ -67,7 +67,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
-    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
+    function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)

@@ -11,6 +11,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
 /// @title BaseDexVault
 /// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
@@ -26,6 +27,11 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
 
     /// @notice The ID of the NFT representing the Dex liquidity position
     uint256 public positionTokenId;
+
+    int24 public tickLower;
+    int24 public tickUpper;
+    uint160 public sqrtPriceLower;
+    uint160 public sqrtPriceUpper;
 
     /// @notice Emitted when liquidity is deposited into the vault
     /// @param sender The address initiating the deposit
@@ -51,6 +57,8 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @notice Initializes the contract with the given admin address
     /// @param admin The address of the admin
     function __BaseDexVault_init(address admin) public onlyInitializing {
+        _updateTicks();
+        _updateSqrtPricesLowerAndUpper();
         __Ownable_init(admin);
     }
 
@@ -79,6 +87,15 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         }
     }
 
+    /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
+    /// @return amount0 The amount of token0
+    /// @return amount1 The amount of token1
+    function getAmountsForLiquidity() public view returns (uint256 amount0, uint256 amount1) {
+        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            _getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, _getTokenLiquidity()
+        );
+    }
+
     /// @notice Abstract function to perform a token swap
     /// @dev Must be implemented by the inheriting contract
     /// @param zeroForOne A boolean indicating the direction of the swap (true for token0 to token1, false for token1 to token0)
@@ -90,13 +107,11 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @dev Must be implemented by the inheriting contract
     /// @param amount0 The amount of token0 to add to the liquidity position
     /// @param amount1 The amount of token1 to add to the liquidity position
-    /// @param tickLower The lower tick of the liquidity position
-    /// @param tickUpper The upper tick of the liquidity position
     /// @return tokenId The ID of the newly minted liquidity position
     /// @return liquidity The amount of liquidity added
     /// @return amount0Used The amount of token0 used in the liquidity provision
     /// @return amount1Used The amount of token1 used in the liquidity provision
-    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
+    function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         virtual
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
@@ -145,10 +160,16 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @return The current square root price
     function _getCurrentSqrtPrice() internal view virtual returns (uint160);
 
-    /// @notice Abstract function to retrieve the current ticks of the Dex pool
+    /// @notice Abstract function to update the current ticks of the Dex pool
     /// @dev Must be implemented by the inheriting contract
-    /// @return The current ticks of the pool
-    function _getTicks() internal view virtual returns (int24, int24);
+    function _updateTicks() internal virtual;
+
+    /// @notice Abstract function to update the current square root prices of the Dex pool
+    /// Use only after updating the ticks
+    function _updateSqrtPricesLowerAndUpper() internal virtual {
+        sqrtPriceLower = TickMath.getSqrtRatioAtTick(tickLower);
+        sqrtPriceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+    }
 
     /// @notice Deposits tokens into the vault and provides liquidity on Dex
     /// @param inToken0 A boolean indicating whether the deposit is in token0 (true) or token1 (false)
@@ -161,8 +182,6 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         } else {
             IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
         }
-        uint160 sqrtPriceLower = TickMath.MIN_SQRT_RATIO;
-        uint160 sqrtPriceUpper = TickMath.MAX_SQRT_RATIO;
 
         (uint256 amountFor0, uint256 amountFor1) =
             getAmounts(sqrtPriceLower, _getCurrentSqrtPrice(), sqrtPriceUpper, amount);
@@ -178,18 +197,15 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
 
         uint128 liquidityBefore = positionTokenId == 0 ? 0 : _getTokenLiquidity();
         uint128 liquidityReceived;
-        uint256 amount0Used;
-        uint256 amount1Used;
+        // reuse variables amountFor0 as amnountUsed0 and amountFor1 as amountUsed1
         if (positionTokenId == 0) {
-            (int24 tickLower, int24 tickUpper) = _getTicks();
-            (positionTokenId, liquidityReceived, amount0Used, amount1Used) =
-                _mintPosition(amount0, amount1, tickLower, tickUpper);
+            (positionTokenId, liquidityReceived, amountFor0, amountFor1) = _mintPosition(amount0, amount1);
         } else {
-            (liquidityReceived, amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
+            (liquidityReceived, amountFor0, amountFor1) = _increaseLiquidity(amount0, amount1);
         }
         // Calculate remaining amounts after liquidity provision
-        amount0 -= amount0Used;
-        amount1 -= amount1Used;
+        amount0 -= amountFor0;
+        amount1 -= amountFor1;
 
         shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
         _mint(receiver, shares);

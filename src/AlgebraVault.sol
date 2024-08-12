@@ -54,8 +54,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTicks() internal view override returns (int24 tickLower, int24 tickUpper) {
-        // Retrieve the lower and upper ticks from the pool
+    function _updateTicks() internal virtual override {
         tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
         tickLower = -tickUpper;
     }
@@ -75,7 +74,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _mintPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
+    function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)

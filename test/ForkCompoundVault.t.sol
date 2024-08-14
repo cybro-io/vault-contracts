@@ -37,7 +37,7 @@ contract CompoundVaultTest is Test {
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("https://rpc.blast.io/");
+        forkId = vm.createSelectFork("blast");
         usdbPool = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
         wbtcPool = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
         ethPool = CEth(address(0x0872b71EFC37CB8DdE22B2118De3d800427fdba0));

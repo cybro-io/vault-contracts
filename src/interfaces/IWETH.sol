@@ -13,4 +13,6 @@ interface IWETH {
     function transferFrom(address, address, uint256) external returns (bool);
 
     function balanceOf(address) external view returns (uint256);
+
+    function price() external view returns (uint256);
 }

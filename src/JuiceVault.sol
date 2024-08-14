@@ -8,7 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract JuiceVault is BaseVault, OwnableUpgradeable {
+contract JuiceVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
@@ -27,7 +27,7 @@ contract JuiceVault is BaseVault, OwnableUpgradeable {
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         IERC20Metadata(super.asset()).forceApprove(address(pool), type(uint256).max);
         __ERC20_init(name, symbol);
-        __Ownable_init(admin);
+        __BaseVault_init(admin);
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -43,15 +43,7 @@ contract JuiceVault is BaseVault, OwnableUpgradeable {
         pool.withdraw(assets);
     }
 
-    /// @notice It is function only used to withdraw funds accidentally sent to the contract.
-    function withdrawFunds(address token) external onlyOwner {
-        if (token == address(0)) {
-            (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
-        } else if (BaseVault._validateTokenToRecover(token, address(pool))) {
-            IERC20Metadata(token).safeTransfer(msg.sender, IERC20(token).balanceOf(address(this)));
-        } else {
-            revert InvalidTokenToWithdraw(token);
-        }
+    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+        return token != address(pool);
     }
 }

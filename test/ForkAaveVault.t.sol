@@ -27,7 +27,7 @@ contract AaveVaultTest is Test {
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("https://rpc.blast.io/");
+        forkId = vm.createSelectFork("blast");
         aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
         amount = 1e20;
         user = address(100);

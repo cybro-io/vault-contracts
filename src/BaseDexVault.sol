@@ -62,13 +62,13 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         __Ownable_init(admin);
     }
 
-    /// @notice Calculates the amounts of token0 and token1 needed based on the specified price range
+    /// @notice Calculates the amounts neeeded to get swapped into token0 and token1 to place a position in the given range.
     /// @param sqrtPriceAX96 The square root of the price at the lower bound of the range
     /// @param sqrtPriceX96 The current square root price
     /// @param sqrtPriceBX96 The square root of the price at the upper bound of the range
     /// @param assets The total assets to be divided between token0 and token1
-    /// @return amountFor0 The amount of token0 required
-    /// @return amountFor1 The amount of token1 required
+    /// @return amountFor0 The amount to swap into token0
+    /// @return amountFor1 The amount to swap into token1
     function getAmounts(uint160 sqrtPriceAX96, uint160 sqrtPriceX96, uint160 sqrtPriceBX96, uint256 assets)
         internal
         pure
@@ -90,7 +90,7 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
     /// @return amount0 The amount of token0
     /// @return amount1 The amount of token1
-    function getAmountsForLiquidity() public view returns (uint256 amount0, uint256 amount1) {
+    function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
             _getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, _getTokenLiquidity()
         );
@@ -197,15 +197,17 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
 
         uint128 liquidityBefore = positionTokenId == 0 ? 0 : _getTokenLiquidity();
         uint128 liquidityReceived;
+        uint256 amount0Used;
+        uint256 amount1Used;
         // reuse variables amountFor0 as amnountUsed0 and amountFor1 as amountUsed1
         if (positionTokenId == 0) {
-            (positionTokenId, liquidityReceived, amountFor0, amountFor1) = _mintPosition(amount0, amount1);
+            (positionTokenId, liquidityReceived, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
         } else {
-            (liquidityReceived, amountFor0, amountFor1) = _increaseLiquidity(amount0, amount1);
+            (liquidityReceived, amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
         }
         // Calculate remaining amounts after liquidity provision
-        amount0 -= amountFor0;
-        amount1 -= amountFor1;
+        amount0 -= amount0Used;
+        amount1 -= amount1Used;
 
         shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
         _mint(receiver, shares);

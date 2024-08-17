@@ -61,7 +61,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
             zeroForOne,
             int256(amount),
             zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
-            abi.encode(token0, token1, fee)
+            abi.encode(token0, token1)
         );
 
         return uint256(-(zeroForOne ? amount1 : amount0));
@@ -133,10 +133,11 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         );
     }
 
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         require(amount0Delta > 0 || amount1Delta > 0);
-        (address tokenIn, address tokenOut, uint24 _fee) = abi.decode(_data, (address, address, uint24));
-        // CallbackValidation.verifyCallback(factory, tokenIn, tokenOut, _fee);
+        require(msg.sender == address(pool));
+
+        (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
         (bool isExactInput, uint256 amountToPay) =
             amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));

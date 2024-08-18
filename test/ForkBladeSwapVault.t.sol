@@ -13,7 +13,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
 // Algebra Pool Deployer 0xfFeEcb1fe0EAaEFeE69d122F6B7a0368637cb593
 // BLAST token address 0xb1a5700fa2358173fe465e6ea4ff52e36e88e2ad
 // USDB/WETH pool 0xdA5AaEb22eD5b8aa76347eC57424CA0d109eFB2A
-
 contract ForkBladeSwapVaultTest is Test {
     AlgebraVault vault;
     IAlgebraFactory factory = IAlgebraFactory(address(0xA87DbF5082Af26c9A6Ab2B854E378f704638CCa5));
@@ -38,7 +37,7 @@ contract ForkBladeSwapVaultTest is Test {
         forkId = vm.createSelectFork("blast");
         user = address(100);
         user2 = address(101);
-        amount = 1e20;
+        amount = 1e19;
     }
 
     modifier fork() {
@@ -67,16 +66,17 @@ contract ForkBladeSwapVaultTest is Test {
         } else {
             token1.approve(address(vault), amount);
         }
-        shares = vault.deposit(inToken0, amount, _user);
+        uint160 sqrtPriceX96 = vault.getCurrentSqrtPrice();
+        shares = vault.deposit(inToken0, amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
         vm.stopPrank();
     }
 
     function _redeem(address _owner, address _receiver, bool _inToken0, uint256 _shares)
         internal
-        returns (uint256 amount0, uint256 amount1)
+        returns (uint256 assets)
     {
         vm.startPrank(_receiver);
-        (amount0, amount1) = vault.redeem(_inToken0, _shares, _receiver, _owner);
+        assets = vault.redeem(_inToken0, _shares, _receiver, _owner, 0);
         vm.stopPrank();
     }
 
@@ -92,8 +92,7 @@ contract ForkBladeSwapVaultTest is Test {
         uint256 sharesUser2 = _deposit(user2, false);
         console.log("shares user2", sharesUser2);
 
-        (uint256 amount0, uint256 amount1) = _redeem(user, user, true, sharesUser);
-        vm.assertEq(amount1, 0);
+        uint256 assets = _redeem(user, user, true, sharesUser);
         vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e19);
 
         vm.expectRevert();
@@ -101,8 +100,7 @@ contract ForkBladeSwapVaultTest is Test {
 
         vm.prank(user2);
         IERC20Metadata(address(vault)).approve(user, sharesUser2);
-        (amount0, amount1) = _redeem(user2, user, false, sharesUser2);
-        vm.assertEq(amount0, 0);
+        assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));
         vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e19);

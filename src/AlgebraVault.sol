@@ -48,7 +48,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getCurrentSqrtPrice() internal view override returns (uint160) {
+    function getCurrentSqrtPrice() public view override returns (uint160) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();
         return sqrtPriceX96;
     }

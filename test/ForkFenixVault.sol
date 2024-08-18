@@ -35,7 +35,10 @@ contract ForkFenixVaultTest is Test {
         forkId = vm.createSelectFork("blast");
         user = address(100);
         user2 = address(101);
-        amount = 1e20;
+        amount = 1e19;
+
+        vm.label(address(token0), "USDB");
+        vm.label(address(token1), "WETH");
     }
 
     modifier fork() {
@@ -64,16 +67,17 @@ contract ForkFenixVaultTest is Test {
         } else {
             token1.approve(address(vault), amount);
         }
-        shares = vault.deposit(inToken0, amount, _user);
+        uint160 sqrtPriceX96 = vault.getCurrentSqrtPrice();
+        shares = vault.deposit(inToken0, amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
         vm.stopPrank();
     }
 
     function _redeem(address _owner, address _receiver, bool _inToken0, uint256 _shares)
         internal
-        returns (uint256 amount0, uint256 amount1)
+        returns (uint256 assets)
     {
         vm.startPrank(_receiver);
-        (amount0, amount1) = vault.redeem(_inToken0, _shares, _receiver, _owner);
+        assets = vault.redeem(_inToken0, _shares, _receiver, _owner, 0);
         vm.stopPrank();
     }
 
@@ -92,8 +96,7 @@ contract ForkFenixVaultTest is Test {
         (uint256 amountInPool0, uint256 amountInPool1) = vault.getPositionAmounts();
         console.log("amount in pool 0", amountInPool0, "amount in pool 1", amountInPool1);
 
-        (uint256 amount0, uint256 amount1) = _redeem(user, user, true, sharesUser);
-        vm.assertEq(amount1, 0);
+        uint256 assets = _redeem(user, user, true, sharesUser);
         vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e19);
 
         vm.expectRevert();
@@ -101,8 +104,7 @@ contract ForkFenixVaultTest is Test {
 
         vm.prank(user2);
         IERC20Metadata(address(vault)).approve(user, sharesUser2);
-        (amount0, amount1) = _redeem(user2, user, false, sharesUser2);
-        vm.assertEq(amount0, 0);
+        assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));
         vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e19);

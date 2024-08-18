@@ -46,7 +46,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
-    function _getCurrentSqrtPrice() internal view override returns (uint160 sqrtPriceX96) {
+    function getCurrentSqrtPrice() public view override returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = pool.slot0();
     }
 

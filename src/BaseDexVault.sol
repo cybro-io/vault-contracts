@@ -92,7 +92,7 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @return amount1 The amount of token1
     function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            _getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, _getTokenLiquidity()
+            getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, _getTokenLiquidity()
         );
     }
 
@@ -158,7 +158,7 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @notice Abstract function to retrieve the current square root price of the Dex pool
     /// @dev Must be implemented by the inheriting contract
     /// @return The current square root price
-    function _getCurrentSqrtPrice() internal view virtual returns (uint160);
+    function getCurrentSqrtPrice() public view virtual returns (uint160);
 
     /// @notice Abstract function to update the current ticks of the Dex pool
     /// @dev Must be implemented by the inheriting contract
@@ -175,24 +175,35 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param inToken0 A boolean indicating whether the deposit is in token0 (true) or token1 (false)
     /// @param amount The amount of the token being deposited
     /// @param receiver The address that will receive the minted shares
+    /// @param minSqrtPriceX96 The minimum sqrtPrice expected at the point of placing the position
+    /// @param maxSqrtPriceX96 The maximum sqrtPrice expected at the point of placing the position
     /// @return shares The number of shares minted to the receiver
-    function deposit(bool inToken0, uint256 amount, address receiver) public returns (uint256 shares) {
+    function deposit(bool inToken0, uint256 amount, address receiver, uint160 minSqrtPriceX96, uint160 maxSqrtPriceX96)
+        public
+        returns (uint256 shares)
+    {
         if (inToken0) {
             IERC20Metadata(token0).safeTransferFrom(msg.sender, address(this), amount);
         } else {
             IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        (uint256 amountFor0, uint256 amountFor1) =
-            getAmounts(sqrtPriceLower, _getCurrentSqrtPrice(), sqrtPriceUpper, amount);
+        uint160 sqrtPriceCurrent = getCurrentSqrtPrice();
+        (uint256 amountFor0, uint256 amountFor1) = getAmounts(sqrtPriceLower, sqrtPriceCurrent, sqrtPriceUpper, amount);
         uint256 amount0;
         uint256 amount1;
         if (inToken0) {
+            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price");
             amount0 = amountFor0;
             amount1 = _swap(true, amountFor1);
+            sqrtPriceCurrent = getCurrentSqrtPrice();
+            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price");
         } else {
+            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price");
             amount0 = _swap(false, amountFor0);
             amount1 = amountFor1;
+            sqrtPriceCurrent = getCurrentSqrtPrice();
+            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price");
         }
 
         uint128 liquidityBefore = positionTokenId == 0 ? 0 : _getTokenLiquidity();
@@ -235,11 +246,11 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
     /// @param shares The number of shares to redeem
     /// @param receiver The address receiving the withdrawn tokens
     /// @param owner The address of the owner of the shares being redeemed
-    /// @return amount0 The amount of token0 sent to the user
-    /// @return amount1 The amount of token1 sent to the user
-    function redeem(bool inToken0, uint256 shares, address receiver, address owner)
+    /// @param minAmountOut The minimum amount of tokens expected to be received
+    /// @return assets The amount of selected token sent to user
+    function redeem(bool inToken0, uint256 shares, address receiver, address owner, uint256 minAmountOut)
         public
-        returns (uint256 amount0, uint256 amount1)
+        returns (uint256 assets)
     {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
@@ -247,7 +258,7 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
 
         uint128 liquidityToRemove = uint128(shares * _getTokenLiquidity() / totalSupply());
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
-        (amount0, amount1) = _decreaseLiquidity(liquidityToRemove);
+        (uint256 amount0, uint256 amount1) = _decreaseLiquidity(liquidityToRemove);
         (amount0, amount1) = _collect(
             uint128(shares * owed0 / totalSupply() + amount0), uint128(shares * owed1 / totalSupply() + amount1)
         );
@@ -255,13 +266,17 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         _burn(owner, shares);
 
         if (inToken0) {
-            amount0 += _swap(false, amount1);
-            amount1 = 0;
-            IERC20Metadata(token0).safeTransfer(receiver, amount0);
+            assets = amount0 + _swap(false, amount1);
         } else {
-            amount1 += _swap(true, amount0);
-            amount0 = 0;
-            IERC20Metadata(token1).safeTransfer(receiver, amount1);
+            assets = amount1 + _swap(true, amount0);
+        }
+
+        require(assets >= minAmountOut, "slippage");
+
+        if (inToken0) {
+            IERC20Metadata(token0).safeTransfer(receiver, assets);
+        } else {
+            IERC20Metadata(token1).safeTransfer(receiver, assets);
         }
 
         emit Withdraw(_msgSender(), receiver, owner, shares);

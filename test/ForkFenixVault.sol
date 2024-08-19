@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {AlgebraVault, IAlgebraFactory, IAlgebraPool, INonfungiblePositionManager} from "../src/AlgebraVault.sol";
+import {AlgebraVault, IAlgebraFactory, INonfungiblePositionManager} from "../src/AlgebraVault.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 /// @notice Contracts for BladeSwap
@@ -97,7 +97,7 @@ contract ForkFenixVaultTest is Test {
         console.log("amount in pool 0", amountInPool0, "amount in pool 1", amountInPool1);
 
         uint256 assets = _redeem(user, user, true, sharesUser);
-        vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e19);
+        vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e17);
 
         vm.expectRevert();
         _redeem(user2, user, true, sharesUser2);
@@ -107,7 +107,7 @@ contract ForkFenixVaultTest is Test {
         assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));
-        vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e19);
+        vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e17);
         vm.stopPrank();
     }
 }

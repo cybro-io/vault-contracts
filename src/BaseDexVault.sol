@@ -10,7 +10,6 @@ import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
 /// @title BaseDexVault
@@ -193,24 +192,23 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         uint256 amount0;
         uint256 amount1;
         if (inToken0) {
-            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price");
+            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price is too high");
             amount0 = amountFor0;
             amount1 = _swap(true, amountFor1);
             sqrtPriceCurrent = getCurrentSqrtPrice();
-            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price");
+            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price is too low");
         } else {
-            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price");
+            require(sqrtPriceCurrent >= minSqrtPriceX96, "sqrt price is too low");
             amount0 = _swap(false, amountFor0);
             amount1 = amountFor1;
             sqrtPriceCurrent = getCurrentSqrtPrice();
-            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price");
+            require(sqrtPriceCurrent <= maxSqrtPriceX96, "sqrt price is too high");
         }
 
         uint128 liquidityBefore = positionTokenId == 0 ? 0 : _getTokenLiquidity();
         uint128 liquidityReceived;
         uint256 amount0Used;
         uint256 amount1Used;
-        // reuse variables amountFor0 as amnountUsed0 and amountFor1 as amountUsed1
         if (positionTokenId == 0) {
             (positionTokenId, liquidityReceived, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
         } else {

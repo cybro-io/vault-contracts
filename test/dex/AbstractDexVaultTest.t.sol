@@ -4,8 +4,10 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import {IDexVault} from "../../src/interfaces/IDexVault.sol";
 
 abstract contract AbstractDexVaultTest is Test {
+    IDexVault vault;
     uint256 amount;
     uint256 forkId;
     address user;
@@ -34,16 +36,29 @@ abstract contract AbstractDexVaultTest is Test {
         _;
     }
 
-    function _vault() internal view virtual returns (address);
-
     function _initializeNewVault() internal virtual;
 
-    function _deposit(address _user, bool inToken0) internal virtual returns (uint256 shares);
+    function _deposit(address _user, bool inToken0) internal virtual returns (uint256 shares) {
+        vm.startPrank(_user);
+        if (inToken0) {
+            token0.approve(address(vault), amount);
+        } else {
+            token1.approve(address(vault), amount);
+        }
+        uint160 sqrtPriceX96 = vault.getCurrentSqrtPrice();
+        shares = vault.deposit(inToken0, amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
+        vm.stopPrank();
+    }
 
     function _redeem(address _owner, address _receiver, bool _inToken0, uint256 _shares)
         internal
         virtual
-        returns (uint256 assets);
+        returns (uint256 assets)
+    {
+        vm.startPrank(_receiver);
+        assets = vault.redeem(_inToken0, _shares, _receiver, _owner, 0);
+        vm.stopPrank();
+    }
 
     function test_vault() public fork {
         _initializeNewVault();
@@ -64,7 +79,7 @@ abstract contract AbstractDexVaultTest is Test {
         _redeem(user2, user, true, sharesUser2);
 
         vm.prank(user2);
-        IERC20Metadata(address(_vault())).approve(user, sharesUser2);
+        IERC20Metadata(address(vault)).approve(user, sharesUser2);
         assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));

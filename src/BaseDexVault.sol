@@ -11,11 +11,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import {IDexVault} from "./interfaces/IDexVault.sol";
 
 /// @title BaseDexVault
 /// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
 /// @dev This contract is meant to be inherited by specific implementations for different DEXes
-abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721Receiver {
+abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721Receiver, IDexVault {
     using SafeERC20 for IERC20Metadata;
 
     /// @notice Address of token0 used in the liquidity pool

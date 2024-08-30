@@ -9,6 +9,7 @@ import {IDexVault} from "../../src/interfaces/IDexVault.sol";
 abstract contract AbstractDexVaultTest is Test {
     IDexVault vault;
     uint256 amount;
+    uint256 amountEth;
     uint256 forkId;
     address user;
     address user2;
@@ -29,6 +30,7 @@ abstract contract AbstractDexVaultTest is Test {
         user = address(100);
         user2 = address(101);
         amount = 1e19;
+        amountEth = 1e17;
     }
 
     modifier fork() {
@@ -38,15 +40,15 @@ abstract contract AbstractDexVaultTest is Test {
 
     function _initializeNewVault() internal virtual;
 
-    function _deposit(address _user, bool inToken0) internal virtual returns (uint256 shares) {
+    function _deposit(address _user, bool inToken0, uint256 _amount) internal virtual returns (uint256 shares) {
         vm.startPrank(_user);
         if (inToken0) {
-            token0.approve(address(vault), amount);
+            token0.approve(address(vault), _amount);
         } else {
-            token1.approve(address(vault), amount);
+            token1.approve(address(vault), _amount);
         }
         uint160 sqrtPriceX96 = vault.getCurrentSqrtPrice();
-        shares = vault.deposit(inToken0, amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
+        shares = vault.deposit(inToken0, _amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
         vm.stopPrank();
     }
 
@@ -64,12 +66,12 @@ abstract contract AbstractDexVaultTest is Test {
         _initializeNewVault();
         vm.prank(address(transferFromToken0));
         token0.transfer(user, amount);
-        uint256 sharesUser = _deposit(user, true);
+        uint256 sharesUser = _deposit(user, true, amount);
         console.log("shares user", sharesUser);
 
         vm.prank(address(transferFromToken1));
-        token1.transfer(user2, amount);
-        uint256 sharesUser2 = _deposit(user2, false);
+        token1.transfer(user2, amountEth);
+        uint256 sharesUser2 = _deposit(user2, false, amountEth);
         console.log("shares user2", sharesUser2);
 
         uint256 assets = _redeem(user, user, true, sharesUser);
@@ -83,7 +85,7 @@ abstract contract AbstractDexVaultTest is Test {
         assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));
-        vm.assertApproxEqAbs(token1.balanceOf(user2), amount, 1e17);
+        vm.assertApproxEqAbs(token1.balanceOf(user2), amountEth, 1e14);
         vm.stopPrank();
     }
 }

@@ -3,8 +3,7 @@
 pragma solidity 0.8.26;
 
 import {BaseDexVault, TickMath} from "./BaseDexVault.sol";
-import {IUniswapV3MintCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
-import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IBlasterswapV3SwapCallback} from "./interfaces/blaster/IBlasterswapV3SwapCallback.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
@@ -13,7 +12,7 @@ import {PoolAddress} from "@uniswap/v3-periphery/contracts/libraries/PoolAddress
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
+contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
 
     IUniswapV3Pool public immutable pool;
@@ -27,7 +26,7 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
     {
         positionManager = INonfungiblePositionManager(_positionManager);
         fee = _fee;
-        pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, _fee));
+        pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, fee));
         _disableInitializers();
     }
 
@@ -133,9 +132,12 @@ contract UniswapVault is BaseDexVault, IUniswapV3SwapCallback {
         );
     }
 
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+    function blasterswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data)
+        external
+        override
+    {
         require(amount0Delta > 0 || amount1Delta > 0);
-        require(msg.sender == address(pool));
+        require(msg.sender == address(pool), "BlasterSwapV3Vault: invalid swap callback caller");
 
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 

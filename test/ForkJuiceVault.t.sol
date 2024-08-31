@@ -30,7 +30,7 @@ contract JuiceVaultTest is Test {
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast");
+        forkId = vm.createSelectFork("blast", 8149175);
         usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
         wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         amount = 1e20;

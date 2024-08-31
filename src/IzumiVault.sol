@@ -9,6 +9,7 @@ import {IiZiSwapCallback} from "./interfaces/izumi/IiZiSwapCallback.sol";
 import {ILiquidityManager} from "./interfaces/izumi/ILiquidityManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 
 /// @title IzumiVault - A vault that interacts with iZiSwap pools for managing liquidity positions
 /// @notice This contract extends BaseDexVault to manage liquidity positions specifically for iZiSwap pools
@@ -71,23 +72,11 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
         int24 leftMostPt = pool.leftMostPt();
         int24 pointDelta = pool.pointDelta();
 
-        if ((HALF_MOST_PT + currPt) < rightMostPt) {
-            if ((currPt - HALF_MOST_PT) >= leftMostPt) {
-                tickUpper = currPt + HALF_MOST_PT - (HALF_MOST_PT + currPt) % pointDelta;
-                // Add pointDelta to avoid TL error
-                tickLower = currPt - HALF_MOST_PT + (HALF_MOST_PT - currPt) % pointDelta + pointDelta;
-            } else {
-                int24 variable = 2 * HALF_MOST_PT + leftMostPt;
-                tickUpper = variable - variable % pointDelta;
-                // Add pointDelta to avoid TL error
-                tickLower = leftMostPt + pointDelta;
-            }
-        } else {
-            int24 variable = rightMostPt - 2 * HALF_MOST_PT;
-            // Subtract pointDelta to avoid TL error
-            tickUpper = rightMostPt - pointDelta;
-            tickLower = variable + variable % pointDelta;
-        }
+        tickLower = int24(SignedMath.max(currPt - HALF_MOST_PT, leftMostPt));
+        tickLower -= tickLower % pointDelta;
+
+        tickUpper = int24(SignedMath.min(tickLower + HALF_MOST_PT * 2, rightMostPt));
+        tickUpper -= tickUpper % pointDelta;
     }
 
     /// @inheritdoc BaseDexVault

@@ -26,7 +26,7 @@ abstract contract AbstractDexVaultTest is Test {
     function setUp() public virtual {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast");
+        forkId = vm.createSelectFork("blast", 8149175);
         user = address(100);
         user2 = address(101);
         amount = 1e19;

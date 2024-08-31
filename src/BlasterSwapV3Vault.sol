@@ -7,18 +7,21 @@ import {IBlasterswapV3SwapCallback} from "./interfaces/blaster/IBlasterswapV3Swa
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import {CallbackValidation} from "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol";
-import {PoolAddress} from "@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/// @title BlasterSwapV3Vault - A vault for managing liquidity positions on BlasterSwap V3 pools
+/// @notice This contract extends BaseDexVault to manage liquidity positions specifically for BlasterSwap V3 pools
 contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
 
+    /// @notice The BlasterSwap V3 pool associated with this vault
     IUniswapV3Pool public immutable pool;
+
+    /// @notice The fee tier of the pool
     uint24 public immutable fee;
 
-    /// @notice Address of the position manager contract
+    /// @notice Address of the BlasterSwap V3 position manager contract
     INonfungiblePositionManager public immutable positionManager;
 
     constructor(address payable _positionManager, address _token0, address _token1, uint24 _fee)
@@ -30,6 +33,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         _disableInitializers();
     }
 
+    /// @notice Initializes the vault with the specified admin, token name, and symbol
+    /// @param admin The address of the admin to be set as the owner
+    /// @param name The name of the ERC20 token representing vault shares
+    /// @param symbol The symbol of the ERC20 token representing vault shares
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).approve(address(positionManager), type(uint256).max);
         IERC20Metadata(token1).approve(address(positionManager), type(uint256).max);
@@ -37,24 +44,31 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         __BaseDexVault_init(admin);
     }
 
+    /// @inheritdoc BaseDexVault
     function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
         (,,,,,,, liquidity,,,,) = positionManager.positions(positionTokenId);
     }
 
+    /// @inheritdoc BaseDexVault
     function _getTokensOwed() internal virtual override returns (uint128 amount0, uint128 amount1) {
         (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
+    /// @inheritdoc BaseDexVault
     function getCurrentSqrtPrice() public view override returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = pool.slot0();
     }
 
+    /// @inheritdoc BaseDexVault
     function _updateTicks() internal override {
+        // Calculate upper and lower ticks based on the pool's tick spacing and maximum tick values
         tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
         tickLower = -tickUpper;
     }
 
+    /// @inheritdoc BaseDexVault
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
+        // Execute the swap and capture the output amount
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
             zeroForOne,
@@ -63,14 +77,17 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
             abi.encode(token0, token1)
         );
 
+        // Return the output amount (convert from negative if needed)
         return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
+    /// @inheritdoc BaseDexVault
     function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
+        // Mint a new liquidity position using the specified amounts of token0 and token1
         (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
@@ -88,11 +105,13 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         );
     }
 
+    /// @inheritdoc BaseDexVault
     function _increaseLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
         returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
     {
+        // Increase liquidity for the existing position using additional token0 and token1
         (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
@@ -105,7 +124,9 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         );
     }
 
+    /// @inheritdoc BaseDexVault
     function _decreaseLiquidity(uint128 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
+        // Decrease liquidity for the current position and return the received token amounts
         (amount0, amount1) = positionManager.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: positionTokenId,
@@ -117,11 +138,13 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         );
     }
 
+    /// @inheritdoc BaseDexVault
     function _collect(uint128 amount0Max, uint128 amount1Max)
         internal
         override
         returns (uint256 amount0, uint256 amount1)
     {
+        // Collect earned fees from the liquidity position
         (amount0, amount1) = positionManager.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: positionTokenId,
@@ -132,17 +155,20 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         );
     }
 
+    /// @inheritdoc IBlasterswapV3SwapCallback
     function blasterswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data)
         external
         override
     {
+        // Ensure the callback is being called by the correct pool
         require(amount0Delta > 0 || amount1Delta > 0);
         require(msg.sender == address(pool), "BlasterSwapV3Vault: invalid swap callback caller");
 
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
-
         (bool isExactInput, uint256 amountToPay) =
             amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
+
+        // Transfer the required amount back to the pool
         if (isExactInput) {
             IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
         } else {

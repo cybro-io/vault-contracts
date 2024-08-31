@@ -15,13 +15,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract IzumiVault is BaseDexVault, IiZiSwapCallback {
     using SafeERC20 for IERC20Metadata;
 
+    /// @notice The pool associated with this vault
     IiZiSwapPool public immutable pool;
 
     /// @notice Address of the position manager contract
     ILiquidityManager public immutable positionManager;
 
+    /// @notice The fee tier of the pool
     uint24 public immutable fee;
 
+    /// @notice Constant used in calculating the range for liquidity management
     int24 constant HALF_MOST_PT = 400000;
 
     constructor(address payable _positionManager, address _token0, address _token1, uint24 _fee)
@@ -67,25 +70,28 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
         int24 rightMostPt = pool.rightMostPt();
         int24 leftMostPt = pool.leftMostPt();
         int24 pointDelta = pool.pointDelta();
+
         if ((HALF_MOST_PT + currPt) < rightMostPt) {
             if ((currPt - HALF_MOST_PT) >= leftMostPt) {
                 tickUpper = currPt + HALF_MOST_PT - (HALF_MOST_PT + currPt) % pointDelta;
-                tickLower = currPt - HALF_MOST_PT + (HALF_MOST_PT - currPt) % pointDelta;
+                // Add pointDelta to avoid TL error
+                tickLower = currPt - HALF_MOST_PT + (HALF_MOST_PT - currPt) % pointDelta + pointDelta;
             } else {
                 int24 variable = 2 * HALF_MOST_PT + leftMostPt;
-                tickUpper = variable - (variable) % pointDelta;
-                tickLower = leftMostPt;
+                tickUpper = variable - variable % pointDelta;
+                // Add pointDelta to avoid TL error
+                tickLower = leftMostPt + pointDelta;
             }
         } else {
             int24 variable = rightMostPt - 2 * HALF_MOST_PT;
-            tickUpper = rightMostPt;
-            tickLower = variable + (variable) % pointDelta;
+            // Subtract pointDelta to avoid TL error
+            tickUpper = rightMostPt - pointDelta;
+            tickLower = variable + variable % pointDelta;
         }
     }
 
     /// @inheritdoc BaseDexVault
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
-        // Perform a token swap on the IziSwap pool and return the amount received
         uint256 amount0;
         uint256 amount1;
         if (zeroForOne) {
@@ -152,17 +158,27 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
         (amount0, amount1) = positionManager.collect(address(this), positionTokenId, amount0Max, amount1Max);
     }
 
+    /// @notice Callback function for swapY2X operation on the iZiSwap pool
+    /// @param x The amount of tokenX received in the swap
+    /// @param y The amount of tokenY received in the swap
+    /// @param data The data passed in the swap call, used here to decode token addresses
     function swapY2XCallback(uint256 x, uint256 y, bytes calldata data) external override {
-        require(x > 0 || y > 0);
+        require(x > 0 || y > 0, "IzumiVault: invalid swap amounts");
         require(address(pool) == msg.sender, "IzumiVault: invalid swap callback caller");
         (address tokenIn,) = abi.decode(data, (address, address));
+        // Transfer the required amount of tokenIn back to the pool
         IERC20Metadata(tokenIn).safeTransfer(msg.sender, y);
     }
 
+    /// @notice Callback function for swapX2Y operation on the iZiSwap pool
+    /// @param x The amount of tokenX received in the swap
+    /// @param y The amount of tokenY received in the swap
+    /// @param data The data passed in the swap call, used here to decode token addresses
     function swapX2YCallback(uint256 x, uint256 y, bytes calldata data) external override {
-        require(x > 0 || y > 0);
+        require(x > 0 || y > 0, "IzumiVault: invalid swap amounts");
         require(address(pool) == msg.sender, "IzumiVault: invalid swap callback caller");
         (address tokenIn,) = abi.decode(data, (address, address));
+        // Transfer the required amount of tokenIn back to the pool
         IERC20Metadata(tokenIn).safeTransfer(msg.sender, x);
     }
 }

@@ -15,7 +15,7 @@ contract IzumiVaultTest is AbstractDexVaultTest {
 
     function setUp() public virtual override {
         super.setUp();
-        fee = 500;
+        fee = 3000;
         token0 = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         token1 = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
         factory = IiZiSwapFactory(address(0x5162f29E9626CF7186ec40ab97D92230B428ff2d));
@@ -24,6 +24,8 @@ contract IzumiVaultTest is AbstractDexVaultTest {
         transferFromToken1 = address(0x44f33bC796f7d3df55040cd3C631628B560715C2);
         vm.label(address(token0), "USDB");
         vm.label(address(token1), "WETH");
+        amount = 1e16;
+        amountEth = 1e15;
     }
 
     function _initializeNewVault() internal override {

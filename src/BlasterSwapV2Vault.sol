@@ -7,6 +7,7 @@ import {IBlasterswapV2Factory} from "./interfaces/blaster/IBlasterswapV2Factory.
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseDexUniformVault, IERC20Metadata} from "./BaseDexUniformVault.sol";
 import {IBlasterswapV2Pair} from "./interfaces/blaster/IBlasterswapV2Pair.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title BlasterSwapV2Vault
 /// @notice This contract manages liquidity provision on the BlasterSwap V2 decentralized exchange (DEX)
@@ -44,22 +45,23 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
     }
 
     /// @inheritdoc BaseDexUniformVault
-    function totalAssets() public view override returns (uint256) {
+    function _getTokenLiquidity() internal view override returns (uint256) {
         return lpToken.balanceOf(address(this));
     }
 
     /// @inheritdoc BaseDexUniformVault
-    function getCurrentPrice() public view virtual override returns (uint160) {
+    function getCurrentSqrtPrice() public view virtual override returns (uint160) {
         (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
-        return uint160(reserve0 * 10 ** token0Decimals / reserve1);
+        return uint160(Math.sqrt(reserve1) * Math.sqrt(2 ** 192 / reserve0));
     }
 
     /// @inheritdoc BaseDexUniformVault
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
         (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
         uint256 totalSupply_ = lpToken.totalSupply();
-        amount0 = totalAssets() * reserve0 / totalSupply_;
-        amount1 = totalAssets() * reserve1 / totalSupply_;
+        uint256 liquidity = _getTokenLiquidity();
+        amount0 = liquidity * reserve0 / totalSupply_;
+        amount1 = liquidity * reserve1 / totalSupply_;
     }
 
     /// @inheritdoc BaseDexUniformVault
@@ -75,10 +77,10 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         internal
         virtual
         override
-        returns (uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 amount0Used, uint256 amount1Used, uint256 liquidity)
     {
         // Add liquidity to the BlasterSwap V2 DEX and return the amounts of tokens used
-        (amount0Used, amount1Used,) =
+        (amount0Used, amount1Used, liquidity) =
             router.addLiquidity(token0, token1, amount0, amount1, 0, 0, address(this), block.timestamp);
     }
 

@@ -4,7 +4,6 @@ pragma solidity 0.8.26;
 
 interface IDexVault {
     function getPositionAmounts() external view returns (uint256 amount0, uint256 amount1);
-    function getCurrentPrice() external view returns (uint160);
     function getCurrentSqrtPrice() external view returns (uint160);
 
     function deposit(bool inToken0, uint256 amount, address receiver, uint160, uint160)

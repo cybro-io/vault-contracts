@@ -62,10 +62,6 @@ abstract contract BaseDexVault is ERC20Upgradeable, OwnableUpgradeable, IERC721R
         __Ownable_init(admin);
     }
 
-    function getCurrentPrice() public pure override returns (uint160) {
-        revert("Not implemented");
-    }
-
     /// @notice Calculates the amounts neeeded to get swapped into token0 and token1 to place a position in the given range.
     /// @param sqrtPriceAX96 The square root of the price at the lower bound of the range
     /// @param sqrtPriceX96 The current square root price

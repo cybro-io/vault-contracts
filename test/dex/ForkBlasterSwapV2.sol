@@ -38,21 +38,4 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
         );
         vm.stopPrank();
     }
-
-    function _deposit(address _user, bool inToken0, uint256 _amount)
-        internal
-        virtual
-        override
-        returns (uint256 shares)
-    {
-        vm.startPrank(_user);
-        if (inToken0) {
-            token0.approve(address(vault), _amount);
-        } else {
-            token1.approve(address(vault), _amount);
-        }
-        uint160 currentPrice = vault.getCurrentPrice();
-        shares = vault.deposit(inToken0, _amount, _user, currentPrice * 99 / 100, currentPrice * 101 / 100);
-        vm.stopPrank();
-    }
 }

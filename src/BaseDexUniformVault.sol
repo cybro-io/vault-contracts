@@ -58,26 +58,14 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
         __Ownable_init(admin);
     }
 
-    /// @notice Abstract function to calculate the total value of assets held by the vault
+    /// @notice Retrieves the current liquidity of the Dex position
+    /// @return liquidity The current liquidity of the position
+    function _getTokenLiquidity() internal view virtual returns (uint256 liquidity);
+
+    /// @notice Abstract function to retrieve the current square root price of the Dex pool
     /// @dev Must be implemented by the inheriting contract
-    /// @return The total value of assets in the vault
-    function totalAssets() public view virtual returns (uint256);
-
-    function _totalAssetsPrecise() internal virtual returns (uint256) {
-        return totalAssets();
-    }
-
-    /// @notice Abstract function to retrieve the current price of the assets
-    /// @dev Must be implemented by the inheriting contract
-    /// @return The current price as a uint160 value
-    function getCurrentPrice() public view virtual override returns (uint160);
-
-    /// @notice Abstract function to retrieve the square root of the current price
-    /// @dev This function is not implemented in this base contract (only for concentrated liquidity)
-    /// @return Reverts with "Not implemented"
-    function getCurrentSqrtPrice() public pure override returns (uint160) {
-        revert("Not implemented");
-    }
+    /// @return The current square root price
+    function getCurrentSqrtPrice() public view virtual override returns (uint160);
 
     /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
     /// @dev Must be implemented by the inheriting contract to provide specific logic for the DEX
@@ -99,7 +87,7 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
     function _addLiquidity(uint256 amount0, uint256 amount1)
         internal
         virtual
-        returns (uint256 amount0Used, uint256 amount1Used);
+        returns (uint256 amount0Used, uint256 amount1Used, uint256 liquidity);
 
     /// @dev Internal function to remove liquidity from the DEX
     /// @param liquidity The amount of liquidity to remove
@@ -111,10 +99,10 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
     /// @param inToken0 Indicates whether the input token is token0 (true) or token1 (false)
     /// @param amount The amount of the input token to deposit
     /// @param receiver The address that will receive the vault shares
-    /// @param minPrice The minimum price threshold for the swap
-    /// @param maxPrice The maximum price threshold for the swap
+    /// @param minSqrtPriceX96 The minimum price threshold for the swap
+    /// @param maxSqrtPriceX96 The maximum price threshold for the swap
     /// @return shares The number of shares minted for the deposited liquidity
-    function deposit(bool inToken0, uint256 amount, address receiver, uint160 minPrice, uint160 maxPrice)
+    function deposit(bool inToken0, uint256 amount, address receiver, uint160 minSqrtPriceX96, uint160 maxSqrtPriceX96)
         public
         returns (uint256 shares)
     {
@@ -124,33 +112,31 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
             IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        uint256 totalAssetsBefore = _totalAssetsPrecise();
+        uint256 totalLiquidityBefore = _getTokenLiquidity();
 
         uint256 amount0;
         uint256 amount1;
         if (inToken0) {
-            require(getCurrentPrice() <= maxPrice, "sqrt price is too high");
+            require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
             amount0 = amount / 2;
             amount1 = _swap(true, amount - amount0);
-            require(getCurrentPrice() >= minPrice, "sqrt price is too low");
+            require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
         } else {
-            require(getCurrentPrice() >= minPrice, "sqrt price is too low");
+            require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
             amount1 = amount / 2;
             amount0 = _swap(false, amount - amount1);
-            require(getCurrentPrice() <= maxPrice, "sqrt price is too high");
+            require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
         }
 
-        (uint256 amount0Used, uint256 amount1Used) = _addLiquidity(amount0, amount1);
+        (uint256 amount0Used, uint256 amount1Used, uint256 liquidityReceived) = _addLiquidity(amount0, amount1);
 
         // Calculate remaining amounts after liquidity provision
         amount0 -= amount0Used;
         amount1 -= amount1Used;
 
-        uint256 totalAssetsAfter = _totalAssetsPrecise();
-        uint256 increase = totalAssetsAfter - totalAssetsBefore;
-
-        // Calculate the shares to mint based on the increase in assets
-        shares = totalAssetsBefore == 0 ? increase : totalSupply() * increase / totalAssetsBefore;
+        // Calculate the shares to mint based on the liquidity increase
+        shares =
+            totalLiquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / totalLiquidityBefore;
 
         _mint(receiver, shares);
 
@@ -169,7 +155,7 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
             }
         }
 
-        emit Deposit(_msgSender(), receiver, increase, shares);
+        emit Deposit(_msgSender(), receiver, liquidityReceived, shares);
     }
 
     /// @notice Redeems liquidity from the vault by burning shares and withdrawing tokens from the DEX

@@ -42,8 +42,8 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
     /// @param name The name of the ERC20 token representing vault shares
     /// @param symbol The symbol of the ERC20 token representing vault shares
     function initialize(address admin, string memory name, string memory symbol) public initializer {
-        IERC20Metadata(token0).approve(address(positionManager), type(uint256).max);
-        IERC20Metadata(token1).approve(address(positionManager), type(uint256).max);
+        IERC20Metadata(token0).forceApprove(address(positionManager), type(uint256).max);
+        IERC20Metadata(token1).forceApprove(address(positionManager), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseDexVault_init(admin);
     }
@@ -77,6 +77,7 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
 
         tickUpper = int24(SignedMath.min(tickLower + HALF_MOST_PT * 2, rightMostPt));
         tickUpper -= tickUpper % pointDelta;
+        if (tickUpper - tickLower == HALF_MOST_PT * 2) tickLower += pointDelta;
     }
 
     /// @inheritdoc BaseDexVault

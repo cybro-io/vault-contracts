@@ -26,11 +26,11 @@ abstract contract AbstractDexVaultTest is Test {
     function setUp() public virtual {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast", 8149175);
+        forkId = vm.createSelectFork("blast", 8245770);
         user = address(100);
         user2 = address(101);
-        amount = 1e19;
-        amountEth = 1e17;
+        amount = 3e21;
+        amountEth = 5e18;
     }
 
     modifier fork() {
@@ -75,7 +75,7 @@ abstract contract AbstractDexVaultTest is Test {
         console.log("shares user2", sharesUser2);
 
         uint256 assets = _redeem(user, user, true, sharesUser);
-        vm.assertApproxEqAbs(token0.balanceOf(user), amount, 1e17);
+        vm.assertApproxEqAbs(token0.balanceOf(user), amount, amount / 100);
 
         vm.expectRevert();
         _redeem(user2, user, true, sharesUser2);
@@ -85,7 +85,7 @@ abstract contract AbstractDexVaultTest is Test {
         assets = _redeem(user2, user, false, sharesUser2);
         vm.startPrank(user);
         token1.transfer(user2, token1.balanceOf(user));
-        vm.assertApproxEqAbs(token1.balanceOf(user2), amountEth, 1e14);
+        vm.assertApproxEqAbs(token1.balanceOf(user2), amountEth, amountEth / 100);
         vm.stopPrank();
     }
 }

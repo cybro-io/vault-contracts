@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.26;
 
-import {BaseDexVault, TickMath} from "./BaseDexVault.sol";
+import {BaseDexVault, BaseDexUniformVault, TickMath} from "./BaseDexVault.sol";
 import {IBlasterswapV3SwapCallback} from "./interfaces/blaster/IBlasterswapV3SwapCallback.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
@@ -45,8 +45,8 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
-        (,,,,,,, liquidity,,,,) = positionManager.positions(positionTokenId);
+    function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {
+        (,,,,,,, liquidity,,,,) = positionManager.positions(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -54,7 +54,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = pool.slot0();
     }
@@ -66,7 +66,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         tickLower = -tickUpper;
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
         // Execute the swap and capture the output amount
         (int256 amount0, int256 amount1) = pool.swap(

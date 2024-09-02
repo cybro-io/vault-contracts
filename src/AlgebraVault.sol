@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.26;
 
-import {BaseDexVault, TickMath} from "./BaseDexVault.sol";
+import {BaseDexVault, BaseDexUniformVault, TickMath} from "./BaseDexVault.sol";
 import {IAlgebraFactory} from "./interfaces/algebra/IAlgebraFactory.sol";
 import {IAlgebraPool} from "./interfaces/algebra/IAlgebraPool.sol";
 import {IAlgebraSwapCallback} from "./interfaces/algebra/IAlgebraSwapCallback.sol";
@@ -38,8 +38,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
-        (,,,,,, liquidity,,,,) = positionManager.positions(positionTokenId);
+    function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {
+        (,,,,,, liquidity,,,,) = positionManager.positions(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -47,7 +47,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         (,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint160) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();
         return sqrtPriceX96;
@@ -59,7 +59,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         tickLower = -tickUpper;
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
         // Perform a token swap on the Algebra pool and return the amount received
         (int256 amount0, int256 amount1) = pool.swap(

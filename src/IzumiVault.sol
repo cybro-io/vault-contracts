@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.26;
 
-import {BaseDexVault, TickMath} from "./BaseDexVault.sol";
+import {BaseDexVault, BaseDexUniformVault, TickMath} from "./BaseDexVault.sol";
 import {IiZiSwapFactory} from "./interfaces/izumi/IiZiSwapFactory.sol";
 import {IiZiSwapPool} from "./interfaces/izumi/IiZiSwapPool.sol";
 import {IiZiSwapCallback} from "./interfaces/izumi/IiZiSwapCallback.sol";
@@ -49,8 +49,8 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokenLiquidity() internal view virtual override returns (uint128 liquidity) {
-        (,, liquidity,,,,,) = positionManager.liquidities(positionTokenId);
+    function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {
+        (,, liquidity,,,,,) = positionManager.liquidities(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -59,7 +59,7 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
         return (uint128(amount0), uint128(amount1));
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint160) {
         (uint160 sqrtPriceX96,,,,,,,) = pool.state();
         return sqrtPriceX96;
@@ -80,7 +80,7 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
         if (tickUpper - tickLower == HALF_MOST_PT * 2) tickLower += pointDelta;
     }
 
-    /// @inheritdoc BaseDexVault
+    /// @inheritdoc BaseDexUniformVault
     function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
         uint256 amount0;
         uint256 amount1;

@@ -94,8 +94,10 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
     /// @return The amounts of token0 and token1 withdrawn
     function _removeLiquidity(uint256 liquidity) internal virtual returns (uint256, uint256);
 
+    /// @dev Divides amounts for liquidity provision through _addLiquidity
+    function _getAmounts(uint256 amount) internal virtual view returns (uint256 amountFor0, uint256 amountFor1);
+
     /// @notice Deposits liquidity into the vault by swapping and adding tokens to the DEX
-    /// @dev The function handles swaps between token0 and token1 to ensure proper liquidity ratios
     /// @param inToken0 Indicates whether the input token is token0 (true) or token1 (false)
     /// @param amount The amount of the input token to deposit
     /// @param receiver The address that will receive the vault shares
@@ -112,32 +114,29 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
             IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        uint256 totalLiquidityBefore = _getTokenLiquidity();
-
+        (uint256 amountFor0, uint256 amountFor1) = _getAmounts(amount);
         uint256 amount0;
         uint256 amount1;
         if (inToken0) {
             require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
-            amount0 = amount / 2;
-            amount1 = _swap(true, amount - amount0);
+            amount0 = amountFor0;
+            amount1 = _swap(true, amountFor1);
             require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
         } else {
             require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
-            amount1 = amount / 2;
-            amount0 = _swap(false, amount - amount1);
+            amount0 = _swap(false, amountFor0);
+            amount1 = amountFor1;
             require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
         }
 
+        uint256 liquidityBefore = _getTokenLiquidity();
         (uint256 amount0Used, uint256 amount1Used, uint256 liquidityReceived) = _addLiquidity(amount0, amount1);
 
         // Calculate remaining amounts after liquidity provision
         amount0 -= amount0Used;
         amount1 -= amount1Used;
 
-        // Calculate the shares to mint based on the liquidity increase
-        shares =
-            totalLiquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / totalLiquidityBefore;
-
+        shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
         _mint(receiver, shares);
 
         // Handle remaining tokens and return them to the user if necessary
@@ -175,7 +174,8 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
             _spendAllowance(owner, _msgSender(), shares);
         }
 
-        (uint256 amount0, uint256 amount1) = _removeLiquidity(shares);
+        uint256 liquidityToRemove = shares * _getTokenLiquidity() / totalSupply();
+        (uint256 amount0, uint256 amount1) = _removeLiquidity(liquidityToRemove);
 
         _burn(owner, shares);
 

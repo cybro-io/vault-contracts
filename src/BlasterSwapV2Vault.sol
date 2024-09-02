@@ -44,6 +44,11 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         __BaseDexUniformVault_init(admin);
     }
 
+    function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
+        amountFor0 = amount / 2;
+        amountFor1 = amount - amountFor0;
+    }
+
     /// @inheritdoc BaseDexUniformVault
     function _getTokenLiquidity() internal view override returns (uint256) {
         return lpToken.balanceOf(address(this));

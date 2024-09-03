@@ -50,7 +50,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokensOwed() internal virtual override returns (uint128 amount0, uint128 amount1) {
+    function _getTokensOwed() internal view virtual override returns (uint128 amount0, uint128 amount1) {
         (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
     }
 

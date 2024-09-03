@@ -7,6 +7,8 @@ import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IDexVault} from "./interfaces/IDexVault.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {console} from "forge-std/Test.sol";
 
 /// @title BaseDexUniformVault
 /// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (DEX)
@@ -95,66 +97,64 @@ abstract contract BaseDexUniformVault is ERC20Upgradeable, OwnableUpgradeable, I
     function _removeLiquidity(uint256 liquidity) internal virtual returns (uint256, uint256);
 
     /// @dev Divides amounts for liquidity provision through _addLiquidity
-    function _getAmounts(uint256 amount) internal virtual view returns (uint256 amountFor0, uint256 amountFor1);
+    function _getAmounts(uint256 amount) internal view virtual returns (uint256 amountFor0, uint256 amountFor1);
 
     /// @notice Deposits liquidity into the vault by swapping and adding tokens to the DEX
-    /// @param inToken0 Indicates whether the input token is token0 (true) or token1 (false)
-    /// @param amount The amount of the input token to deposit
-    /// @param receiver The address that will receive the vault shares
-    /// @param minSqrtPriceX96 The minimum price threshold for the swap
-    /// @param maxSqrtPriceX96 The maximum price threshold for the swap
     /// @return shares The number of shares minted for the deposited liquidity
-    function deposit(bool inToken0, uint256 amount, address receiver, uint160 minSqrtPriceX96, uint160 maxSqrtPriceX96)
-        public
-        returns (uint256 shares)
-    {
-        if (inToken0) {
-            IERC20Metadata(token0).safeTransferFrom(msg.sender, address(this), amount);
+    function deposit(DepositInput memory input) public returns (uint256 shares) {
+        if (input.inToken0) {
+            IERC20Metadata(token0).safeTransferFrom(msg.sender, address(this), input.amount);
         } else {
-            IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), amount);
+            IERC20Metadata(token1).safeTransferFrom(msg.sender, address(this), input.amount);
         }
 
-        (uint256 amountFor0, uint256 amountFor1) = _getAmounts(amount);
+        (uint256 amountFor0, uint256 amountFor1) = _getAmounts(input.amount);
         uint256 amount0;
         uint256 amount1;
-        if (inToken0) {
-            require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
+        if (input.inToken0) {
+            require(getCurrentSqrtPrice() <= input.maxSqrtPriceX96, "sqrt price is too high");
             amount0 = amountFor0;
             amount1 = _swap(true, amountFor1);
-            require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
+            require(getCurrentSqrtPrice() >= input.minSqrtPriceX96, "sqrt price is too low");
         } else {
-            require(getCurrentSqrtPrice() >= minSqrtPriceX96, "sqrt price is too low");
+            require(getCurrentSqrtPrice() >= input.minSqrtPriceX96, "sqrt price is too low");
             amount0 = _swap(false, amountFor0);
             amount1 = amountFor1;
-            require(getCurrentSqrtPrice() <= maxSqrtPriceX96, "sqrt price is too high");
+            require(getCurrentSqrtPrice() <= input.maxSqrtPriceX96, "sqrt price is too high");
         }
 
-        uint256 liquidityBefore = _getTokenLiquidity();
         (uint256 amount0Used, uint256 amount1Used, uint256 liquidityReceived) = _addLiquidity(amount0, amount1);
 
         // Calculate remaining amounts after liquidity provision
         amount0 -= amount0Used;
         amount1 -= amount1Used;
 
-        shares = liquidityBefore == 0 ? liquidityReceived : totalSupply() * liquidityReceived / liquidityBefore;
-        _mint(receiver, shares);
+        (uint256 total0, uint256 total1) = getPositionAmounts();
+        uint160 sqrtPrice = getCurrentSqrtPrice();
+        uint256 depositedIn1 = Math.mulDiv(amount0Used, uint256(sqrtPrice) * uint256(sqrtPrice), 2 ** 192) + amount1Used;
+        shares = totalSupply() == 0
+            ? depositedIn1
+            : totalSupply() * depositedIn1
+                / (Math.mulDiv(total0, uint256(sqrtPrice) * uint256(sqrtPrice), 2 ** 192) + total1 - depositedIn1);
+
+        _mint(input.receiver, shares);
 
         // Handle remaining tokens and return them to the user if necessary
-        if (amount0 > 0 && !inToken0) {
+        if (amount0 > 0 && !input.inToken0) {
             amount1 += _swap(true, amount0);
             IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
-        } else if (amount1 > 0 && inToken0) {
+        } else if (amount1 > 0 && input.inToken0) {
             amount0 += _swap(false, amount1);
             IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
         } else {
-            if (inToken0 && amount0 > 0) {
+            if (input.inToken0 && amount0 > 0) {
                 IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
             } else if (amount1 > 0) {
                 IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
             }
         }
 
-        emit Deposit(_msgSender(), receiver, liquidityReceived, shares);
+        emit Deposit(_msgSender(), input.receiver, liquidityReceived, shares);
     }
 
     /// @notice Redeems liquidity from the vault by burning shares and withdrawing tokens from the DEX

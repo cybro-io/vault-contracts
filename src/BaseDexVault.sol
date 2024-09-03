@@ -59,9 +59,12 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     /// @return amount0 The amount of token0
     /// @return amount1 The amount of token1
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
+        (uint128 owed0, uint128 owed1) = _getTokensOwed();
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
             getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
         );
+        amount0 += owed0;
+        amount1 += owed1;
     }
 
     /// @notice Abstract function to mint a new Dex liquidity position
@@ -119,11 +122,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         virtual
         returns (uint256 amount0, uint256 amount1);
 
-    function _removeLiquidity(uint256 liquidity)
-        internal
-        override
-        returns (uint256 amount0, uint256 amount1)
-    {
+    function _removeLiquidity(uint256 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
         uint256 totalLiquidity = _getTokenLiquidity();
 
         (uint256 liq0, uint256 liq1) = _decreaseLiquidity(uint128(liquidity));
@@ -152,7 +151,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     /// @notice Retrieves the amount of tokens owed to the vault from the Dex position
     /// @return amount0 The amount of token0 owed
     /// @return amount1 The amount of token1 owed
-    function _getTokensOwed() internal virtual returns (uint128 amount0, uint128 amount1);
+    function _getTokensOwed() internal view virtual returns (uint128 amount0, uint128 amount1);
 
     /// @notice Abstract function to update the current ticks of the Dex pool
     /// @dev Must be implemented by the inheriting contract

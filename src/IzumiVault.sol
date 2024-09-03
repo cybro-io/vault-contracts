@@ -54,7 +54,7 @@ contract IzumiVault is BaseDexVault, IiZiSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokensOwed() internal virtual override returns (uint128, uint128) {
+    function _getTokensOwed() internal view virtual override returns (uint128, uint128) {
         (,,,,, uint256 amount0, uint256 amount1,) = positionManager.liquidities(positionTokenId);
         return (uint128(amount0), uint128(amount1));
     }

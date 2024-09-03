@@ -48,7 +48,9 @@ abstract contract AbstractDexVaultTest is Test {
             token1.approve(address(vault), _amount);
         }
         uint160 sqrtPriceX96 = vault.getCurrentSqrtPrice();
-        shares = vault.deposit(inToken0, _amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 101 / 100);
+        shares = vault.deposit(
+            IDexVault.DepositInput(inToken0, _amount, _user, sqrtPriceX96 * 99 / 100, sqrtPriceX96 * 105 / 100)
+        );
         vm.stopPrank();
     }
 

@@ -148,6 +148,14 @@ contract OneClickLending is BaseVault {
     /* ========== VIEW METHODS ========== */
 
     /**
+     * @notice Returns array of all lending pools.
+     * @return Array of lending pools.
+     */
+    function getPools() external view returns (address[] memory) {
+        return lendingPoolAddresses.values();
+    }
+
+    /**
      * @notice Returns the count of lending pools.
      * @return The number of lending pools.
      */

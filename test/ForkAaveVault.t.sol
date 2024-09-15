@@ -20,6 +20,7 @@ contract AaveVaultTest is Test {
     uint256 amount;
     uint256 forkId;
     address user;
+    address user2;
 
     address internal admin;
     uint256 internal adminPrivateKey;
@@ -31,6 +32,7 @@ contract AaveVaultTest is Test {
         aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
         amount = 1e20;
         user = address(100);
+        user2 = address(101);
     }
 
     modifier fork() {

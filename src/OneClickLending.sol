@@ -23,9 +23,6 @@ contract OneClickLending is BaseVault {
     /// @notice Total lending shares across all pools.
     uint256 public totalLendingShares;
 
-    /// @notice Precision for lending shares.
-    uint8 public precision;
-
     /* ========== EVENTS ========== */
 
     /// @notice Emitted when a new lending pool is added.
@@ -53,14 +50,12 @@ contract OneClickLending is BaseVault {
     }
 
     /**
-     * @notice Initializes the contract with admin, name, symbol, and precision.
+     * @notice Initializes the contract with admin, name and symbol.
      * @param admin The address of the admin.
      * @param name The name of the ERC20 token.
      * @param symbol The symbol of the ERC20 token.
-     * @param _precision The precision for lending shares.
      */
-    function initialize(address admin, string memory name, string memory symbol, uint8 _precision) public initializer {
-        precision = _precision;
+    function initialize(address admin, string memory name, string memory symbol) public initializer {
         __ERC20_init(name, symbol);
         __BaseVault_init(admin);
     }
@@ -78,8 +73,6 @@ contract OneClickLending is BaseVault {
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             poolAddress = poolAddresses[i];
             lendingShare = _lendingShares[i];
-
-            require(lendingShare <= 10 ** precision, "OneClickLending: Lending share must be <= 100% in scaled units");
 
             lendingShares[poolAddress] = lendingShare;
             lendingPoolAddresses.add(poolAddress);
@@ -126,23 +119,11 @@ contract OneClickLending is BaseVault {
             poolAddress = poolAddresses[i];
             newLendingShare = newLendingShares[i];
 
-            require(
-                newLendingShare <= 10 ** precision, "OneClickLending: Lending share must be <= 100% in scaled units"
-            );
-
             totalLendingShares = totalLendingShares - lendingShares[poolAddress] + newLendingShare;
             lendingShares[poolAddress] = newLendingShare;
 
             emit LendingPoolUpdated(poolAddress, newLendingShare);
         }
-    }
-
-    /**
-     * @notice Sets the precision for lending shares.
-     * @param _precision The new precision value.
-     */
-    function setPrecision(uint8 _precision) external onlyOwner {
-        precision = _precision;
     }
 
     /**
@@ -203,8 +184,7 @@ contract OneClickLending is BaseVault {
      * @return deviation The deviation of the pool's balance.
      */
     function _computeDeviation(address pool) internal view returns (int256 deviation) {
-        uint256 normalizedShare = (lendingShares[pool] * 10 ** precision) / totalLendingShares;
-        uint256 amount = (totalAssets() * normalizedShare) / (10 ** precision);
+        uint256 amount = (totalAssets() * lendingShares[pool]) / totalLendingShares;
         deviation = int256(_getBalance(pool)) - int256(amount);
     }
 
@@ -223,18 +203,26 @@ contract OneClickLending is BaseVault {
      * @param assets The amount of assets to deposit.
      */
     function _deposit(uint256 assets) internal override {
+        uint256 leftAssets = assets;
+        uint256 leftShares = totalLendingShares;
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
-            uint256 normalizedShare = (lendingShares[poolAddress] * 10 ** precision) / totalLendingShares;
+            leftShares -= lendingShares[poolAddress];
 
-            uint256 amountToDeposit = (assets * normalizedShare) / (10 ** precision);
+            uint256 amountToDeposit;
+            if (leftShares == 0) {
+                amountToDeposit = leftAssets;
+            } else {
+                amountToDeposit = assets * lendingShares[poolAddress] / totalLendingShares;
+            }
+            leftAssets -= amountToDeposit;
+
             if (amountToDeposit > 0) {
                 ILendingPool(poolAddress).deposit(amountToDeposit, address(this));
             }
-        }
-        uint256 balance = IERC20Metadata(asset()).balanceOf(address(this));
-        if (balance > 0) {
-            ILendingPool(lendingPoolAddresses.at(lendingPoolAddresses.length() - 1)).deposit(balance, address(this));
+            if (leftAssets == 0) {
+                break;
+            }
         }
     }
 
@@ -248,7 +236,7 @@ contract OneClickLending is BaseVault {
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
-            uint256 poolShareToRedeem = (shares * _getBalance(poolAddress)) / totalSupply();
+            uint256 poolShareToRedeem = (shares * ILendingPool(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
                 assets += ILendingPool(poolAddress).redeem(poolShareToRedeem, address(this), address(this));
             }

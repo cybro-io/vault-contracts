@@ -54,7 +54,7 @@ contract OneClickLendingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new OneClickLending(usdb)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault", precision))
+                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault"))
                 )
             )
         );

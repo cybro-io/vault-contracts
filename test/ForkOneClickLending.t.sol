@@ -93,7 +93,8 @@ contract OneClickLendingTest is Test {
         uint256[] memory lendingShares = new uint256[](2);
         lendingShares[0] = lendingShare;
         lendingShares[1] = lendingShare2;
-        lending.addLendingPools(vaults, lendingShares);
+        lending.addLendingPools(vaults);
+        lending.setLendingShares(vaults, lendingShares);
         vm.stopPrank();
     }
 

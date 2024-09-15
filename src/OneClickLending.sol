@@ -27,8 +27,7 @@ contract OneClickLending is BaseVault {
 
     /// @notice Emitted when a new lending pool is added.
     /// @param poolAddress The address of the lending pool.
-    /// @param lendingShare The share allocated to the lending pool.
-    event LendingPoolAdded(address indexed poolAddress, uint256 lendingShare);
+    event LendingPoolAdded(address indexed poolAddress);
 
     /// @notice Emitted when a lending pool is removed.
     /// @param poolAddress The address of the removed lending pool.
@@ -63,26 +62,19 @@ contract OneClickLending is BaseVault {
     /* ========== LENDING POOL MANAGEMENT METHODS ========== */
 
     /**
-     * @notice Adds multiple lending pools with respective shares.
+     * @notice Adds multiple lending pools.
      * @param poolAddresses Array of lending pool addresses.
-     * @param _lendingShares Array of corresponding lending shares.
      */
-    function addLendingPools(address[] memory poolAddresses, uint256[] memory _lendingShares) external onlyOwner {
+    function addLendingPools(address[] memory poolAddresses) external onlyOwner {
         address poolAddress;
-        uint256 lendingShare;
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             poolAddress = poolAddresses[i];
-            lendingShare = _lendingShares[i];
-
-            lendingShares[poolAddress] = lendingShare;
             lendingPoolAddresses.add(poolAddress);
-
-            totalLendingShares += lendingShare;
 
             // Approve the lending pool to use the asset.
             IERC20Metadata(super.asset()).forceApprove(address(poolAddress), type(uint256).max);
 
-            emit LendingPoolAdded(poolAddress, lendingShare);
+            emit LendingPoolAdded(poolAddress);
         }
     }
 

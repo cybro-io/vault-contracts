@@ -72,7 +72,7 @@ contract OneClickLending is BaseVault {
             lendingPoolAddresses.add(poolAddress);
 
             // Approve the lending pool to use the asset.
-            IERC20Metadata(super.asset()).forceApprove(address(poolAddress), type(uint256).max);
+            IERC20Metadata(asset()).forceApprove(address(poolAddress), type(uint256).max);
 
             emit LendingPoolAdded(poolAddress);
         }
@@ -93,7 +93,7 @@ contract OneClickLending is BaseVault {
             require(lendingPoolAddresses.remove(poolAddress));
 
             // Revoke approval for the lending pool.
-            IERC20Metadata(super.asset()).forceApprove(address(poolAddress), 0);
+            IERC20Metadata(asset()).forceApprove(address(poolAddress), 0);
 
             emit LendingPoolRemoved(poolAddress);
         }

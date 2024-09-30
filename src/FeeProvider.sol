@@ -2,7 +2,7 @@
 pragma solidity =0.8.26;
 
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvide.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     uint32 private immutable _feePrecision;

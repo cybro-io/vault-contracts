@@ -7,11 +7,11 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvide.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 /// @title OneClickLending
 /// @notice A contract for managing ERC20 token lending to multiple lending pools.
-contract OneClickLending is AccessControlUpgradeable {
+contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -82,9 +82,6 @@ contract OneClickLending is AccessControlUpgradeable {
 
     /* ========== STATE VARIABLES ========== */
 
-    /// @notice Total supply of shares
-    uint256 private _totalSupply;
-
     /// @notice Mapping of lending pool addresses to their respective lending shares (in scaled units)
     mapping(address => uint256) public lendingShares;
 
@@ -93,9 +90,6 @@ contract OneClickLending is AccessControlUpgradeable {
 
     /// @notice Total lending shares across all pools
     uint256 public totalLendingShares;
-
-    /// @notice Mapping of account addresses to their balance of shares
-    mapping(address account => uint256) private _balances;
 
     /// @notice Mapping of account addresses to their deposited balance of assets
     mapping(address account => uint256) private _depositedBalances;
@@ -119,7 +113,8 @@ contract OneClickLending is AccessControlUpgradeable {
 
     /// @notice Initializes the contract with admin
     /// @param admin The address of the admin
-    function initialize(address admin) public initializer {
+    function initialize(address admin, string memory name, string memory symbol) public initializer {
+        __ERC20_init(name, symbol);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(STRATEGIST_ROLE, admin);
@@ -144,11 +139,10 @@ contract OneClickLending is AccessControlUpgradeable {
         uint256 totalAssetsAfter = totalAssets();
         uint256 increase = totalAssetsAfter - totalAssetsBefore;
 
-        shares = totalAssetsBefore == 0 ? assets : _totalSupply * increase / totalAssetsBefore;
+        shares = totalAssetsBefore == 0 ? assets : totalSupply() * increase / totalAssetsBefore;
 
         _depositedBalances[msg.sender] += assets;
-        _balances[msg.sender] += shares;
-        _totalSupply += shares;
+        _mint(msg.sender, shares);
 
         emit Deposit(_msgSender(), msg.sender, assets, shares);
     }
@@ -158,10 +152,9 @@ contract OneClickLending is AccessControlUpgradeable {
     /// @param receiver The address to receive the assets
     /// @return assets The amount of assets redeemed
     function redeem(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        require(_balances[msg.sender] >= shares, "OneClickLending: Not enough shares");
-        assets = _applyWithdrawalFee(_applyProfitFee(_redeem(shares), shares));
-        _balances[msg.sender] -= shares;
-        _totalSupply -= shares;
+        require(balanceOf(msg.sender) >= shares, "OneClickLending: Not enough shares");
+        assets = _applyWithdrawalFee(_applyPerformanceFee(_redeem(shares), shares));
+        _burn(msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
         emit Withdraw(_msgSender(), receiver, msg.sender, assets, shares);
@@ -303,15 +296,7 @@ contract OneClickLending is AccessControlUpgradeable {
 
     /* ========== VIEW FUNCTIONS ========== */
 
-    /// @notice Returns the total supply of shares
-    /// @return The total supply of shares
-    function totalSupply() external view returns (uint256) {
-        return _totalSupply;
-    }
-
-    /// @notice Returns the number of decimals of the asset
-    /// @return The number of decimals
-    function decimals() external view returns (uint8) {
+    function decimals() public view override returns (uint8) {
         return _decimals;
     }
 
@@ -342,12 +327,20 @@ contract OneClickLending is AccessControlUpgradeable {
     /// @return The current share price
     function sharePrice() public view virtual returns (uint256) {
         uint256 assets = totalAssets();
-        uint256 supply = _totalSupply;
+        uint256 supply = totalSupply();
 
         return supply == 0 ? (10 ** _decimals) : assets * (10 ** _decimals) / supply;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @notice Override for transfer restriction
+    function _update(address from, address to, uint256 value) internal override {
+        if (from != address(0) && to != address(0)) {
+            revert("OneClickLending: Transfer not allowed");
+        }
+        super._update(from, to, value);
+    }
 
     /// @notice Computes the deviation of a pool's balance from its target allocation
     /// @param pool The address of the lending pool
@@ -399,7 +392,7 @@ contract OneClickLending is AccessControlUpgradeable {
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
-            uint256 poolShareToRedeem = (shares * ILendingPool(poolAddress).balanceOf(address(this))) / _totalSupply;
+            uint256 poolShareToRedeem = (shares * ILendingPool(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
                 assets += ILendingPool(poolAddress).redeem(poolShareToRedeem, address(this), address(this));
             }
@@ -430,15 +423,15 @@ contract OneClickLending is AccessControlUpgradeable {
         return assets;
     }
 
-    /// @notice Applies the profit fee
+    /// @notice Applies the performance fee
     /// @param assets The amount of assets before fee
     /// @param shares The amount of shares being redeemed
     /// @return The amount of assets after fee
-    function _applyProfitFee(uint256 assets, uint256 shares) internal returns (uint256) {
-        uint256 balancePortion = _depositedBalances[msg.sender] * shares / _balances[msg.sender];
+    function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256) {
+        uint256 balancePortion = _depositedBalances[msg.sender] * shares / balanceOf(msg.sender);
         uint256 fee;
         if (assets > balancePortion) {
-            fee = (assets - balancePortion) * feeProvider.getWithdrawalFee(address(msg.sender)) / feePrecision;
+            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
             asset.safeTransfer(feeRecipient, fee);
         }
         return assets - fee;

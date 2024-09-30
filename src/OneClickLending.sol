@@ -163,14 +163,12 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @notice Adds multiple lending pools
     /// @param poolAddresses Array of lending pool addresses
     function addLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
-        address poolAddress;
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            poolAddress = poolAddresses[i];
-            if (lendingPoolAddresses.add(poolAddress)) {
+            if (lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
-                asset.forceApprove(address(poolAddress), type(uint256).max);
+                asset.forceApprove(address(poolAddresses[i]), type(uint256).max);
 
-                emit LendingPoolAdded(poolAddress);
+                emit LendingPoolAdded(poolAddresses[i]);
             }
         }
     }
@@ -178,19 +176,17 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @notice Removes multiple lending pools
     /// @param poolAddresses Array of lending pool addresses to remove
     function removeLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
-        address poolAddress;
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            poolAddress = poolAddresses[i];
-            totalLendingShares -= lendingShares[poolAddress];
+            totalLendingShares -= lendingShares[poolAddresses[i]];
 
-            delete lendingShares[poolAddress];
+            delete lendingShares[poolAddresses[i]];
 
-            require(lendingPoolAddresses.remove(poolAddress));
+            require(lendingPoolAddresses.remove(poolAddresses[i]));
 
             // Revoke approval for the lending pool
-            asset.forceApprove(address(poolAddress), 0);
+            asset.forceApprove(address(poolAddresses[i]), 0);
 
-            emit LendingPoolRemoved(poolAddress);
+            emit LendingPoolRemoved(poolAddresses[i]);
         }
     }
 
@@ -201,16 +197,11 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
         external
         onlyRole(MANAGER_ROLE)
     {
-        address poolAddress;
-        uint256 newLendingShare;
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            poolAddress = poolAddresses[i];
-            newLendingShare = newLendingShares[i];
+            totalLendingShares = totalLendingShares - lendingShares[poolAddresses[i]] + newLendingShares[i];
+            lendingShares[poolAddresses[i]] = newLendingShares[i];
 
-            totalLendingShares = totalLendingShares - lendingShares[poolAddress] + newLendingShare;
-            lendingShares[poolAddress] = newLendingShare;
-
-            emit LendingPoolUpdated(poolAddress, newLendingShare);
+            emit LendingPoolUpdated(poolAddresses[i], newLendingShares[i]);
         }
     }
 
@@ -240,7 +231,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     }
 
     /// @notice Automatically rebalances assets across all lending pools
-    function rebalanceAuto() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rebalanceAuto() external onlyRole(MANAGER_ROLE) {
         uint256 totalAssetsToRedistribute;
         uint256 totalAssetsToDeposit;
         address[maxPools] memory poolsToDeposit;
@@ -429,6 +420,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @return The amount of assets after fee
     function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256) {
         uint256 balancePortion = _depositedBalances[msg.sender] * shares / balanceOf(msg.sender);
+        _depositedBalances[msg.sender] -= balancePortion;
         uint256 fee;
         if (assets > balancePortion) {
             fee = (assets - balancePortion) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;

@@ -6,8 +6,9 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
-abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable {
+abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
     error InvalidTokenToWithdraw(address token);
@@ -28,6 +29,7 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable {
 
     function __BaseVault_init(address admin) internal onlyInitializing {
         __Ownable_init(admin);
+        __Pausable_init();
     }
 
     function decimals() public view override returns (uint8) {
@@ -51,9 +53,17 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable {
         return supply == 0 ? (10 ** _decimals) : assets * (10 ** _decimals) / supply;
     }
 
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     function _deposit(uint256 assets) internal virtual;
 
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public virtual whenNotPaused returns (uint256 shares) {
         if (assets == 0) {
             return 0;
         }

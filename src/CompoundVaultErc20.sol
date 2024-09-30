@@ -26,7 +26,7 @@ contract CompoundVault is BaseVault {
     }
 
     function initialize(address admin, string memory name, string memory symbol) public initializer {
-        IERC20Metadata(super.asset()).forceApprove(address(pool), type(uint256).max);
+        IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseVault_init(admin);
     }
@@ -44,9 +44,9 @@ contract CompoundVault is BaseVault {
     }
 
     function _redeem(uint256 shares) internal override returns (uint256 underlyingAssets) {
-        uint256 balanceBefore = IERC20Metadata(super.asset()).balanceOf(address(this));
+        uint256 balanceBefore = IERC20Metadata(asset()).balanceOf(address(this));
         require(pool.redeem(shares * pool.balanceOf(address(this)) / totalSupply()) == 0, "Pool Error");
-        underlyingAssets = IERC20Metadata(super.asset()).balanceOf(address(this)) - balanceBefore;
+        underlyingAssets = IERC20Metadata(asset()).balanceOf(address(this)) - balanceBefore;
     }
 
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {

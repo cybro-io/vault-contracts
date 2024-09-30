@@ -37,12 +37,12 @@ contract CompoundVaultETH is BaseVault {
 
     /// @notice Wraps native ETH into WETH.
     function _wrapETH(uint256 amount) internal {
-        IWETH(address(super.asset())).deposit{value: amount}();
+        IWETH(address(asset())).deposit{value: amount}();
     }
 
     /// @notice Unwraps WETH into ETH.
     function _unwrapETH(uint256 amount) internal {
-        IWETH(address(super.asset())).withdraw(amount);
+        IWETH(address(asset())).withdraw(amount);
     }
 
     function _redeem(uint256 shares) internal override returns (uint256 underlyingAssets) {
@@ -66,6 +66,6 @@ contract CompoundVaultETH is BaseVault {
     }
 
     receive() external payable {
-        require(msg.sender == address(pool) || msg.sender == super.asset());
+        require(msg.sender == address(pool) || msg.sender == asset());
     }
 }

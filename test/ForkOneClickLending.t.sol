@@ -14,6 +14,7 @@ import {
 import {JuiceVault} from "../src/JuiceVault.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
 import {OneClickLending} from "../src/OneClickLending.sol";
+import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 
 contract OneClickLendingTest is Test {
     IAavePool aavePool;
@@ -32,8 +33,16 @@ contract OneClickLendingTest is Test {
     uint256 lendingShare2;
     uint8 precision;
 
+    address feeRecipient;
+    IFeeProvider feeProvider;
+
     address internal admin;
     uint256 internal adminPrivateKey;
+
+    uint32 depositFee;
+    uint32 withdrawalFee;
+    uint32 performanceFee;
+    uint32 feePrecision;
 
     function setUp() public {
         adminPrivateKey = 0xba132ce;
@@ -48,13 +57,26 @@ contract OneClickLendingTest is Test {
         lendingShare2 = 50 * 10 ** (precision - 2);
         user = address(100);
         user2 = address(101);
+        feeRecipient = address(102);
+        depositFee = 100;
+        withdrawalFee = 200;
+        performanceFee = 300;
+        feePrecision = 1e5;
         vm.startPrank(admin);
+        feeProvider = FeeProvider(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new FeeProvider(feePrecision)), admin, abi.encodeCall(FeeProvider.initialize, (admin))
+                )
+            )
+        );
+        feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
         lending = OneClickLending(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new OneClickLending(usdb)),
+                    address(new OneClickLending(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(OneClickLending.initialize, (admin))
                 )
             )
         );
@@ -100,6 +122,11 @@ contract OneClickLendingTest is Test {
 
     function test() public {
         _initializeUSDBVaults();
+        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
+        uint256 amountWithWithdrawalFee = (amountWithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
+        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
+        uint256 amount2WithWithdrawalFee = (amount2WithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
+
         vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
         usdb.transfer(user, amount);
         usdb.transfer(user2, amount2);
@@ -107,13 +134,13 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount, user);
+        uint256 userShares = lending.deposit(amount);
         console.log("user shares", userShares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2, user2);
+        uint256 user2Shares = lending.deposit(amount2);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -125,15 +152,31 @@ contract OneClickLendingTest is Test {
         lendingShares[0] = lendingShare2;
         lending.setLendingShares(vaults, lendingShares);
         lending.rebalance(address(juiceVault), address(aaveVault), juiceVault.balanceOf(address(lending)) / 4 - 1000);
+        vm.assertApproxEqAbs(
+            juiceVault.balanceOf(address(lending)),
+            aaveVault.balanceOf(address(lending)),
+            amountWithDepositFee * 2 / 1e10
+        );
+
+        vaults[0] = address(aaveVault);
+        lendingShares[0] = lendingShare;
+        lending.setLendingShares(vaults, lendingShares);
+        lending.rebalanceAuto();
+        vm.assertApproxEqAbs(
+            juiceVault.balanceOf(address(lending)),
+            aaveVault.balanceOf(address(lending)) * 2,
+            amountWithDepositFee * 2 / 1e10
+        );
         vm.stopPrank();
         // redeem
         vm.startPrank(user);
-        lending.redeem(userShares / 2, user, user);
-        vm.assertApproxEqAbs(usdb.balanceOf(user), amount / 2, amount / 1e10);
+        lending.redeem(userShares / 2, user);
+        vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, amountWithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.startPrank(user2);
-        lending.redeem(user2Shares / 2, user2, user2);
-        vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2 / 2, amount2 / 1e10);
+        lending.redeem(user2Shares / 2, user2);
+        vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
         vm.stopPrank();
+        vm.assertGt(usdb.balanceOf(feeRecipient), 0);
     }
 }

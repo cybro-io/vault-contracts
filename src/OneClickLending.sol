@@ -152,7 +152,6 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @param receiver The address to receive the assets
     /// @return assets The amount of assets redeemed
     function redeem(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        require(balanceOf(msg.sender) >= shares, "OneClickLending: Not enough shares");
         assets = _applyWithdrawalFee(_applyPerformanceFee(_redeem(shares), shares));
         _burn(msg.sender, shares);
         asset.safeTransfer(receiver, assets);

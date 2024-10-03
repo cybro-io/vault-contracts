@@ -22,7 +22,7 @@ contract ForkYieldStakingTest is Test {
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast");
+        forkId = vm.createSelectFork("blast", 8149175);
         user = address(100);
         amount = 1e20;
         staking = IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));

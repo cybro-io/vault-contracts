@@ -263,13 +263,14 @@ contract OneClickLendingTest is Test {
         vm.assertGt(usdb.balanceOf(feeRecipient), 0);
     }
 
-    function test_bufffer() public {
+    function test_buffer() public {
         _initializeUSDBVaults();
         _ininitializeBufferVault();
 
         vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
         usdb.transfer(user, amount);
         usdb.transfer(user2, amount2);
+        usdb.transfer(admin, amount2);
         vm.stopPrank();
 
         vm.startPrank(user);
@@ -294,5 +295,17 @@ contract OneClickLendingTest is Test {
         vm.assertGt(balanceBefore, lending.getBalanceOfPool(address(bufferVault)));
         vm.assertEq(lending.getProfit(user), 0);
         vm.assertGt(userBalanceBefore, lending.getBalanceInUnderlying(user));
+
+        vm.startPrank(admin);
+        usdb.transfer(address(bufferVault), usdb.balanceOf(admin));
+        uint256 depositedBalanceBefore = lending.getDepositedBalance(user);
+        uint256 depositedBalance2Before = lending.getDepositedBalance(user2);
+        address[] memory users = new address[](2);
+        users[0] = user;
+        users[1] = user2;
+        lending.collectPerformanceFee(users);
+        vm.assertGt(lending.getDepositedBalance(user), depositedBalanceBefore);
+        vm.assertGt(lending.getDepositedBalance(user2), depositedBalance2Before);
+        vm.stopPrank();
     }
 }

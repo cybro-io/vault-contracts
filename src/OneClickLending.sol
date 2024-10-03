@@ -8,10 +8,11 @@ import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 /// @title OneClickLending
 /// @notice A contract for managing ERC20 token lending to multiple lending pools.
-contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
+contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -27,7 +28,8 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @param owner The address that owns the deposited assets
     /// @param assets The amount of assets deposited
     /// @param shares The amount of shares minted
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+    /// @param depositFee The amount of fees paid for the deposit
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 depositFee);
 
     /// @notice Emitted when a withdrawal is made
     /// @param sender The address that initiated the withdrawal
@@ -35,8 +37,14 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @param owner The address that owned the withdrawn assets
     /// @param assets The amount of assets withdrawn
     /// @param shares The amount of shares burned
+    /// @param fee The amount of fees paid for the withdrawal and profit
     event Withdraw(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
+        address indexed sender,
+        address indexed receiver,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares,
+        uint256 fee
     );
 
     /// @notice Emitted when a new lending pool is added
@@ -116,6 +124,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
+        __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(STRATEGIST_ROLE, admin);
         _grantRole(MANAGER_ROLE, admin);
@@ -123,16 +132,25 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
     /// @notice Deposits assets into the vault
     /// @param assets The amount of assets to deposit
     /// @return shares The amount of shares minted
-    function deposit(uint256 assets) public virtual returns (uint256 shares) {
+    function deposit(uint256 assets) public virtual whenNotPaused returns (uint256 shares) {
         if (assets == 0) {
             return 0;
         }
         uint256 totalAssetsBefore = totalAssets();
         asset.safeTransferFrom(_msgSender(), address(this), assets);
-        assets = _applyDepositFee(assets);
+        uint256 depositFee;
+        (assets, depositFee) = _applyDepositFee(assets);
 
         _deposit(assets);
 
@@ -144,7 +162,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
         _depositedBalances[msg.sender] += assets;
         _mint(msg.sender, shares);
 
-        emit Deposit(_msgSender(), msg.sender, assets, shares);
+        emit Deposit(_msgSender(), msg.sender, assets, shares, depositFee);
     }
 
     /// @notice Redeems shares from the vault
@@ -152,11 +170,14 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @param receiver The address to receive the assets
     /// @return assets The amount of assets redeemed
     function redeem(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        assets = _applyWithdrawalFee(_applyPerformanceFee(_redeem(shares), shares));
+        uint256 performanceFee;
+        uint256 withdrawalFee;
+        (assets, performanceFee) = _applyPerformanceFee(_redeem(shares), shares);
+        (assets, withdrawalFee) = _applyWithdrawalFee(assets);
         _burn(msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
-        emit Withdraw(_msgSender(), receiver, msg.sender, assets, shares);
+        emit Withdraw(_msgSender(), receiver, msg.sender, assets, shares, performanceFee + withdrawalFee);
     }
 
     /// @notice Adds multiple lending pools
@@ -271,6 +292,21 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
         if (leftAssets > 0) ILendingPool(poolsToDeposit[count - 1]).deposit(leftAssets, address(this));
     }
 
+    /// @notice Collects performance fees for multiple accounts
+    /// @param accounts The addresses of the accounts to collect fees for
+    function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            uint256 assets = getBalanceInUnderlying(accounts[i]);
+            if (assets > _depositedBalances[accounts[i]]) {
+                uint256 fee = (assets - _depositedBalances[accounts[i]])
+                    * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+                uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
+                _depositedBalances[accounts[i]] -= fee;
+                super._update(accounts[i], feeRecipient, feeInShares);
+            }
+        }
+    }
+
     /// @notice Withdraws funds accidentally sent to the contract
     /// @param token The address of the token to withdraw
     function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -285,6 +321,77 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     }
 
     /* ========== VIEW FUNCTIONS ========== */
+
+    /// @notice Returns the deposit fee of an account
+    /// @param account The address of the account
+    /// @return The deposit fee of the account
+    function getDepositFee(address account) external view returns (uint256) {
+        return feeProvider.getDepositFee(address(account));
+    }
+
+    /// @notice Returns the withdrawal fee of an account
+    /// @param account The address of the account
+    /// @return The withdrawal fee of the account
+    function getWithdrawalFee(address account) external view returns (uint256) {
+        return feeProvider.getWithdrawalFee(address(account));
+    }
+
+    /// @notice Returns the performance fee of an account
+    /// @param account The address of the account
+    /// @return The performance fee of the account
+    function getPerformanceFee(address account) external view returns (uint256) {
+        return feeProvider.getPerformanceFee(address(account));
+    }
+
+    /// @notice Returns the share price of a lending pool
+    /// @param pool The address of the lending pool
+    /// @return The share price of the pool
+    function getSharePriceOfPool(address pool) external view returns (uint256) {
+        return ILendingPool(pool).sharePrice();
+    }
+
+    /// @notice Returns the balance of a lending pool
+    /// @param pool The address of the lending pool
+    /// @return The balance of the pool
+    function getBalanceOfPool(address pool) external view returns (uint256) {
+        return ILendingPool(pool).balanceOf(address(this)) * ILendingPool(pool).sharePrice() / 10 ** _decimals;
+    }
+
+    /// @notice Returns the deposited balance of an account
+    /// @param account The address of the account
+    /// @return The deposited balance of the account
+    function getDepositedBalance(address account) external view returns (uint256) {
+        return _depositedBalances[account];
+    }
+
+    /// @notice Returns the balance in underlying of an account
+    /// @param account The address of the account
+    /// @return The balance in underlying of the account
+    function getBalanceInUnderlying(address account) public view returns (uint256) {
+        return balanceOf(account) * sharePrice() / 10 ** _decimals;
+    }
+
+    /// @notice Returns the profit of an account
+    /// @param account The address of the account
+    /// @return The profit of the account
+    function getProfit(address account) external view returns (uint256) {
+        uint256 balance = getBalanceInUnderlying(account);
+        return balance > _depositedBalances[account] ? balance - _depositedBalances[account] : 0;
+    }
+
+    /// @notice Returns the withdrawal fee of an account
+    /// @param account The address of the account
+    /// @return The withdrawal fee of the account
+    function quoteWithdrawalFee(address account) external view returns (uint256) {
+        uint256 assets = getBalanceInUnderlying(account);
+        uint256 depositedBalance = _depositedBalances[account];
+        uint256 fee;
+        if (assets > depositedBalance) {
+            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+        }
+
+        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
+    }
 
     function decimals() public view override returns (uint8) {
         return _decimals;
@@ -392,32 +499,32 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
     /// @notice Applies the deposit fee
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee
-    function _applyDepositFee(uint256 assets) internal returns (uint256) {
+    function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
         uint256 fee = (assets * feeProvider.getDepositFee(address(msg.sender))) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             asset.safeTransfer(feeRecipient, fee);
         }
-        return assets;
+        return (assets, fee);
     }
 
     /// @notice Applies the withdrawal fee
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee
-    function _applyWithdrawalFee(uint256 assets) internal returns (uint256) {
+    function _applyWithdrawalFee(uint256 assets) internal returns (uint256, uint256) {
         uint256 fee = (assets * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             asset.safeTransfer(feeRecipient, fee);
         }
-        return assets;
+        return (assets, fee);
     }
 
     /// @notice Applies the performance fee
     /// @param assets The amount of assets before fee
     /// @param shares The amount of shares being redeemed
     /// @return The amount of assets after fee
-    function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256) {
+    function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256, uint256) {
         uint256 balancePortion = _depositedBalances[msg.sender] * shares / balanceOf(msg.sender);
         _depositedBalances[msg.sender] -= balancePortion;
         uint256 fee;
@@ -425,6 +532,6 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable {
             fee = (assets - balancePortion) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
             asset.safeTransfer(feeRecipient, fee);
         }
-        return assets - fee;
+        return (assets - fee, fee);
     }
 }

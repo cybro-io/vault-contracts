@@ -15,12 +15,15 @@ import {JuiceVault} from "../src/JuiceVault.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
 import {OneClickLending} from "../src/OneClickLending.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
+import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
+import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 contract OneClickLendingTest is Test {
     IAavePool aavePool;
     IJuicePool usdbJuicePool;
     JuiceVault juiceVault;
     AaveVault aaveVault;
+    BufferVaultMock bufferVault;
     IERC20Metadata usdb = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
     uint256 amount;
     uint256 amount2;
@@ -120,6 +123,86 @@ contract OneClickLendingTest is Test {
         vm.stopPrank();
     }
 
+    function _ininitializeBufferVault() internal {
+        vm.startPrank(admin);
+        bufferVault = BufferVaultMock(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new BufferVaultMock(usdb)),
+                    admin,
+                    abi.encodeCall(BufferVaultMock.initialize_mock, (admin, "nameVault", "symbolVault"))
+                )
+            )
+        );
+        address[] memory vaults = new address[](1);
+        vaults[0] = address(bufferVault);
+        uint256[] memory lendingShares = new uint256[](1);
+        lendingShares[0] = lendingShare;
+        lending.addLendingPools(vaults);
+        lending.setLendingShares(vaults, lendingShares);
+        vm.stopPrank();
+    }
+
+    function test_getters() public {
+        _initializeUSDBVaults();
+        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
+        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
+        vm.assertEq(lending.getLendingPoolCount(), 2);
+        vm.assertEq(lending.totalLendingShares(), lendingShare + lendingShare2);
+
+        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
+        usdb.transfer(user, amount);
+        usdb.transfer(user2, amount2);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        usdb.approve(address(lending), amount);
+        uint256 userShares = lending.deposit(amount);
+        console.log("user shares", userShares);
+        vm.stopPrank();
+
+        // test pause
+
+        vm.prank(admin);
+        lending.pause();
+
+        vm.startPrank(user2);
+        usdb.approve(address(lending), amount2);
+        vm.expectRevert();
+        lending.deposit(amount2);
+        vm.stopPrank();
+
+        vm.prank(admin);
+        lending.unpause();
+
+        vm.startPrank(user2);
+        uint256 user2Shares = lending.deposit(amount2);
+        console.log("user2 shares", user2Shares);
+        vm.stopPrank();
+
+        vm.assertApproxEqAbs(lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, 1e10);
+        vm.assertEq(lending.getDepositFee(user), depositFee);
+        vm.assertEq(lending.getWithdrawalFee(user), withdrawalFee);
+        vm.assertEq(lending.getPerformanceFee(user), performanceFee);
+        vm.assertEq(lending.feePrecision(), feePrecision);
+        vm.assertApproxEqAbs(
+            lending.getBalanceOfPool(address(aaveVault)),
+            (amountWithDepositFee + amount2WithDepositFee) * lendingShare / (lendingShare + lendingShare2),
+            1e5
+        );
+        vm.assertApproxEqAbs(
+            lending.getBalanceOfPool(address(juiceVault)),
+            (amountWithDepositFee + amount2WithDepositFee) * lendingShare2 / (lendingShare + lendingShare2),
+            1e5
+        );
+        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
+        vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
+        vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
+        vm.assertEq(lending.getDepositedBalance(user), amountWithDepositFee);
+        vm.assertEq(lending.getDepositedBalance(user2), amount2WithDepositFee);
+        vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
+    }
+
     function test() public {
         _initializeUSDBVaults();
         uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
@@ -178,5 +261,38 @@ contract OneClickLendingTest is Test {
         vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.assertGt(usdb.balanceOf(feeRecipient), 0);
+    }
+
+    function test_bufffer() public {
+        _initializeUSDBVaults();
+        _ininitializeBufferVault();
+
+        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
+        usdb.transfer(user, amount);
+        usdb.transfer(user2, amount2);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        usdb.approve(address(lending), amount);
+        uint256 userShares = lending.deposit(amount);
+        console.log("user shares", userShares);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        usdb.approve(address(lending), amount2);
+        uint256 user2Shares = lending.deposit(amount2);
+        console.log("user2 shares", user2Shares);
+        vm.stopPrank();
+
+        uint256 balanceBefore = lending.getBalanceOfPool(address(bufferVault));
+        uint256 userBalanceBefore = lending.getBalanceInUnderlying(user);
+
+        vm.startPrank(admin);
+        bufferVault.reduceAssets(lending.getBalanceOfPool(address(bufferVault)) / 2);
+        vm.stopPrank();
+
+        vm.assertGt(balanceBefore, lending.getBalanceOfPool(address(bufferVault)));
+        vm.assertEq(lending.getProfit(user), 0);
+        vm.assertGt(userBalanceBefore, lending.getBalanceInUnderlying(user));
     }
 }

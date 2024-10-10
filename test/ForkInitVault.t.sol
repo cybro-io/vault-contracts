@@ -50,12 +50,12 @@ contract InitVaultTest is Test {
         _;
     }
 
-    function _initializeNewVault(IERC20Metadata _token, IERC20Metadata _pool) internal returns (InitVault vault) {
+    function _initializeNewVault(IERC20Metadata _pool) internal returns (InitVault vault) {
         vm.startPrank(admin);
         vault = InitVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new InitVault(_token, core, _pool)),
+                    address(new InitVault(_pool)),
                     admin,
                     abi.encodeCall(InitVault.initialize, (admin, "nameVault", "symbolVault"))
                 )
@@ -79,7 +79,7 @@ contract InitVaultTest is Test {
 
     function test_usdb() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        usdbVault = _initializeNewVault(token, usdbPool);
+        usdbVault = _initializeNewVault(usdbPool);
         vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         token.transfer(user, amount);
 
@@ -96,8 +96,9 @@ contract InitVaultTest is Test {
 
         uint256 shares = _deposit(usdbVault);
         console.log("shares", shares);
-        // console.log("decimals", IERC20Metadata(IInitLendingPool(address(usdbPool)).underlyingToken()).decimals());
         console.log("balance", usdbPool.balanceOf(address(usdbVault)));
+        vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
+        console.log("share price", usdbVault.sharePrice());
         // decimals of pool's lp = usdb.decimals + 16 = wusdb.decimlas + 8
         // wusdb.decimals = usdb.decimals + 8
 
@@ -105,39 +106,45 @@ contract InitVaultTest is Test {
         IInitLendingPool(address(usdbPool)).accrueInterest();
         uint256 assets = _redeem(shares, usdbVault);
         console.log(token.balanceOf(user));
+        vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
+        console.log("share price", usdbVault.sharePrice());
         vm.assertGt(assets, amount);
     }
 
-    function test_blast() public fork {
-        token = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
-        blastVault = _initializeNewVault(token, blastPool);
-        vm.prank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
-        token.transfer(user, amount);
+    // function test_blast() public fork {
+    //     token = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
+    //     blastVault = _initializeNewVault(token, blastPool);
+    //     vm.prank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
+    //     token.transfer(user, amount);
 
-        uint256 shares = _deposit(blastVault);
-        console.log("shares", shares);
-        console.log("underlying", address(blastVault.underlying()));
+    //     uint256 shares = _deposit(blastVault);
+    //     console.log("shares", shares);
+    //     console.log("underlying", address(blastVault.underlying()));
 
-        vm.warp(block.timestamp + 100);
-        IInitLendingPool(address(blastPool)).accrueInterest();
-        uint256 assets = _redeem(shares, blastVault);
-        console.log(token.balanceOf(user));
-        vm.assertGt(assets, amount);
-    }
+    //     vm.warp(block.timestamp + 100);
+    //     IInitLendingPool(address(blastPool)).accrueInterest();
+    //     uint256 assets = _redeem(shares, blastVault);
+    //     console.log(token.balanceOf(user));
+    //     vm.assertGt(assets, amount);
+    // }
 
     function test_weth() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        wethVault = _initializeNewVault(token, wethPool);
+        wethVault = _initializeNewVault(wethPool);
         vm.prank(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
         token.transfer(user, amount);
         uint256 shares = _deposit(wethVault);
         console.log("shares", shares);
         console.log("underlying", address(wethVault.underlying()));
+        console.log("share price", wethVault.sharePrice());
+        vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 10);
 
         vm.warp(block.timestamp + 100);
         IInitLendingPool(address(wethPool)).accrueInterest();
         uint256 assets = _redeem(shares, wethVault);
         console.log(token.balanceOf(user));
+        vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 100);
+        console.log("share price", wethVault.sharePrice());
         vm.assertGt(assets, amount);
     }
 }

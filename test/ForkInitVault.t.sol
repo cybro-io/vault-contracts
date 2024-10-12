@@ -16,9 +16,9 @@ import {IERC20RebasingWrapper} from "../src/interfaces/init/IERC20RebasingWrappe
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 
 contract InitVaultTest is Test {
-    IERC20Metadata usdbPool;
-    IERC20Metadata wethPool;
-    IERC20Metadata blastPool;
+    IInitLendingPool usdbPool;
+    IInitLendingPool wethPool;
+    IInitLendingPool blastPool;
     InitVault usdbVault;
     InitVault wethVault;
     InitVault blastVault;
@@ -36,9 +36,9 @@ contract InitVaultTest is Test {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
         forkId = vm.createSelectFork("blast", 9330000);
-        usdbPool = IERC20Metadata(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F));
-        wethPool = IERC20Metadata(address(0xD20989EB39348994AA99F686bb4554090d0C09F3));
-        blastPool = IERC20Metadata(address(0xdafB6929442303e904A2f673A0E7EB8753Bab571));
+        usdbPool = IInitLendingPool(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F));
+        wethPool = IInitLendingPool(address(0xD20989EB39348994AA99F686bb4554090d0C09F3));
+        blastPool = IInitLendingPool(address(0xdafB6929442303e904A2f673A0E7EB8753Bab571));
         core = IInitCore(address(0xa7d36f2106b5a5D528a7e2e7a3f436d703113A10));
         amount = 1e20;
         user = address(100);
@@ -50,7 +50,7 @@ contract InitVaultTest is Test {
         _;
     }
 
-    function _initializeNewVault(IERC20Metadata _pool) internal returns (InitVault vault) {
+    function _initializeNewVault(IInitLendingPool _pool) internal returns (InitVault vault) {
         vm.startPrank(admin);
         vault = InitVault(
             address(

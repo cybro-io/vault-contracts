@@ -14,37 +14,35 @@ import {IInitLendingPool} from "./interfaces/init/IInitLendingPool.sol";
 /// @dev Inherits from BaseVault and implements Init-specific logic
 contract InitVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
+    using SafeERC20 for IERC20RebasingWrapper;
+    using SafeERC20 for IInitLendingPool;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
     /// @notice The Init core contract
     IInitCore public immutable core;
     /// @notice The Init pool token
-    IERC20Metadata public immutable pool;
+    IInitLendingPool public immutable pool;
     /// @notice The underlying token of the Init pool
-    IERC20Metadata public immutable underlying;
+    IERC20RebasingWrapper public immutable underlying;
 
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
     /// @notice Constructor to set up immutable variables
     /// @param _pool The Init pool address
-    constructor(IERC20Metadata _pool)
-        BaseVault(
-            IERC20Metadata(IERC20RebasingWrapper(IInitLendingPool(address(_pool)).underlyingToken()).underlyingToken())
-        )
+    constructor(IInitLendingPool _pool)
+        BaseVault(IERC20Metadata(IERC20RebasingWrapper(_pool.underlyingToken()).underlyingToken()))
     {
         pool = _pool;
-        core = IInitCore(IInitLendingPool(address(pool)).core());
-        underlying = IERC20Metadata(IInitLendingPool(address(pool)).underlyingToken());
+        core = IInitCore(pool.core());
+        underlying = IERC20RebasingWrapper(pool.underlyingToken());
 
         _disableInitializers();
     }
 
     function initialize(address admin, string memory name, string memory symbol) public initializer {
-        if (asset() != address(underlying)) {
-            IERC20Metadata(asset()).forceApprove(address(underlying), type(uint256).max);
-        }
+        IERC20Metadata(asset()).forceApprove(address(underlying), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseVault_init(admin);
     }
@@ -52,16 +50,14 @@ contract InitVault is BaseVault {
     /// @notice Returns the total assets in the vault
     /// @return The total balance of pool tokens held by the vault
     function totalAssets() public view override returns (uint256) {
-        return IInitLendingPool(address(underlying)).toAmt(
-            IInitLendingPool(address(pool)).toAmt(pool.balanceOf(address(this)))
-        );
+        return underlying.toAmt(pool.toAmt(pool.balanceOf(address(this))));
     }
 
     /// @notice Internal function to handle deposits
     /// @param assets The amount of assets to deposit
     function _deposit(uint256 assets) internal override {
         // Convert asset amount to underlying token amount
-        uint256 assetsUnderlying = IERC20RebasingWrapper(address(underlying)).wrap(assets);
+        uint256 assetsUnderlying = underlying.wrap(assets);
         // Transfer underlying tokens to the pool
         underlying.safeTransfer(address(pool), assetsUnderlying);
         // Mint pool tokens to this vault
@@ -78,7 +74,7 @@ contract InitVault is BaseVault {
         pool.safeTransfer(address(pool), assetsToBurn);
         // Burn pool tokens and receive underlying tokens
         uint256 assetsReceived = core.burnTo(address(pool), address(this));
-        assets = IERC20RebasingWrapper(address(underlying)).unwrap(assetsReceived);
+        assets = underlying.unwrap(assetsReceived);
     }
 
     /// @notice Validates if a token can be recovered from the vault

@@ -9,6 +9,7 @@ import {
     TransparentUpgradeableProxy,
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IFeeProvider} from "../src/interfaces/IFeeProvider.sol";
 
 contract DeployScript is Script {
     function deployMock() public {
@@ -19,7 +20,7 @@ contract DeployScript is Script {
         MockVault vaultUSDB = MockVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new MockVault(usdb)),
+                    address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
                     abi.encodeCall(MockVault.initialize, (admin, "USDB vault", "USDBV"))
                 )
@@ -30,7 +31,7 @@ contract DeployScript is Script {
         MockVault vaultWETH = MockVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new MockVault(usdb)),
+                    address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
                     abi.encodeCall(MockVault.initialize, (admin, "WETH vault", "WETHV"))
                 )
@@ -41,7 +42,7 @@ contract DeployScript is Script {
         MockVault vaultWBTC = MockVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new MockVault(usdb)),
+                    address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
                     abi.encodeCall(MockVault.initialize, (admin, "WBTC vault", "WBTCV"))
                 )

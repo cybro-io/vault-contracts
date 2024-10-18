@@ -6,6 +6,7 @@ import {IYieldStaking} from "./interfaces/blastup/IYieldStacking.sol";
 import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test, console} from "forge-std/Test.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 contract YieldStakingVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
@@ -17,7 +18,9 @@ contract YieldStakingVault is BaseVault {
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
-    constructor(IERC20Metadata _asset, IYieldStaking _staking) BaseVault(_asset) {
+    constructor(IERC20Metadata _asset, IYieldStaking _staking, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseVault(_asset, _feeProvider, _feeRecipient)
+    {
         staking = _staking;
 
         _disableInitializers();

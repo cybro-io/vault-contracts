@@ -31,12 +31,15 @@ contract InitVault is BaseVault {
 
     /// @notice Constructor to set up immutable variables
     /// @param _pool The Init pool address
-    constructor(IInitLendingPool _pool)
-        BaseVault(IERC20Metadata(IERC20RebasingWrapper(_pool.underlyingToken()).underlyingToken()))
-    {
+    constructor(IInitLendingPool _pool, IERC20Metadata _asset) BaseVault(_asset) {
         pool = _pool;
         core = IInitCore(pool.core());
         underlying = IERC20RebasingWrapper(pool.underlyingToken());
+
+        require(
+            (address(underlying) == address(_asset)) || (underlying.underlyingToken() == address(_asset)),
+            "InitVault: Invalid underlying"
+        );
 
         _disableInitializers();
     }
@@ -50,14 +53,23 @@ contract InitVault is BaseVault {
     /// @notice Returns the total assets in the vault
     /// @return The total balance of pool tokens held by the vault
     function totalAssets() public view override returns (uint256) {
-        return underlying.toAmt(pool.toAmt(pool.balanceOf(address(this))));
+        if (asset() == address(underlying)) {
+            return pool.toAmt(pool.balanceOf(address(this)));
+        } else {
+            return underlying.toAmt(pool.toAmt(pool.balanceOf(address(this))));
+        }
     }
 
     /// @notice Internal function to handle deposits
     /// @param assets The amount of assets to deposit
     function _deposit(uint256 assets) internal override {
-        // Convert asset amount to underlying token amount
-        uint256 assetsUnderlying = underlying.wrap(assets);
+        uint256 assetsUnderlying;
+        if (asset() == address(underlying)) {
+            assetsUnderlying = assets;
+        } else {
+            assetsUnderlying = underlying.wrap(assets);
+        }
+
         // Transfer underlying tokens to the pool
         underlying.safeTransfer(address(pool), assetsUnderlying);
         // Mint pool tokens to this vault
@@ -74,7 +86,12 @@ contract InitVault is BaseVault {
         pool.safeTransfer(address(pool), assetsToBurn);
         // Burn pool tokens and receive underlying tokens
         uint256 assetsReceived = core.burnTo(address(pool), address(this));
-        assets = underlying.unwrap(assetsReceived);
+
+        if (address(underlying) == asset()) {
+            assets = assetsReceived;
+        } else {
+            assets = underlying.unwrap(assetsReceived);
+        }
     }
 
     /// @notice Validates if a token can be recovered from the vault

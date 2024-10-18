@@ -55,7 +55,7 @@ contract InitVaultTest is Test {
         vault = InitVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new InitVault(_pool)),
+                    address(new InitVault(_pool, token)),
                     admin,
                     abi.encodeCall(InitVault.initialize, (admin, "nameVault", "symbolVault"))
                 )
@@ -111,22 +111,22 @@ contract InitVaultTest is Test {
         vm.assertGt(assets, amount);
     }
 
-    // function test_blast() public fork {
-    //     token = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
-    //     blastVault = _initializeNewVault(token, blastPool);
-    //     vm.prank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
-    //     token.transfer(user, amount);
+    function test_blast() public fork {
+        token = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
+        blastVault = _initializeNewVault(blastPool);
+        vm.prank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
+        token.transfer(user, amount);
 
-    //     uint256 shares = _deposit(blastVault);
-    //     console.log("shares", shares);
-    //     console.log("underlying", address(blastVault.underlying()));
+        uint256 shares = _deposit(blastVault);
+        console.log("shares", shares);
+        console.log("underlying", address(blastVault.underlying()));
 
-    //     vm.warp(block.timestamp + 100);
-    //     IInitLendingPool(address(blastPool)).accrueInterest();
-    //     uint256 assets = _redeem(shares, blastVault);
-    //     console.log(token.balanceOf(user));
-    //     vm.assertGt(assets, amount);
-    // }
+        vm.warp(block.timestamp + 100);
+        IInitLendingPool(address(blastPool)).accrueInterest();
+        uint256 assets = _redeem(shares, blastVault);
+        console.log(token.balanceOf(user));
+        vm.assertGt(assets, amount);
+    }
 
     function test_weth() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));

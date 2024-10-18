@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {InitVault, IERC20Metadata} from "../src/InitVault.sol";
+import {InitVault, IERC20Metadata, IFeeProvider} from "../src/InitVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {
@@ -55,7 +55,7 @@ contract InitVaultTest is Test {
         vault = InitVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new InitVault(_pool, token)),
+                    address(new InitVault(_pool, token, IFeeProvider(address(0)), address(0))),
                     admin,
                     abi.encodeCall(InitVault.initialize, (admin, "nameVault", "symbolVault"))
                 )

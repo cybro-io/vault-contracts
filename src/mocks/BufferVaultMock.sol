@@ -10,7 +10,8 @@ contract BufferVaultMock is BufferVault {
     using SafeERC20 for IERC20Metadata;
 
     constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
-        BufferVault(_asset, _feeProvider, _feeRecipient) {}
+        BufferVault(_asset, _feeProvider, _feeRecipient)
+    {}
 
     function initialize_mock(address admin, string memory name, string memory symbol) public initializer {
         __ERC20_init(name, symbol);

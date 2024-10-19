@@ -8,3 +8,4 @@ auto_detect_solc = true
 blast = "${BLAST_RPC}"
 optimism = "${OPTIMISM_RPC}"
 arbitrum = "${ARBITRUM_RPC}"
+base = "${BASE_RPC}"

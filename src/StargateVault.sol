@@ -11,51 +11,81 @@ import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
 
+/// @title StargateVault
+/// @notice A vault contract for managing Stargate liquidity
 contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
+    /// @notice The Stargate pool used for deposits and redeems
     IStargatePool public immutable pool;
 
+    /// @notice The LP token for the Stargate pool
     address public immutable lpToken;
 
+    /// @notice The staking contract for Stargate
     IStargateStaking public immutable staking;
 
+    /// @notice The STG token
     IERC20Metadata public immutable stg;
 
+    /// @notice The WETH token
     IERC20Metadata public immutable weth;
 
-    bool internal immutable _stgForWeth;
+    /// @notice Uniswap V3 pool for STG/WETH pair
+    IUniswapV3Pool public immutable stgWethPool;
 
-    bool internal immutable _usdtForWeth;
+    /// @notice Uniswap V3 pool for asset/WETH pair
+    IUniswapV3Pool public immutable assetWethPool;
+
+    /// @notice Conversion rate for asset decimals adjustment
+    uint256 internal immutable _convertRate;
 
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
-    IUniswapV3Pool public swapPool;
-    IUniswapV3Pool public swapPoolUSDTWETH;
+    /* ========== CONSTRUCTOR ========== */
 
+    /// @notice Constructor for the StargateVault contract
+    /// @param _pool Stargate pool used for asset management
+    /// @param _feeProvider Fee provider contract
+    /// @param _feeRecipient Address to receive fees
+    /// @param _staking Staking contract for Stargate
+    /// @param _stg STG token contract
+    /// @param _weth WETH token contract
+    /// @param _stgWethPool Uniswap V3 pool for STG/WETH
+    /// @param _assetWethPool Uniswap V3 pool for asset/WETH
     constructor(
         IStargatePool _pool,
         IFeeProvider _feeProvider,
         address _feeRecipient,
         IStargateStaking _staking,
         IERC20Metadata _stg,
-        IERC20Metadata _weth
-    ) BaseVault(IERC20Metadata(_pool.token()), _feeProvider, _feeRecipient) {
+        IERC20Metadata _weth,
+        IUniswapV3Pool _stgWethPool,
+        IUniswapV3Pool _assetWethPool
+    ) BaseVault(_pool.token() == address(0) ? _weth : IERC20Metadata(_pool.token()), _feeProvider, _feeRecipient) {
         pool = _pool;
         weth = _weth;
         stg = _stg;
-        _stgForWeth = stg < weth;
-        _usdtForWeth = address(weth) < asset();
         lpToken = pool.lpToken();
         staking = _staking;
+        stgWethPool = _stgWethPool;
+        assetWethPool = _assetWethPool;
+        _convertRate = 10 ** (18 - _pool.sharedDecimals());
 
         _disableInitializers();
     }
 
+    /* ========== INITIALIZER ========== */
+
+    /// @notice Initializer function for setting up the vault
+    /// @param admin The admin address for the vault
+    /// @param name The name of the ERC20 token
+    /// @param symbol The symbol of the ERC20 token
     function initialize(address admin, string memory name, string memory symbol) public initializer {
         IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         IERC20Metadata(lpToken).forceApprove(address(staking), type(uint256).max);
@@ -63,74 +93,38 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         __BaseVault_init(admin);
     }
 
-    function setSwapPools(IUniswapV3Pool _swapPool, IUniswapV3Pool _swapPoolUSDTWETH) external onlyOwner {
-        swapPool = _swapPool;
-        swapPoolUSDTWETH = _swapPoolUSDTWETH;
-    }
+    /* ========== EXTERNAL FUNCTIONS ========== */
 
-    function _swap(bool isStgForWeth, uint256 amount) internal returns (uint256) {
-        int256 amount0;
-        int256 amount1;
-        if (isStgForWeth) {
-            (amount0, amount1) = swapPool.swap(
-                address(this), _stgForWeth, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(stg, weth)
-            );
-            return uint256(-(_stgForWeth ? amount1 : amount0));
-        } else {
-            (amount0, amount1) = swapPoolUSDTWETH.swap(
-                address(this), _usdtForWeth, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(asset(), weth)
-            );
-            return uint256(-(_usdtForWeth ? amount1 : amount0));
-        }
-    }
-
-    function claimReinvest(uint256 minAssetsWETH, uint256 minAssetsUnderlying) external onlyOwner {
+    /// @notice Claims rewards, swaps them for the underlying asset and reinvests
+    /// @param minAssets Minimum amount of assets to receive from the swap
+    /// @return assets The amount of assets obtained and reinvested
+    function claimReinvest(uint256 minAssets) external onlyOwner returns (uint256 assets) {
         address[] memory tokens = new address[](1);
         tokens[0] = lpToken;
         staking.claim(tokens);
 
         // Execute the swap and capture the output amount
-        uint256 assets = _swap(true, stg.balanceOf(address(this)));
+        assets = _swapToAssets(true, stg.balanceOf(address(this)));
 
-        // assert minAssets
-        if (assets < minAssetsWETH) {
+        if (asset() != address(weth)) {
+            assets = _swapToAssets(false, assets);
+        }
+
+        if (assets < minAssets) {
             revert("StargateVault: swap failed");
         }
-        if (asset() != address(weth)) {
-            assets = _swap(false, assets);
-            if (assets < minAssetsUnderlying) {
-                revert("StargateVault: swap failed");
-            }
-        }
 
-        pool.deposit(address(this), assets);
-        staking.deposit(address(lpToken), assets);
+        _deposit(assets);
     }
 
-    function totalAssets() public view override returns (uint256) {
-        return staking.balanceOf(lpToken, address(this));
-    }
-
-    function _deposit(uint256 assets) internal override {
-        assets = pool.deposit(address(this), assets);
-        staking.deposit(address(lpToken), assets);
-    }
-
-    function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
-        staking.withdraw(lpToken, assets);
-        pool.redeem(assets, address(this));
-    }
-
-    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
-        return token != address(pool);
-    }
-
+    /// @notice Uniswap V3 swap callback for providing required token amounts during swaps
+    /// @param amount0Delta Amount of the first token delta
+    /// @param amount1Delta Amount of the second token delta
+    /// @param data Encoded data containing swap details
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        // Ensure the callback is being called by the correct pool
         require(amount0Delta > 0 || amount1Delta > 0);
         require(
-            msg.sender == address(swapPool) || msg.sender == address(swapPoolUSDTWETH),
+            msg.sender == address(stgWethPool) || msg.sender == address(assetWethPool),
             "StargateVault: invalid swap callback caller"
         );
 
@@ -144,5 +138,91 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
+    }
+
+    /// @notice Allows contract to receive ETH from the pool or WETH withdrawals
+    receive() external payable {
+        require(msg.sender == address(pool) || msg.sender == address(weth));
+    }
+
+    /* ========== VIEW METHODS ========== */
+
+    /// @notice Returns the total assets managed by the vault
+    /// @return The total assets in the vault
+    function totalAssets() public view override returns (uint256) {
+        return staking.balanceOf(lpToken, address(this));
+    }
+
+    /* ========== INTERNAL METHODS ========== */
+
+    /// @notice Swaps tokens to the vault's designated asset using Uniswap V3
+    /// @param isStgForWeth If true, swaps STG for WETH, else swaps asset for WETH
+    /// @param amount The amount of tokens to swap
+    /// @return The amount of the asset obtained from the swap
+    function _swapToAssets(bool isStgForWeth, uint256 amount) internal returns (uint256) {
+        int256 amount0;
+        int256 amount1;
+        bool zeroForOne;
+        if (isStgForWeth) {
+            zeroForOne = stg < weth;
+            (amount0, amount1) = stgWethPool.swap(
+                address(this), zeroForOne, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(stg, weth)
+            );
+            return uint256(-(zeroForOne ? amount1 : amount0));
+        } else {
+            zeroForOne = address(weth) < asset();
+            (amount0, amount1) = assetWethPool.swap(
+                address(this), zeroForOne, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(asset(), weth)
+            );
+            return uint256(-(zeroForOne ? amount1 : amount0));
+        }
+    }
+
+    /// @notice Wraps ETH into WETH
+    /// @param amount The amount of ETH to wrap
+    function _wrapETH(uint256 amount) internal {
+        IWETH(address(asset())).deposit{value: amount}();
+    }
+
+    /// @notice Unwraps WETH into ETH
+    /// @param amount The amount of WETH to unwrap
+    function _unwrapETH(uint256 amount) internal {
+        IWETH(address(asset())).withdraw(amount);
+    }
+
+    /// @notice Internal method for depositing assets into the Stargate pool and staking
+    /// @param assets The amount of assets to deposit
+    function _deposit(uint256 assets) internal override {
+        if (asset() == address(weth)) {
+            uint256 assetToDeposit = uint64(assets / _convertRate) * _convertRate;
+            _unwrapETH(assetToDeposit);
+            pool.deposit{value: assetToDeposit}(address(this), assetToDeposit);
+            if (assetToDeposit > assets) {
+                (bool success,) = address(msg.sender).call{value: assets - assetToDeposit}("");
+                require(success, "StargateVault: failed to send ETH");
+            }
+        } else {
+            assets = pool.deposit(address(this), assets);
+        }
+        staking.deposit(address(lpToken), assets);
+    }
+
+    /// @notice Redeems shares from the Stargate pool
+    /// @param shares The amount of shares to redeem
+    /// @return assets The amount of assets obtained from redeeming
+    function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
+        staking.withdraw(lpToken, assets);
+        pool.redeem(assets, address(this));
+        if (asset() == address(weth)) {
+            _wrapETH(assets);
+        }
+    }
+
+    /// @notice Validates if a token can be recovered
+    /// @param token The address of the token to validate
+    /// @return True if the token can be recovered, false otherwise
+    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+        return token != address(pool);
     }
 }

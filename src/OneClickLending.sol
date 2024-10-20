@@ -298,8 +298,8 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
             if (assets > _depositedBalances[accounts[i]]) {
-                uint256 fee = (assets - _depositedBalances[accounts[i]])
-                    * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+                uint256 fee = (assets - _depositedBalances[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i])
+                    / feePrecision;
                 uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
                 _depositedBalances[accounts[i]] = assets - fee;
                 super._update(accounts[i], feeRecipient, feeInShares);

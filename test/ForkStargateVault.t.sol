@@ -130,16 +130,28 @@ abstract contract StargateVaultTest is Test {
         vm.stopPrank();
     }
 
+    function _calculatDepositFee(uint256 _amount) internal view returns (uint256) {
+        return (_amount * feeProvider.getDepositFee(user)) / feePrecision;
+    }
+
+    function _calculatWithdrawalFee(uint256 _amount) internal view returns (uint256) {
+        return (_amount * feeProvider.getWithdrawalFee(user)) / feePrecision;
+    }
+
     function test_usdt() public fork {
         if (block.chainid == 8453) {
             return;
         }
         token = usdt;
         usdtVault = _initializeNewVault(usdtPool, swapPoolUSDTWETH);
+        vm.assertEq(usdtVault.getDepositFee(user), depositFee);
+        vm.assertEq(usdtVault.getWithdrawalFee(user), withdrawalFee);
+        vm.assertEq(usdtVault.getPerformanceFee(user), performanceFee);
+        vm.assertEq(usdtVault.feePrecision(), feePrecision);
         vm.prank(usdtPrank);
         token.transfer(user, amount);
 
-        // // tests pause
+        // tests pause
         vm.prank(admin);
         usdtVault.pause();
         vm.startPrank(user);
@@ -150,65 +162,70 @@ abstract contract StargateVaultTest is Test {
         vm.prank(admin);
         usdtVault.unpause();
 
-        address[] memory tokens = staking.tokens();
-        console.log("tokens", tokens[2]);
-        // console.log("rewarder", staking.rewarder(address(0x9f58A79D81477130C0C6D74b96e1397db9765ab1)));
-
         uint256 shares = _deposit(usdtVault, amount);
         console.log("shares", shares);
-        // console.log("balance", usdt.balanceOf(address(usdbVault)));
-        // vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
-        // console.log("share price", usdbVault.sharePrice());
-        // decimals of pool's lp = usdb.decimals + 16 = wusdb.decimlas + 8
-        // wusdb.decimals = usdb.decimals + 8
-        // (, uint256[] memory rewards) = rewarder.getRewards(usdtVault.lpToken(), address(usdtVault));
-        // console.log(rewards[0]);
         vm.warp(block.timestamp + 100);
 
+        uint256 sharePriceBefore = usdtVault.sharePrice();
         vm.startPrank(admin);
         usdtVault.claimReinvest(0);
+        vm.assertEq(stg.balanceOf(address(usdtVault)), 0);
         vm.stopPrank();
-        // (, rewards) = rewarder.getRewards(usdtVault.lpToken(), address(usdtVault));
-        // console.log(rewards[0]);
-        // IStargatePool(address(usdtPool)).accrueInterest();
+        assert(usdtVault.sharePrice() >= sharePriceBefore);
+
+        vm.startPrank(admin);
+        uint256 depositedBalanceBefore = usdtVault.getDepositedBalance(user);
+        address[] memory users = new address[](2);
+        users[0] = user;
+        usdtVault.collectPerformanceFee(users);
+        assert(usdtVault.getDepositedBalance(user) >= depositedBalanceBefore);
+        vm.stopPrank();
+
         uint256 assets = _redeem(shares, usdtVault);
+        vm.assertEq(assets, token.balanceOf(user));
+        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
         console.log(token.balanceOf(user));
-        // vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
         console.log("share price", usdtVault.sharePrice());
-        // vm.assertGt(stg.balanceOf(address(usdtVault)), 0);
         console.log(stg.balanceOf(address(usdtVault)));
     }
 
     function test_weth() public fork {
         token = weth;
         wethVault = _initializeNewVault(wethPool, IUniswapV3Pool(address(0)));
+        vm.assertEq(wethVault.getDepositFee(user), depositFee);
+        vm.assertEq(wethVault.getWithdrawalFee(user), withdrawalFee);
+        vm.assertEq(wethVault.getPerformanceFee(user), performanceFee);
+        vm.assertEq(wethVault.feePrecision(), feePrecision);
         vm.prank(wethPrank);
         token.transfer(user, amountEth);
         uint256 shares = _deposit(wethVault, amountEth);
         console.log("shares", shares);
-        // console.log("underlying", address(wethVault.underlying()));
         console.log("share price", wethVault.sharePrice());
-        // vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 10);
 
         vm.warp(block.timestamp + 100);
+        uint256 sharePriceBefore = wethVault.sharePrice();
         vm.startPrank(admin);
         wethVault.claimReinvest(0);
+        vm.assertEq(stg.balanceOf(address(wethVault)), 0);
         vm.stopPrank();
-        // IInitLendingPool(address(wethPool)).accrueInterest();
+        assert(wethVault.sharePrice() >= sharePriceBefore);
+
         uint256 assets = _redeem(shares, wethVault);
-        // console.log(token.balanceOf(user));
-        // vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 100);
-        // console.log("share price", wethVault.sharePrice());
-        // vm.assertGt(assets, amount);
+        vm.assertEq(assets, token.balanceOf(user));
+        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
     }
 
     function test_usdc() public fork {
         token = usdc;
         usdcVault = _initializeNewVault(usdcPool, swapPoolUSDCWETH);
+        vm.assertEq(usdcVault.getDepositFee(user), depositFee);
+        vm.assertEq(usdcVault.getWithdrawalFee(user), withdrawalFee);
+        vm.assertEq(usdcVault.getPerformanceFee(user), performanceFee);
+        vm.assertEq(usdcVault.feePrecision(), feePrecision);
         vm.prank(usdcPrank);
         token.transfer(user, amount);
 
-        // // tests pause
+        // tests pause
         vm.prank(admin);
         usdcVault.pause();
         vm.startPrank(user);
@@ -219,30 +236,27 @@ abstract contract StargateVaultTest is Test {
         vm.prank(admin);
         usdcVault.unpause();
 
-        // console.log("rewarder", staking.rewarder(address(0x9f58A79D81477130C0C6D74b96e1397db9765ab1)));
-
         uint256 shares = _deposit(usdcVault, amount);
         console.log("shares", shares);
-        // console.log("balance", usdt.balanceOf(address(usdbVault)));
-        // vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
-        // console.log("share price", usdbVault.sharePrice());
-        // decimals of pool's lp = usdb.decimals + 16 = wusdb.decimlas + 8
-        // wusdb.decimals = usdb.decimals + 8
-        // (, uint256[] memory rewards) = rewarder.getRewards(usdtVault.lpToken(), address(usdtVault));
-        // console.log(rewards[0]);
-        vm.warp(block.timestamp + 100);
+        vm.assertGt(usdcVault.balanceOf(user), 0);
+        vm.assertGt(usdcVault.totalSupply(), 0);
+        vm.assertGt(usdcVault.sharePrice(), 0);
+        vm.assertGt(usdcVault.getBalanceInUnderlying(user), 0);
+        vm.assertEq(usdcVault.getProfit(user), 0);
 
+        vm.warp(block.timestamp + 100);
+        uint256 sharePriceBefore = usdcVault.sharePrice();
         vm.startPrank(admin);
         usdcVault.claimReinvest(0);
+        vm.assertEq(stg.balanceOf(address(usdcVault)), 0);
         vm.stopPrank();
-        // (, rewards) = rewarder.getRewards(usdtVault.lpToken(), address(usdtVault));
-        // console.log(rewards[0]);
-        // IStargatePool(address(usdtPool)).accrueInterest();
+        assert(usdcVault.sharePrice() >= sharePriceBefore);
+
         uint256 assets = _redeem(shares, usdcVault);
+        vm.assertEq(assets, token.balanceOf(user));
+        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
         console.log(token.balanceOf(user));
-        // vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
         console.log("share price", usdcVault.sharePrice());
-        // vm.assertGt(stg.balanceOf(address(usdtVault)), 0);
         console.log(stg.balanceOf(address(usdcVault)));
     }
 }
@@ -269,7 +283,7 @@ abstract contract StargateVaultTest is Test {
 
 contract StargateVaultArbitrumTest is StargateVaultTest {
     function setUp() public override {
-        forkId = vm.createSelectFork("arbitrum", 265832426);
+        forkId = vm.createSelectFork("arbitrum", 265868827);
         super.setUp();
         usdt = IERC20Metadata(address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9));
         weth = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));

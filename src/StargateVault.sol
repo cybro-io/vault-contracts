@@ -107,38 +107,10 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         assets = _swapToAssets(stg.balanceOf(address(this)));
 
         if (assets < minAssets) {
-            revert("StargateVault: swap failed");
+            revert("StargateVault: slippage");
         }
 
         _deposit(assets);
-    }
-
-    /// @notice Uniswap V3 swap callback for providing required token amounts during swaps
-    /// @param amount0Delta Amount of the first token delta
-    /// @param amount1Delta Amount of the second token delta
-    /// @param data Encoded data containing swap details
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        require(amount0Delta > 0 || amount1Delta > 0);
-        require(
-            msg.sender == address(stgWethPool) || msg.sender == address(assetWethPool),
-            "StargateVault: invalid swap callback caller"
-        );
-
-        (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
-        (bool isExactInput, uint256 amountToPay) =
-            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
-
-        // Transfer the required amount back to the pool
-        if (isExactInput) {
-            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
-        } else {
-            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
-        }
-    }
-
-    /// @notice Allows contract to receive ETH from the pool or WETH withdrawals
-    receive() external payable {
-        require(msg.sender == address(pool) || msg.sender == address(weth));
     }
 
     /* ========== VIEW METHODS ========== */
@@ -150,6 +122,37 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     }
 
     /* ========== INTERNAL METHODS ========== */
+
+    /// @notice Internal method for depositing assets into the Stargate pool and staking
+    /// @param assets The amount of assets to deposit
+    function _deposit(uint256 assets) internal override {
+        if (asset() == address(weth)) {
+            // if assets lower then convertRate assetToDeposit will be 0
+            // And transaction will be reverted
+            uint256 assetToDeposit = uint64(assets / _convertRate) * _convertRate;
+            _unwrapETH(assetToDeposit);
+            pool.deposit{value: assetToDeposit}(address(this), assetToDeposit);
+            if (assets > assetToDeposit) {
+                weth.safeTransfer(msg.sender, assets - assetToDeposit);
+                assets = assetToDeposit;
+            }
+        } else {
+            assets = pool.deposit(address(this), assets);
+        }
+        staking.deposit(address(lpToken), assets);
+    }
+
+    /// @notice Redeems shares from the Stargate pool
+    /// @param shares The amount of shares to redeem
+    /// @return assets The amount of assets obtained from redeeming
+    function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
+        staking.withdraw(lpToken, assets);
+        pool.redeem(assets, address(this));
+        if (asset() == address(weth)) {
+            _wrapETH(assets);
+        }
+    }
 
     /// @notice Swaps tokens to the vault's designated asset using Uniswap V3
     /// @param amount The amount of tokens to swap
@@ -189,41 +192,38 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         IWETH(address(asset())).withdraw(amount);
     }
 
-    /// @notice Internal method for depositing assets into the Stargate pool and staking
-    /// @param assets The amount of assets to deposit
-    function _deposit(uint256 assets) internal override {
-        if (asset() == address(weth)) {
-            // if assets lower then convertRate assetToDeposit will be 0
-            // And transaction will be reverted
-            uint256 assetToDeposit = uint64(assets / _convertRate) * _convertRate;
-            _unwrapETH(assetToDeposit);
-            pool.deposit{value: assetToDeposit}(address(this), assetToDeposit);
-            if (assets > assetToDeposit) {
-                weth.safeTransfer(msg.sender, assets - assetToDeposit);
-                assets = assetToDeposit;
-            }
-        } else {
-            assets = pool.deposit(address(this), assets);
-        }
-        staking.deposit(address(lpToken), assets);
-    }
-
-    /// @notice Redeems shares from the Stargate pool
-    /// @param shares The amount of shares to redeem
-    /// @return assets The amount of assets obtained from redeeming
-    function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
-        staking.withdraw(lpToken, assets);
-        pool.redeem(assets, address(this));
-        if (asset() == address(weth)) {
-            _wrapETH(assets);
-        }
-    }
-
     /// @notice Validates if a token can be recovered
     /// @param token The address of the token to validate
     /// @return True if the token can be recovered, false otherwise
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(pool);
+    }
+
+    /// @notice Uniswap V3 swap callback for providing required token amounts during swaps
+    /// @param amount0Delta Amount of the first token delta
+    /// @param amount1Delta Amount of the second token delta
+    /// @param data Encoded data containing swap details
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        require(amount0Delta > 0 || amount1Delta > 0);
+        require(
+            msg.sender == address(stgWethPool) || msg.sender == address(assetWethPool),
+            "StargateVault: invalid swap callback caller"
+        );
+
+        (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
+        (bool isExactInput, uint256 amountToPay) =
+            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
+
+        // Transfer the required amount back to the pool
+        if (isExactInput) {
+            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
+        } else {
+            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
+        }
+    }
+
+    /// @notice Allows contract to receive ETH from the pool or WETH withdrawals
+    receive() external payable {
+        require(msg.sender == address(pool) || msg.sender == address(weth));
     }
 }

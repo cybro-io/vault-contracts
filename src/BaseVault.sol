@@ -141,6 +141,21 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
         emit Withdraw(_msgSender(), receiver, owner, assets, shares, performanceFee + withdrawalFee);
     }
 
+    /// @notice Collects performance fees for multiple accounts
+    /// @param accounts The addresses of the accounts to collect fees for
+    function collectPerformanceFee(address[] memory accounts) external onlyOwner {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            uint256 assets = getBalanceInUnderlying(accounts[i]);
+            if (assets > _depositedBalances[accounts[i]]) {
+                uint256 fee = (assets - _depositedBalances[accounts[i]])
+                    * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+                uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
+                _depositedBalances[accounts[i]] = assets - fee;
+                super._update(accounts[i], feeRecipient, feeInShares);
+            }
+        }
+    }
+
     /// @notice Withdraws funds accidentally sent to the contract
     /// @param token The address of the token to withdraw
     function withdrawFunds(address token) external virtual onlyOwner {

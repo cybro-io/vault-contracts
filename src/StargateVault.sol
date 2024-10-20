@@ -104,11 +104,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         staking.claim(tokens);
 
         // Execute the swap and capture the output amount
-        assets = _swapToAssets(true, stg.balanceOf(address(this)));
-
-        if (asset() != address(weth)) {
-            assets = _swapToAssets(false, assets);
-        }
+        assets = _swapToAssets(stg.balanceOf(address(this)));
 
         if (assets < minAssets) {
             revert("StargateVault: swap failed");
@@ -156,25 +152,28 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /* ========== INTERNAL METHODS ========== */
 
     /// @notice Swaps tokens to the vault's designated asset using Uniswap V3
-    /// @param isStgForWeth If true, swaps STG for WETH, else swaps asset for WETH
     /// @param amount The amount of tokens to swap
-    /// @return The amount of the asset obtained from the swap
-    function _swapToAssets(bool isStgForWeth, uint256 amount) internal returns (uint256) {
-        int256 amount0;
-        int256 amount1;
-        bool zeroForOne;
-        if (isStgForWeth) {
-            zeroForOne = stg < weth;
-            (amount0, amount1) = stgWethPool.swap(
-                address(this), zeroForOne, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(stg, weth)
-            );
-            return uint256(-(zeroForOne ? amount1 : amount0));
-        } else {
+    /// @return assets The amount of the asset obtained from the swap
+    function _swapToAssets(uint256 amount) internal returns (uint256 assets) {
+        bool zeroForOne = stg < weth;
+        (int256 amount0, int256 amount1) = stgWethPool.swap(
+            address(this),
+            zeroForOne,
+            int256(amount),
+            zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
+            zeroForOne ? abi.encode(stg, weth) : abi.encode(weth, stg)
+        );
+        assets = uint256(-(zeroForOne ? amount1 : amount0));
+        if (asset() != address(weth)) {
             zeroForOne = address(weth) < asset();
             (amount0, amount1) = assetWethPool.swap(
-                address(this), zeroForOne, int256(amount), TickMath.MIN_SQRT_RATIO + 1, abi.encode(asset(), weth)
+                address(this),
+                zeroForOne,
+                int256(assets),
+                zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
+                zeroForOne ? abi.encode(weth, asset()) : abi.encode(asset(), weth)
             );
-            return uint256(-(zeroForOne ? amount1 : amount0));
+            assets = uint256(-(zeroForOne ? amount1 : amount0));
         }
     }
 
@@ -194,12 +193,14 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /// @param assets The amount of assets to deposit
     function _deposit(uint256 assets) internal override {
         if (asset() == address(weth)) {
+            // if assets lower then convertRate assetToDeposit will be 0
+            // And transaction will be reverted
             uint256 assetToDeposit = uint64(assets / _convertRate) * _convertRate;
             _unwrapETH(assetToDeposit);
             pool.deposit{value: assetToDeposit}(address(this), assetToDeposit);
-            if (assetToDeposit > assets) {
-                (bool success,) = address(msg.sender).call{value: assets - assetToDeposit}("");
-                require(success, "StargateVault: failed to send ETH");
+            if (assets > assetToDeposit) {
+                weth.safeTransfer(msg.sender, assets - assetToDeposit);
+                assets = assetToDeposit;
             }
         } else {
             assets = pool.deposit(address(this), assets);

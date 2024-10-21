@@ -86,11 +86,11 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /// @param admin The admin address for the vault
     /// @param name The name of the ERC20 token
     /// @param symbol The symbol of the ERC20 token
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         IERC20Metadata(lpToken).forceApprove(address(staking), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -98,7 +98,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /// @notice Claims rewards, swaps them for the underlying asset and reinvests
     /// @param minAssets Minimum amount of assets to receive from the swap
     /// @return assets The amount of assets obtained and reinvested
-    function claimReinvest(uint256 minAssets) external onlyOwner returns (uint256 assets) {
+    function claimReinvest(uint256 minAssets) external onlyRole(MANAGER_ROLE) returns (uint256 assets) {
         address[] memory tokens = new address[](1);
         tokens[0] = lpToken;
         staking.claim(tokens);

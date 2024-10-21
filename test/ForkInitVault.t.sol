@@ -57,7 +57,7 @@ contract InitVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new InitVault(_pool, token, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(InitVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(InitVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );

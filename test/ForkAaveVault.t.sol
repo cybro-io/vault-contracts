@@ -47,7 +47,7 @@ contract AaveVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new AaveVault(token, aavePool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );

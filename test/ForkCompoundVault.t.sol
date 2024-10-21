@@ -63,7 +63,7 @@ contract CompoundVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new CompoundVault(usdb, usdbPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -92,7 +92,7 @@ contract CompoundVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new CompoundVault(wbtc, wbtcPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -118,7 +118,7 @@ contract CompoundVaultTest is Test {
                     new TransparentUpgradeableProxy(
                         address(new CompoundVaultETH(weth, ethPool, IFeeProvider(address(0)), address(0))),
                         admin,
-                        abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault"))
+                        abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault", admin))
                     )
                 )
             )

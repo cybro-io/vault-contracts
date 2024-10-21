@@ -13,9 +13,12 @@ contract BufferVaultMock is BufferVault {
         BufferVault(_asset, _feeProvider, _feeRecipient)
     {}
 
-    function initialize_mock(address admin, string memory name, string memory symbol) public initializer {
+    function initialize_mock(address admin, string memory name, string memory symbol, address manager)
+        public
+        initializer
+    {
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     function reduceAssets(uint256 amount) external {

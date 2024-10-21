@@ -43,7 +43,7 @@ contract ForkYieldStakingTest is Test {
                             new YieldStakingVault(token, IYieldStaking(staking), IFeeProvider(address(0)), address(0))
                         ),
                         admin,
-                        abi.encodeCall(YieldStakingVault.initialize, (admin, "Yield Staking Vault", "YVLT"))
+                        abi.encodeCall(YieldStakingVault.initialize, (admin, "Yield Staking Vault", "YVLT", admin))
                     )
                 )
             )

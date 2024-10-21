@@ -8,10 +8,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 /// @title BaseVault
 /// @notice Abstract contract for implementing a basic vault structure with fee management
-abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpgradeable {
+abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== ERRORS ========== */
@@ -33,6 +34,11 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
         uint256 shares,
         uint256 fee
     );
+
+    /* ========== CONSTANTS ========== */
+
+    /// @notice Role identifier for managers
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     /* ========== IMMUTABLE STATE VARIABLES ========== */
 
@@ -74,20 +80,22 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
 
     /// @notice Initializes the BaseVault contract
     /// @param admin The address of the admin
-    function __BaseVault_init(address admin) internal onlyInitializing {
-        __Ownable_init(admin);
+    function __BaseVault_init(address admin, address manager) internal onlyInitializing {
+        __AccessControl_init();
         __Pausable_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(MANAGER_ROLE, manager);
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /// @notice Pauses the vault
-    function pause() external onlyOwner {
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
 
     /// @notice Unpauses the vault
-    function unpause() external onlyOwner {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
@@ -143,7 +151,7 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
 
     /// @notice Collects performance fees for multiple accounts
     /// @param accounts The addresses of the accounts to collect fees for
-    function collectPerformanceFee(address[] memory accounts) external onlyOwner {
+    function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
             if (assets > _depositedBalances[accounts[i]]) {
@@ -158,7 +166,7 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
 
     /// @notice Withdraws funds accidentally sent to the contract
     /// @param token The address of the token to withdraw
-    function withdrawFunds(address token) external virtual onlyOwner {
+    function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
             require(success, "failed to send ETH");

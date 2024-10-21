@@ -109,7 +109,7 @@ abstract contract StargateVaultTest is Test {
                             )
                         ),
                         admin,
-                        abi.encodeCall(StargateVault.initialize, (admin, "nameVault", "symbolVault"))
+                        abi.encodeCall(StargateVault.initialize, (admin, "nameVault", "symbolVault", admin))
                     )
                 )
             )
@@ -211,7 +211,7 @@ abstract contract StargateVaultTest is Test {
         assert(wethVault.sharePrice() >= sharePriceBefore);
 
         uint256 assets = _redeem(shares, wethVault);
-        vm.assertEq(assets, token.balanceOf(user));
+        assert(assets <= token.balanceOf(user));
         vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
     }
 

@@ -79,7 +79,7 @@ contract OneClickLendingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new OneClickLending(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault", admin, admin))
                 )
             )
         );
@@ -97,7 +97,7 @@ contract OneClickLendingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new AaveVault(usdb, aavePool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -107,7 +107,7 @@ contract OneClickLendingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new JuiceVault(usdb, usdbJuicePool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -130,7 +130,7 @@ contract OneClickLendingTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new BufferVaultMock(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(BufferVaultMock.initialize_mock, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(BufferVaultMock.initialize_mock, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );

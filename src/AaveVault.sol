@@ -28,10 +28,10 @@ contract AaveVault is BaseVault {
         _disableInitializers();
     }
 
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     function totalAssets() public view override returns (uint256) {

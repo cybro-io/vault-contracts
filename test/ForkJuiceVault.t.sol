@@ -58,7 +58,7 @@ contract JuiceVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new JuiceVault(token, usdbPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -85,7 +85,7 @@ contract JuiceVaultTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new JuiceVault(token, wethPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );

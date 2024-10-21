@@ -22,7 +22,7 @@ contract DeployScript is Script {
                 new TransparentUpgradeableProxy(
                     address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(MockVault.initialize, (admin, "USDB vault", "USDBV"))
+                    abi.encodeCall(MockVault.initialize, (admin, "USDB vault", "USDBV", admin))
                 )
             )
         );
@@ -33,7 +33,7 @@ contract DeployScript is Script {
                 new TransparentUpgradeableProxy(
                     address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(MockVault.initialize, (admin, "WETH vault", "WETHV"))
+                    abi.encodeCall(MockVault.initialize, (admin, "WETH vault", "WETHV", admin))
                 )
             )
         );
@@ -44,7 +44,7 @@ contract DeployScript is Script {
                 new TransparentUpgradeableProxy(
                     address(new MockVault(usdb, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(MockVault.initialize, (admin, "WBTC vault", "WBTCV"))
+                    abi.encodeCall(MockVault.initialize, (admin, "WBTC vault", "WBTCV", admin))
                 )
             )
         );

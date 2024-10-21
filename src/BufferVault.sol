@@ -15,9 +15,13 @@ contract BufferVault is BaseVault {
         _disableInitializers();
     }
 
-    function initialize(address admin, string memory name, string memory symbol) public virtual initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager)
+        public
+        virtual
+        initializer
+    {
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     function totalAssets() public view override returns (uint256) {

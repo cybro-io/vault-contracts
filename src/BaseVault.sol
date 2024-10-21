@@ -5,14 +5,13 @@ pragma solidity =0.8.26;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 /// @title BaseVault
 /// @notice Abstract contract for implementing a basic vault structure with fee management
-abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpgradeable, AccessControlUpgradeable {
+abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== ERRORS ========== */

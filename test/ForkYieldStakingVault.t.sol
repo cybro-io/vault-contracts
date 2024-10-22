@@ -3,7 +3,7 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {YieldStakingVault, IERC20Metadata, IYieldStaking} from "../src/YieldStakingVault.sol";
+import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "../src/YieldStakingVault.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IShares} from "../src/interfaces/IShares.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
@@ -39,9 +39,11 @@ contract ForkYieldStakingTest is Test {
             payable(
                 address(
                     new TransparentUpgradeableProxy(
-                        address(new YieldStakingVault(token, IYieldStaking(staking))),
+                        address(
+                            new YieldStakingVault(token, IYieldStaking(staking), IFeeProvider(address(0)), address(0))
+                        ),
                         admin,
-                        abi.encodeCall(YieldStakingVault.initialize, (admin, "Yield Staking Vault", "YVLT"))
+                        abi.encodeCall(YieldStakingVault.initialize, (admin, "Yield Staking Vault", "YVLT", admin))
                     )
                 )
             )

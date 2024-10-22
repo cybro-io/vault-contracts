@@ -7,7 +7,7 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {CompoundVault, IERC20Metadata} from "../src/CompoundVaultErc20.sol";
-import {CompoundVaultETH} from "../src/CompoundVaultEth.sol";
+import {CompoundVaultETH, IFeeProvider} from "../src/CompoundVaultEth.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
@@ -61,9 +61,9 @@ contract CompoundVaultTest is Test {
         vault = CompoundVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new CompoundVault(usdb, usdbPool)),
+                    address(new CompoundVault(usdb, usdbPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -90,9 +90,9 @@ contract CompoundVaultTest is Test {
         vault = CompoundVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new CompoundVault(wbtc, wbtcPool)),
+                    address(new CompoundVault(wbtc, wbtcPool, IFeeProvider(address(0)), address(0))),
                     admin,
-                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
             )
         );
@@ -116,9 +116,9 @@ contract CompoundVaultTest is Test {
             payable(
                 address(
                     new TransparentUpgradeableProxy(
-                        address(new CompoundVaultETH(weth, ethPool)),
+                        address(new CompoundVaultETH(weth, ethPool, IFeeProvider(address(0)), address(0))),
                         admin,
-                        abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault"))
+                        abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault", admin))
                     )
                 )
             )

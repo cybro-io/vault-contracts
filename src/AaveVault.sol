@@ -6,6 +6,7 @@ import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
 import {IAavePool} from "./interfaces/aave/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 contract AaveVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
@@ -18,17 +19,19 @@ contract AaveVault is BaseVault {
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
-    constructor(IERC20Metadata _asset, IAavePool _pool) BaseVault(_asset) {
+    constructor(IERC20Metadata _asset, IAavePool _pool, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseVault(_asset, _feeProvider, _feeRecipient)
+    {
         pool = _pool;
         aToken = IERC20(pool.getReserveData(address(_asset)).aTokenAddress);
 
         _disableInitializers();
     }
 
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     function totalAssets() public view override returns (uint256) {

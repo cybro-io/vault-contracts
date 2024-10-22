@@ -4,17 +4,24 @@ pragma solidity =0.8.26;
 import {BaseVault} from "./BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 contract BufferVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
-    constructor(IERC20Metadata _asset) BaseVault(_asset) {
+    constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseVault(_asset, _feeProvider, _feeRecipient)
+    {
         _disableInitializers();
     }
 
-    function initialize(address admin, string memory name, string memory symbol) public virtual initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager)
+        public
+        virtual
+        initializer
+    {
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     function totalAssets() public view override returns (uint256) {

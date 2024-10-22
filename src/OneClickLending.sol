@@ -121,13 +121,16 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
 
     /// @notice Initializes the contract with admin
     /// @param admin The address of the admin
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
+        public
+        initializer
+    {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(STRATEGIST_ROLE, admin);
-        _grantRole(MANAGER_ROLE, admin);
+        _grantRole(STRATEGIST_ROLE, strategist);
+        _grantRole(MANAGER_ROLE, manager);
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -298,8 +301,8 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
             if (assets > _depositedBalances[accounts[i]]) {
-                uint256 fee = (assets - _depositedBalances[accounts[i]])
-                    * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+                uint256 fee = (assets - _depositedBalances[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i])
+                    / feePrecision;
                 uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
                 _depositedBalances[accounts[i]] = assets - fee;
                 super._update(accounts[i], feeRecipient, feeInShares);

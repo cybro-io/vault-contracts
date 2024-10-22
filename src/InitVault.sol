@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IInitCore} from "./interfaces/init/IInitCore.sol";
 import {IERC20RebasingWrapper} from "./interfaces/init/IERC20RebasingWrapper.sol";
 import {IInitLendingPool} from "./interfaces/init/IInitLendingPool.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 
 /// @title InitVault
 /// @notice A vault contract for interacting with Init Capital protocol
@@ -31,7 +32,9 @@ contract InitVault is BaseVault {
 
     /// @notice Constructor to set up immutable variables
     /// @param _pool The Init pool address
-    constructor(IInitLendingPool _pool, IERC20Metadata _asset) BaseVault(_asset) {
+    constructor(IInitLendingPool _pool, IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseVault(_asset, _feeProvider, _feeRecipient)
+    {
         pool = _pool;
         core = IInitCore(pool.core());
         underlying = IERC20RebasingWrapper(pool.underlyingToken());
@@ -44,10 +47,10 @@ contract InitVault is BaseVault {
         _disableInitializers();
     }
 
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(asset()).forceApprove(address(underlying), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin);
+        __BaseVault_init(admin, manager);
     }
 
     /// @notice Returns the total assets in the vault

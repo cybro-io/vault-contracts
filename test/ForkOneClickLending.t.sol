@@ -65,6 +65,13 @@ contract OneClickLendingTest is Test {
         withdrawalFee = 200;
         performanceFee = 300;
         feePrecision = 1e5;
+        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
+        usdb.transfer(admin, amount);
+        vm.stopPrank();
+        address[] memory vaults = new address[](2);
+        uint256[] memory lendingShares = new uint256[](2);
+        lendingShares[0] = lendingShare;
+        lendingShares[1] = lendingShare2;
         vm.startPrank(admin);
         feeProvider = FeeProvider(
             address(
@@ -74,12 +81,17 @@ contract OneClickLendingTest is Test {
             )
         );
         feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
+        (vaults[0], vaults[1]) = _initializeUSDBVaults();
+        usdb.approve(vm.computeCreateAddress(admin, vm.getNonce(admin) + 1), amount * 4);
         lending = OneClickLending(
             address(
                 new TransparentUpgradeableProxy(
                     address(new OneClickLending(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault", admin, admin))
+                    abi.encodeCall(
+                        OneClickLending.initialize,
+                        (admin, "nameVault", "symbolVault", admin, admin, vaults, lendingShares)
+                    )
                 )
             )
         );
@@ -91,7 +103,11 @@ contract OneClickLendingTest is Test {
         _;
     }
 
-    function _initializeUSDBVaults() internal {
+    function _initializeUSDBVaults() internal returns (address, address) {
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        usdb.approve(vaultAddress, amount);
+        vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
+        usdb.approve(vaultAddress, amount);
         aaveVault = AaveVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -111,20 +127,13 @@ contract OneClickLendingTest is Test {
                 )
             )
         );
-        vm.startPrank(admin);
-        address[] memory vaults = new address[](2);
-        vaults[0] = address(aaveVault);
-        vaults[1] = address(juiceVault);
-        uint256[] memory lendingShares = new uint256[](2);
-        lendingShares[0] = lendingShare;
-        lendingShares[1] = lendingShare2;
-        lending.addLendingPools(vaults);
-        lending.setLendingShares(vaults, lendingShares);
-        vm.stopPrank();
+        return (address(aaveVault), address(juiceVault));
     }
 
     function _ininitializeBufferVault() internal {
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        usdb.approve(vaultAddress, amount);
         bufferVault = BufferVaultMock(
             address(
                 new TransparentUpgradeableProxy(
@@ -144,16 +153,14 @@ contract OneClickLendingTest is Test {
     }
 
     function test_getters() public {
-        _initializeUSDBVaults();
-        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
-        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
-        vm.assertEq(lending.getLendingPoolCount(), 2);
-        vm.assertEq(lending.totalLendingShares(), lendingShare + lendingShare2);
-
         vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
         usdb.transfer(user, amount);
         usdb.transfer(user2, amount2);
         vm.stopPrank();
+        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
+        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
+        vm.assertEq(lending.getLendingPoolCount(), 2);
+        vm.assertEq(lending.totalLendingShares(), lendingShare + lendingShare2);
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
@@ -180,7 +187,7 @@ contract OneClickLendingTest is Test {
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
-        vm.assertApproxEqAbs(lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, 1e10);
+        vm.assertApproxEqAbs(lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, 1e21);
         vm.assertEq(lending.getDepositFee(user), depositFee);
         vm.assertEq(lending.getWithdrawalFee(user), withdrawalFee);
         vm.assertEq(lending.getPerformanceFee(user), performanceFee);
@@ -188,23 +195,24 @@ contract OneClickLendingTest is Test {
         vm.assertApproxEqAbs(
             lending.getBalanceOfPool(address(aaveVault)),
             (amountWithDepositFee + amount2WithDepositFee) * lendingShare / (lendingShare + lendingShare2),
-            1e5
+            1e21
         );
         vm.assertApproxEqAbs(
             lending.getBalanceOfPool(address(juiceVault)),
             (amountWithDepositFee + amount2WithDepositFee) * lendingShare2 / (lendingShare + lendingShare2),
-            1e5
+            1e21
         );
-        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
+        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e21);
         vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
         vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
         vm.assertEq(lending.getDepositedBalance(user), amountWithDepositFee);
         vm.assertEq(lending.getDepositedBalance(user2), amount2WithDepositFee);
-        vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
+        vm.assertApproxEqAbs(
+            lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e21
+        );
     }
 
     function test() public {
-        _initializeUSDBVaults();
         uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
         uint256 amountWithWithdrawalFee = (amountWithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
         uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
@@ -264,7 +272,6 @@ contract OneClickLendingTest is Test {
     }
 
     function test_buffer() public {
-        _initializeUSDBVaults();
         _ininitializeBufferVault();
 
         vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));

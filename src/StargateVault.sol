@@ -148,7 +148,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
         staking.withdraw(lpToken, assets);
-        pool.redeem(assets, address(this));
+        assets = pool.redeem(assets, address(this));
         if (asset() == address(weth)) {
             _wrapETH(assets);
         }

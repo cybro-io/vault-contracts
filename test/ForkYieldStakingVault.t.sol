@@ -34,7 +34,9 @@ contract ForkYieldStakingTest is Test {
     }
 
     function _deposit() internal returns (uint256 shares) {
-        vm.prank(admin);
+        vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, amount);
         vault = YieldStakingVault(
             payable(
                 address(
@@ -48,6 +50,7 @@ contract ForkYieldStakingTest is Test {
                 )
             )
         );
+        vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
         shares = vault.deposit(amount, user);
@@ -61,8 +64,10 @@ contract ForkYieldStakingTest is Test {
 
     function test_usdb() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.prank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
+        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         uint256 shares = _deposit();
 
         vm.startPrank(address(0xB341285d5683C74935ad14c446E137c8c8829549));
@@ -75,8 +80,10 @@ contract ForkYieldStakingTest is Test {
 
     function test_weth() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         uint256 shares = _deposit();
 
         vm.deal(address(token), address(token).balance * 101 / 100);

@@ -24,28 +24,19 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /* ========== EVENTS ========== */
 
     /// @notice Emitted when a deposit is made
-    /// @param sender The address that initiated the deposit
     /// @param owner The address that owns the deposited assets
     /// @param assets The amount of assets deposited
     /// @param shares The amount of shares minted
     /// @param depositFee The amount of fees paid for the deposit
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 depositFee);
+    event Deposit(address indexed owner, uint256 assets, uint256 shares, uint256 depositFee);
 
     /// @notice Emitted when a withdrawal is made
-    /// @param sender The address that initiated the withdrawal
-    /// @param receiver The address that received the withdrawn assets
     /// @param owner The address that owned the withdrawn assets
+    /// @param receiver The address that received the withdrawn assets
     /// @param assets The amount of assets withdrawn
     /// @param shares The amount of shares burned
     /// @param fee The amount of fees paid for the withdrawal and profit
-    event Withdraw(
-        address indexed sender,
-        address indexed receiver,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares,
-        uint256 fee
-    );
+    event Withdraw(address indexed owner, address indexed receiver, uint256 assets, uint256 shares, uint256 fee);
 
     /// @notice Emitted when a new lending pool is added
     /// @param poolAddress The address of the lending pool
@@ -121,16 +112,24 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
 
     /// @notice Initializes the contract with admin
     /// @param admin The address of the admin
-    function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
-        public
-        initializer
-    {
+    function initialize(
+        address admin,
+        string memory name,
+        string memory symbol,
+        address strategist,
+        address manager,
+        address[] memory _poolAddresses,
+        uint256[] memory _lendingShares
+    ) public initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(STRATEGIST_ROLE, strategist);
         _grantRole(MANAGER_ROLE, manager);
+        addLendingPools(_poolAddresses);
+        setLendingShares(_poolAddresses, _lendingShares);
+        deposit(10 ** decimals());
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -151,7 +150,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             return 0;
         }
         uint256 totalAssetsBefore = totalAssets();
-        asset.safeTransferFrom(_msgSender(), address(this), assets);
+        asset.safeTransferFrom(msg.sender, address(this), assets);
         uint256 depositFee;
         (assets, depositFee) = _applyDepositFee(assets);
 
@@ -165,7 +164,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         _depositedBalances[msg.sender] += assets;
         _mint(msg.sender, shares);
 
-        emit Deposit(_msgSender(), msg.sender, assets, shares, depositFee);
+        emit Deposit(msg.sender, assets, shares, depositFee);
     }
 
     /// @notice Redeems shares from the vault
@@ -180,12 +179,12 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         _burn(msg.sender, shares);
         asset.safeTransfer(receiver, assets);
 
-        emit Withdraw(_msgSender(), receiver, msg.sender, assets, shares, performanceFee + withdrawalFee);
+        emit Withdraw(msg.sender, receiver, assets, shares, performanceFee + withdrawalFee);
     }
 
     /// @notice Adds multiple lending pools
     /// @param poolAddresses Array of lending pool addresses
-    function addLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
+    function addLendingPools(address[] memory poolAddresses) public onlyRole(STRATEGIST_ROLE) {
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             if (lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
@@ -217,7 +216,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param poolAddresses Array of lending pool addresses
     /// @param newLendingShares Array of new lending shares
     function setLendingShares(address[] memory poolAddresses, uint256[] memory newLendingShares)
-        external
+        public
         onlyRole(MANAGER_ROLE)
     {
         for (uint256 i = 0; i < poolAddresses.length; i++) {

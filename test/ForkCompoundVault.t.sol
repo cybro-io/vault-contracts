@@ -55,9 +55,12 @@ contract CompoundVaultTest is Test {
     }
 
     function test_usdb() public fork {
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
+        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         usdb.transfer(user, amount);
+        usdb.transfer(admin, amount);
+        vm.stopPrank();
         vm.startPrank(admin);
+        usdb.approve(vm.computeCreateAddress(admin, vm.getNonce(admin) + 1), amount);
         vault = CompoundVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -84,9 +87,13 @@ contract CompoundVaultTest is Test {
     }
 
     function test_wbtc() public fork {
-        vm.prank(address(0xecb1c17a51D782aC2757e2AB568d159854b9B4BD));
+        vm.startPrank(address(0xecb1c17a51D782aC2757e2AB568d159854b9B4BD));
         wbtc.transfer(user, wbtcAmount);
+        wbtc.transfer(admin, 10 ** wbtc.decimals());
+        vm.stopPrank();
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        wbtc.approve(vaultAddress, 10 ** wbtc.decimals());
         vault = CompoundVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -109,9 +116,13 @@ contract CompoundVaultTest is Test {
 
     function test_eth() public fork {
         weth = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         weth.transfer(user, ethAmount);
+        weth.transfer(admin, 10 ** weth.decimals() * 2);
+        vm.stopPrank();
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        weth.approve(vaultAddress, 10 ** weth.decimals() * 2);
         vaultEth = CompoundVaultETH(
             payable(
                 address(

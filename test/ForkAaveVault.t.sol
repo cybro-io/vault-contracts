@@ -42,6 +42,8 @@ contract AaveVaultTest is Test {
 
     function _deposit() internal returns (uint256 shares) {
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, amount);
         vault = AaveVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -66,8 +68,10 @@ contract AaveVaultTest is Test {
 
     function test_usdb() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
+        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         uint256 shares = _deposit();
 
         vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
@@ -79,8 +83,11 @@ contract AaveVaultTest is Test {
 
     function test_weth_deposit() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         token.transfer(user, amount);
+        token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         uint256 shares = _deposit();
 
         vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
@@ -92,6 +99,7 @@ contract AaveVaultTest is Test {
     function test_otherTokens_deposit() public fork {
         token = IERC20Metadata(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
         deal(address(token), user, amount);
+        deal(address(token), admin, amount);
         uint256 shares = _deposit();
 
         deal(address(token), address(aavePool), token.balanceOf(address(aavePool)) + amount * 3);

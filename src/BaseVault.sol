@@ -84,7 +84,6 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
-        deposit(10 ** decimals(), address(this));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */

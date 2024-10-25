@@ -112,24 +112,16 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
 
     /// @notice Initializes the contract with admin
     /// @param admin The address of the admin
-    function initialize(
-        address admin,
-        string memory name,
-        string memory symbol,
-        address strategist,
-        address manager,
-        address[] memory _poolAddresses,
-        uint256[] memory _lendingShares
-    ) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
+        public
+        initializer
+    {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(STRATEGIST_ROLE, strategist);
         _grantRole(MANAGER_ROLE, manager);
-        addLendingPools(_poolAddresses);
-        setLendingShares(_poolAddresses, _lendingShares);
-        deposit(10 ** decimals());
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */

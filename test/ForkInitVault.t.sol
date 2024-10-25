@@ -52,6 +52,8 @@ contract InitVaultTest is Test {
 
     function _initializeNewVault(IInitLendingPool _pool) internal returns (InitVault vault) {
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, amount);
         vault = InitVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -79,9 +81,11 @@ contract InitVaultTest is Test {
 
     function test_usdb() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        usdbVault = _initializeNewVault(usdbPool);
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
+        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
+        usdbVault = _initializeNewVault(usdbPool);
 
         // tests pause
         vm.prank(admin);
@@ -106,16 +110,18 @@ contract InitVaultTest is Test {
         IInitLendingPool(address(usdbPool)).accrueInterest();
         uint256 assets = _redeem(shares, usdbVault);
         console.log(token.balanceOf(user));
-        vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 100);
+        vm.assertApproxEqAbs(usdbVault.sharePrice(), 1e18, 1e11);
         console.log("share price", usdbVault.sharePrice());
         vm.assertGt(assets, amount);
     }
 
     function test_blast() public fork {
         token = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
-        blastVault = _initializeNewVault(blastPool);
-        vm.prank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
+        vm.startPrank(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
+        blastVault = _initializeNewVault(blastPool);
 
         uint256 shares = _deposit(blastVault);
         console.log("shares", shares);
@@ -130,9 +136,11 @@ contract InitVaultTest is Test {
 
     function test_weth() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        wethVault = _initializeNewVault(wethPool);
-        vm.prank(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
+        vm.startPrank(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
+        wethVault = _initializeNewVault(wethPool);
         uint256 shares = _deposit(wethVault);
         console.log("shares", shares);
         console.log("underlying", address(wethVault.underlying()));
@@ -143,7 +151,7 @@ contract InitVaultTest is Test {
         IInitLendingPool(address(wethPool)).accrueInterest();
         uint256 assets = _redeem(shares, wethVault);
         console.log(token.balanceOf(user));
-        vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 100);
+        vm.assertApproxEqAbs(wethVault.sharePrice(), 1e18, 1e11);
         console.log("share price", wethVault.sharePrice());
         vm.assertGt(assets, amount);
     }

@@ -22,7 +22,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /* ========== EVENTS ========== */
 
     /// @notice Emitted when a deposit is made
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 depositFee);
+    event Deposit(address indexed sender, address indexed receiver, uint256 assets, uint256 shares, uint256 depositFee);
 
     /// @notice Emitted when a withdrawal is made
     event Withdraw(

@@ -50,9 +50,13 @@ contract JuiceVaultTest is Test {
 
     function test_usdb() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
+        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, amount);
         vault = JuiceVault(
             address(
                 new TransparentUpgradeableProxy(
@@ -77,9 +81,13 @@ contract JuiceVaultTest is Test {
 
     function test_weth_deposit() public fork {
         token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         token.transfer(user, amount);
+        token.transfer(admin, amount);
+        vm.stopPrank();
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, amount);
         vault = JuiceVault(
             address(
                 new TransparentUpgradeableProxy(

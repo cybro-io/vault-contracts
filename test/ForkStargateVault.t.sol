@@ -99,6 +99,8 @@ abstract contract StargateVaultTest is Test {
         returns (StargateVault vault)
     {
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
+        token.approve(vaultAddress, 10 ** token.decimals() * 2);
         vault = StargateVault(
             payable(
                 address(
@@ -143,13 +145,15 @@ abstract contract StargateVaultTest is Test {
             return;
         }
         token = usdt;
+        vm.startPrank(usdtPrank);
+        token.transfer(user, amount);
+        token.transfer(admin, 10 ** token.decimals() * 2);
+        vm.stopPrank();
         usdtVault = _initializeNewVault(usdtPool, swapPoolUSDTWETH);
         vm.assertEq(usdtVault.getDepositFee(user), depositFee);
         vm.assertEq(usdtVault.getWithdrawalFee(user), withdrawalFee);
         vm.assertEq(usdtVault.getPerformanceFee(user), performanceFee);
         vm.assertEq(usdtVault.feePrecision(), feePrecision);
-        vm.prank(usdtPrank);
-        token.transfer(user, amount);
 
         // tests pause
         vm.prank(admin);
@@ -191,13 +195,15 @@ abstract contract StargateVaultTest is Test {
 
     function test_weth() public fork {
         token = weth;
+        vm.startPrank(wethPrank);
+        token.transfer(user, amountEth);
+        token.transfer(admin, 10 ** token.decimals() * 2);
+        vm.stopPrank();
         wethVault = _initializeNewVault(wethPool, IUniswapV3Pool(address(0)));
         vm.assertEq(wethVault.getDepositFee(user), depositFee);
         vm.assertEq(wethVault.getWithdrawalFee(user), withdrawalFee);
         vm.assertEq(wethVault.getPerformanceFee(user), performanceFee);
         vm.assertEq(wethVault.feePrecision(), feePrecision);
-        vm.prank(wethPrank);
-        token.transfer(user, amountEth);
         uint256 shares = _deposit(wethVault, amountEth);
         console.log("shares", shares);
         console.log("share price", wethVault.sharePrice());
@@ -217,13 +223,15 @@ abstract contract StargateVaultTest is Test {
 
     function test_usdc() public fork {
         token = usdc;
+        vm.startPrank(usdcPrank);
+        token.transfer(user, amount);
+        token.transfer(admin, 10 ** token.decimals() * 2);
+        vm.stopPrank();
         usdcVault = _initializeNewVault(usdcPool, swapPoolUSDCWETH);
         vm.assertEq(usdcVault.getDepositFee(user), depositFee);
         vm.assertEq(usdcVault.getWithdrawalFee(user), withdrawalFee);
         vm.assertEq(usdcVault.getPerformanceFee(user), performanceFee);
         vm.assertEq(usdcVault.feePrecision(), feePrecision);
-        vm.prank(usdcPrank);
-        token.transfer(user, amount);
 
         // tests pause
         vm.prank(admin);
@@ -283,14 +291,14 @@ abstract contract StargateVaultTest is Test {
 
 contract StargateVaultArbitrumTest is StargateVaultTest {
     function setUp() public override {
-        forkId = vm.createSelectFork("arbitrum", 265868827);
+        forkId = vm.createSelectFork("arbitrum", 267245449);
         super.setUp();
         usdt = IERC20Metadata(address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9));
         weth = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));
         usdc = IERC20Metadata(address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831));
         usdtPrank = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
         wethPrank = address(0x70d95587d40A2caf56bd97485aB3Eec10Bee6336);
-        usdcPrank = address(0x7cD627938fB854966721F69a4D2bE39aF31BbffC);
+        usdcPrank = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
         usdtPool = IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
         wethPool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
         usdcPool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));

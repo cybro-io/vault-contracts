@@ -32,7 +32,7 @@ contract InitVault is BaseVault {
 
     /// @notice Constructor to set up immutable variables
     /// @param _pool The Init pool address
-    constructor(IInitLendingPool _pool, IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
+    constructor(IERC20Metadata _asset, IInitLendingPool _pool, IFeeProvider _feeProvider, address _feeRecipient)
         BaseVault(_asset, _feeProvider, _feeRecipient)
     {
         pool = _pool;

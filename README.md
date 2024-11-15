@@ -1,66 +1,29 @@
-## Foundry
+## Cybro Smart-Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+### Build & Test
+We use Forge from Foundry to build and test our contracts. Check [official Foundry documentation](https://book.getfoundry.sh/getting-started/installation) to install Foundry and Forge.
 
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+To build the contracts, run the following command:
+```bash
+forge build
 ```
 
-### Test
-
-```shell
-$ forge test
+To test the contracts, run the following commands:
+```bash
+forge test
 ```
 
-### Format
-
-```shell
-$ forge fmt
+To deploy the stargate vaults on arbitrum chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployStargate_Arbitrum()" --private-key <your_private_key>
 ```
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
+To deploy the stargate vaults on base chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployStargate_Base()" --private-key <your_private_key>
 ```
 
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+To deploy the other vaults, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployMainnet()" --private-key <your_private_key> --rpc-url <your_rpc_url>
 ```

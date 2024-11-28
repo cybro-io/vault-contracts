@@ -22,7 +22,7 @@ contract LockedCYBROStaking is Ownable, CYBROStaking {
             uint256[] memory amount = new uint256[](1);
             to[0] = msg.sender;
             amount[0] = reward;
-            LockedCYBRO(address(stakeToken)).mint(to, amount);
+            LockedCYBRO(address(stakeToken)).mintFor(to, amount);
             emit Claimed(msg.sender, reward);
         }
     }

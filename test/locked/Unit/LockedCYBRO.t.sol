@@ -14,22 +14,6 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         vm.assertEq(lockedCYBRO.symbol(), "LCYBRO");
 
         vm.startPrank(admin);
-        lockedCYBRO.setTgePercent(20);
-        vm.assertEq(lockedCYBRO.tgePercent(), 20);
-
-        vm.warp(100);
-        vm.expectRevert("CYBRO: invalid tge timestamp");
-        lockedCYBRO.setTgeTimestamp(block.timestamp - 10);
-        vm.expectRevert("CYBRO: invalid vesting start");
-        lockedCYBRO.setVestingStart(block.timestamp - 20);
-
-        lockedCYBRO.setTgeTimestamp(1100);
-        vm.assertEq(lockedCYBRO.tgeTimestamp(), 1100);
-        lockedCYBRO.setVestingStart(2200);
-        vm.assertEq(lockedCYBRO.vestingStart(), 2200);
-        lockedCYBRO.setVestingDuration(15000);
-        vm.assertEq(lockedCYBRO.vestingDuration(), 15000);
-
         vm.assertEq(lockedCYBRO.transferWhitelist(user2), false);
         lockedCYBRO.addWhitelistedAddress(user2);
         vm.assertEq(lockedCYBRO.transferWhitelist(user2), true);
@@ -43,7 +27,7 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         uint256[] memory amount = new uint256[](1);
         to[0] = user;
         amount[0] = 100 * 1e18;
-        lockedCYBRO.mint(to, amount);
+        lockedCYBRO.mintFor(to, amount);
         vm.stopPrank();
 
         vm.startPrank(user);
@@ -59,11 +43,11 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, ethSignedMessageHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        lockedCYBRO.mintByUser(user, amount, signature);
+        lockedCYBRO.mint(user, amount, signature);
         assertEq(lockedCYBRO.balanceOf(user), amount);
         assertEq(lockedCYBRO.allocations(user), amount);
 
-        lockedCYBRO.mintByUser(user, amount, signature);
+        lockedCYBRO.mint(user, amount, signature);
         assertEq(lockedCYBRO.balanceOf(user), amount);
         assertEq(lockedCYBRO.allocations(user), amount);
 
@@ -72,7 +56,7 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         bytes memory unauthorizedSignature = abi.encodePacked(r, s, v);
 
         vm.expectRevert("CYBRO: Invalid signature");
-        lockedCYBRO.mintByUser(user, amount, unauthorizedSignature);
+        lockedCYBRO.mint(user, amount, unauthorizedSignature);
 
         uint256 wrongAmount = 200 * 1e18;
         bytes32 wrongEthSignedMessageHash =
@@ -81,7 +65,7 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         bytes memory wrongSignature = abi.encodePacked(r, s, v);
 
         vm.expectRevert("CYBRO: Invalid signature");
-        lockedCYBRO.mintByUser(user, amount, wrongSignature);
+        lockedCYBRO.mint(user, amount, wrongSignature);
     }
 
     function test_claim() public {
@@ -92,8 +76,8 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         to[0] = user;
         amount[0] = 100 * 1e18;
         uint256 tgeAmount = amount[0] * lockedCYBRO.tgePercent() / 100;
-        lockedCYBRO.mint(to, amount);
-        cbr.mint(address(lockedCYBRO), amount[0]);
+        lockedCYBRO.mintFor(to, amount);
+        cybro.mint(address(lockedCYBRO), amount[0]);
         vm.stopPrank();
 
         vm.assertEq(lockedCYBRO.getClaimableAmount(user), 0);
@@ -101,10 +85,10 @@ contract LockedCYBROTest is BaseLockedCYBRO {
         vm.assertEq(lockedCYBRO.getUnlockedAmount(user), tgeAmount);
         vm.prank(user);
         lockedCYBRO.claim();
-        vm.assertEq(cbr.balanceOf(user), tgeAmount);
+        vm.assertEq(cybro.balanceOf(user), tgeAmount);
         vm.warp(lockedCYBRO.vestingStart() + lockedCYBRO.vestingDuration());
         vm.prank(user);
         lockedCYBRO.claim();
-        vm.assertEq(cbr.balanceOf(user), amount[0]);
+        vm.assertEq(cybro.balanceOf(user), amount[0]);
     }
 }

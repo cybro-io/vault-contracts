@@ -10,7 +10,7 @@ import {LockedCYBROStaking, CYBROStaking} from "../../src/LockedCYBROStaking.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract BaseLockedCYBRO is Test {
-    ERC20Mock cbr;
+    ERC20Mock cybro;
 
     address internal admin;
     uint256 internal adminPrivateKey;
@@ -41,16 +41,16 @@ contract BaseLockedCYBRO is Test {
         percents.push(30 * 1e2);
 
         vm.startPrank(admin);
-        cbr = new ERC20Mock("CYBRO", "CBR", 18);
+        cybro = new ERC20Mock("CYBRO", "CYBRO", 18);
         lockedCYBROStakingAddresses.push(vm.computeCreateAddress(address(admin), vm.getNonce(admin) + 1));
         lockedCYBROStakingAddresses.push(vm.computeCreateAddress(address(admin), vm.getNonce(admin) + 2));
         lockedCYBROStakingAddresses.push(vm.computeCreateAddress(address(admin), vm.getNonce(admin) + 3));
-        lockedCYBRO = new LockedCYBRO(lockedCYBROStakingAddresses, address(cbr), admin, 1000, 10, 2000, 10000);
+        lockedCYBRO = new LockedCYBRO(lockedCYBROStakingAddresses, address(cybro), admin, 1000, 10, 2000, 10000);
         lockedCYBROStaking = new LockedCYBROStaking(admin, address(lockedCYBRO), lockTimes[0], percents[0]);
         lockedCYBROStaking2 = new LockedCYBROStaking(admin, address(lockedCYBRO), lockTimes[1], percents[1]);
         lockedCYBROStaking3 = new LockedCYBROStaking(admin, address(lockedCYBRO), lockTimes[2], percents[2]);
         vm.stopPrank();
         vm.assertEq(lockedCYBRO.transferWhitelist(address(lockedCYBROStakingAddresses[0])), true);
-        vm.assertEq(address(cbr), lockedCYBRO.cbr());
+        vm.assertEq(address(cybro), lockedCYBRO.cybro());
     }
 }

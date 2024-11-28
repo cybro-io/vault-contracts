@@ -18,28 +18,30 @@ contract LockedCYBRO is ERC20, Ownable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    /* ========== STATE VARIABLES ========== */
+    /* ========== IMMUTABLE STATE VARIABLES ========== */
 
     /// @notice Timestamp of the Token Generation Event (TGE)
-    uint256 public tgeTimestamp;
+    uint256 public immutable tgeTimestamp;
 
     /// @notice Timestamp when vesting period starts
-    uint256 public vestingStart;
+    uint256 public immutable vestingStart;
 
     /// @notice Duration of the vesting period in seconds
-    uint256 public vestingDuration;
+    uint256 public immutable vestingDuration;
 
     /// @notice Percentage of tokens released at TGE
-    uint8 public tgePercent;
+    uint8 public immutable tgePercent;
 
     /// @notice Address of the underlying CYBRO token
-    address public cbr;
+    address public immutable cybro;
+
+    /* ========== STATE VARIABLES ========== */
 
     /// @notice Total token allocation for each user
     mapping(address account => uint256) public allocations;
 
     /// @notice Amount of CYBRO tokens claimed by each user
-    mapping(address account => uint256) _claimedAmount;
+    mapping(address account => uint256) public claimedAmount;
 
     /// @notice Addresses authorized to receive transfers
     mapping(address account => bool) public transferWhitelist;
@@ -54,8 +56,8 @@ contract LockedCYBRO is ERC20, Ownable {
 
     /**
      * @dev Initializes the contract with vesting and TGE parameters, and sets up access control.
-     * @param _lockedCBRStakings Array of addresses allowed to stake locked CYBRO
-     * @param _cbr Address of the CYBRO token
+     * @param _lockedCYBROStakings Array of addresses allowed to stake locked CYBRO
+     * @param _cybro Address of the CYBRO token
      * @param admin Address of the contract owner
      * @param _tgeTimestamp Timestamp for the token generation event
      * @param _tgePercent Percentage of tokens to be distributed at TGE
@@ -63,23 +65,23 @@ contract LockedCYBRO is ERC20, Ownable {
      * @param _vestingDuration Duration of the vesting period
      */
     constructor(
-        address[] memory _lockedCBRStakings,
-        address _cbr,
+        address[] memory _lockedCYBROStakings,
+        address _cybro,
         address admin,
         uint256 _tgeTimestamp,
         uint8 _tgePercent,
         uint256 _vestingStart,
         uint256 _vestingDuration
     ) ERC20("CYBRO Locked Token", "LCYBRO") Ownable(admin) {
-        cbr = _cbr;
+        cybro = _cybro;
         tgeTimestamp = _tgeTimestamp;
         tgePercent = _tgePercent;
         vestingStart = _vestingStart;
         vestingDuration = _vestingDuration;
 
-        for (uint256 i = 0; i < _lockedCBRStakings.length; i++) {
-            transferWhitelist[_lockedCBRStakings[i]] = true;
-            mintersWhitelist[_lockedCBRStakings[i]] = true;
+        for (uint256 i = 0; i < _lockedCYBROStakings.length; i++) {
+            transferWhitelist[_lockedCYBROStakings[i]] = true;
+            mintersWhitelist[_lockedCYBROStakings[i]] = true;
         }
 
         // Allow whitelisted addresses and admin to initiate minting
@@ -114,7 +116,7 @@ contract LockedCYBRO is ERC20, Ownable {
      * @return The total claimable token amount
      */
     function getClaimableAmount(address user) public view returns (uint256) {
-        return Math.min(getUnlockedAmount(user) - _claimedAmount[user], balanceOf(user));
+        return Math.min(getUnlockedAmount(user) - claimedAmount[user], balanceOf(user));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -125,7 +127,7 @@ contract LockedCYBRO is ERC20, Ownable {
      * @param totalBalance Total balance of tokens to allocate
      * @param signature ECDSA signature from authorized minter
      */
-    function mintByUser(address user, uint256 totalBalance, bytes memory signature) external {
+    function mint(address user, uint256 totalBalance, bytes memory signature) external {
         require(mintableByUsers, "CYBRO: mintable by users");
         address signer_ = keccak256(abi.encodePacked(user, totalBalance, address(this), block.chainid))
             .toEthSignedMessageHash().recover(signature);
@@ -139,8 +141,7 @@ contract LockedCYBRO is ERC20, Ownable {
      * @param users Array of user addresses
      * @param amounts Array of token amounts corresponding to each user
      */
-    function mint(address[] memory users, uint256[] memory amounts) external {
-        require(!mintableByUsers, "CYBRO: mintable by users");
+    function mintFor(address[] memory users, uint256[] memory amounts) external {
         require(mintersWhitelist[msg.sender], "CYBRO: you are not in the whitelist");
         for (uint256 i = 0; i < users.length; i++) {
             allocations[users[i]] += amounts[i];
@@ -154,50 +155,12 @@ contract LockedCYBRO is ERC20, Ownable {
     function claim() external {
         uint256 amount = getClaimableAmount(msg.sender);
         require(amount > 0, "CYBRO: amount must be gt zero");
-        _claimedAmount[msg.sender] += amount;
+        claimedAmount[msg.sender] += amount;
         _burn(msg.sender, amount);
-        IERC20Metadata(cbr).safeTransfer(msg.sender, amount);
+        IERC20Metadata(cybro).safeTransfer(msg.sender, amount);
     }
 
     /* ========== EXTERNAL OWNER FUNCTIONS ========== */
-
-    /**
-     * @notice Updates the timestamp for the Token Generation Event.
-     * @param newTgeTimestamp New timestamp for TGE
-     */
-    function setTgeTimestamp(uint256 newTgeTimestamp) external onlyOwner {
-        require(newTgeTimestamp > block.timestamp, "CYBRO: invalid tge timestamp");
-        require(tgeTimestamp > block.timestamp, "CYBRO: can't change TGE after TGE start");
-        tgeTimestamp = newTgeTimestamp;
-    }
-
-    /**
-     * @notice Updates the timestamp when the vesting starts.
-     * @param newVestingStart New vesting start timestamp
-     */
-    function setVestingStart(uint256 newVestingStart) external onlyOwner {
-        require(newVestingStart > block.timestamp, "CYBRO: invalid vesting start");
-        require(vestingStart > block.timestamp, "CYBRO: vesting already started");
-        vestingStart = newVestingStart;
-    }
-
-    /**
-     * @notice Sets a new vesting duration.
-     * @param _vestingDuration New vesting duration in seconds
-     */
-    function setVestingDuration(uint256 _vestingDuration) external onlyOwner {
-        require(vestingStart > block.timestamp, "CYBRO: vesting already started");
-        vestingDuration = _vestingDuration;
-    }
-
-    /**
-     * @notice Updates the percentage of tokens distributed at TGE.
-     * @param _tgePercent New TGE percentage
-     */
-    function setTgePercent(uint8 _tgePercent) external onlyOwner {
-        require(tgeTimestamp > block.timestamp, "CYBRO: can't change TGE after TGE start");
-        tgePercent = _tgePercent;
-    }
 
     /**
      * @notice Adds an address to the transfer whitelist.

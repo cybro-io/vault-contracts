@@ -19,7 +19,7 @@ contract LockedCYBROStakingTest is BaseLockedCYBRO {
         to[0] = user;
 
         vm.prank(admin);
-        lockedCYBRO.mint(to, amountMint);
+        lockedCYBRO.mintFor(to, amountMint);
         vm.prank(user);
         lockedCYBRO.approve(address(lockedCYBROStaking), amount);
 
@@ -41,7 +41,7 @@ contract LockedCYBROStakingTest is BaseLockedCYBRO {
         to[0] = user;
 
         vm.prank(admin);
-        lockedCYBRO.mint(to, amountMint);
+        lockedCYBRO.mintFor(to, amountMint);
 
         vm.startPrank(user);
         lockedCYBRO.approve(address(lockedCYBROStaking3), amount);
@@ -66,7 +66,7 @@ contract LockedCYBROStakingTest is BaseLockedCYBRO {
         to[0] = user;
 
         vm.prank(admin);
-        lockedCYBRO.mint(to, amountMint);
+        lockedCYBRO.mintFor(to, amountMint);
 
         vm.startPrank(user);
         lockedCYBRO.approve(address(lockedCYBROStaking), amount);
@@ -94,7 +94,7 @@ contract LockedCYBROStakingTest is BaseLockedCYBRO {
         amountMint[0] = amount;
         to[0] = user;
         vm.prank(admin);
-        lockedCYBRO.mint(to, amountMint);
+        lockedCYBRO.mintFor(to, amountMint);
 
         vm.startPrank(user);
         lockedCYBRO.approve(address(lockedCYBROStaking), amount);
@@ -113,7 +113,7 @@ contract LockedCYBROStakingTest is BaseLockedCYBRO {
 
         uint256 preCalculatedReward = (amount * percents[0] / 1e4) * lockTimes[0] / 365 days;
         vm.prank(admin);
-        lockedCYBRO.mint(to, amountMint);
+        lockedCYBRO.mintFor(to, amountMint);
 
         vm.startPrank(user);
         lockedCYBRO.approve(address(lockedCYBROStaking), amount);

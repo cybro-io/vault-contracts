@@ -144,8 +144,8 @@ contract LockedCYBRO is ERC20, Ownable {
     function mintFor(address[] memory users, uint256[] memory amounts) external {
         require(mintersWhitelist[msg.sender], "CYBRO: you are not in the whitelist");
         for (uint256 i = 0; i < users.length; i++) {
-            allocations[users[i]] += amounts[i];
-            _mint(users[i], amounts[i]);
+            _mint(users[i], amounts[i] - allocations[users[i]]);
+            allocations[users[i]] = amounts[i];
         }
     }
 

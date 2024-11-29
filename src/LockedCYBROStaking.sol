@@ -13,17 +13,12 @@ contract LockedCYBROStaking is Ownable, CYBROStaking {
         CYBROStaking(_owner, _stakeToken, _lockTime, _percent)
     {}
 
-    function claim() public virtual override returns (uint256 reward) {
-        UserState storage user = users[msg.sender];
-        reward = getRewardOf(msg.sender);
-        user.lastClaimTimestamp = block.timestamp;
-        if (reward > 0) {
-            address[] memory to = new address[](1);
-            uint256[] memory amount = new uint256[](1);
-            to[0] = msg.sender;
-            amount[0] = reward;
-            LockedCYBRO(address(stakeToken)).mintFor(to, amount);
-            emit Claimed(msg.sender, reward);
-        }
+    function _sendReward(address user, uint256 reward) internal virtual override {
+        LockedCYBRO lcybro = LockedCYBRO(address(stakeToken));
+        address[] memory to = new address[](1);
+        uint256[] memory amount = new uint256[](1);
+        to[0] = user;
+        amount[0] = reward + lcybro.allocations(user);
+        lcybro.mintFor(to, amount);
     }
 }

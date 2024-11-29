@@ -64,7 +64,7 @@ contract CYBROStaking is Ownable {
         minBalance = _minBalance;
     }
 
-    /// @notice Maps a given lockTime in secods to yearly APY user can get by staking tokens for that period of time.
+    /// @notice Set lock time and percent
     function setLockTimeAndPercent(uint256 _lockTime, uint32 _percent) external onlyOwner {
         lockTime = _lockTime;
         percent = _percent;
@@ -116,12 +116,12 @@ contract CYBROStaking is Ownable {
     }
 
     /// @notice Claim all accrued rewards.
-    function claim() public virtual ensureSolvency returns (uint256 reward) {
+    function claim() public ensureSolvency returns (uint256 reward) {
         UserState storage user = users[msg.sender];
         reward = getRewardOf(msg.sender);
         user.lastClaimTimestamp = block.timestamp;
         if (reward > 0) {
-            stakeToken.safeTransfer(msg.sender, reward);
+            _sendReward(msg.sender, reward);
             emit Claimed(msg.sender, reward);
         }
     }
@@ -137,6 +137,13 @@ contract CYBROStaking is Ownable {
         } else {
             stakeToken.safeTransfer(msg.sender, amount);
         }
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @notice Send reward to user
+    function _sendReward(address user, uint256 reward) internal virtual {
+        stakeToken.safeTransfer(user, reward);
     }
 
     /* ========== EVENTS ========== */

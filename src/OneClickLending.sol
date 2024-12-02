@@ -180,7 +180,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             if (lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
-                asset.forceApprove(address(poolAddresses[i]), type(uint256).max);
+                asset.forceApprove(poolAddresses[i], type(uint256).max);
 
                 emit LendingPoolAdded(poolAddresses[i]);
             }
@@ -198,7 +198,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             require(lendingPoolAddresses.remove(poolAddresses[i]));
 
             // Revoke approval for the lending pool
-            asset.forceApprove(address(poolAddresses[i]), 0);
+            asset.forceApprove(poolAddresses[i], 0);
 
             emit LendingPoolRemoved(poolAddresses[i]);
         }
@@ -320,21 +320,21 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param account The address of the account
     /// @return The deposit fee of the account
     function getDepositFee(address account) external view returns (uint256) {
-        return feeProvider.getDepositFee(address(account));
+        return feeProvider.getDepositFee(account);
     }
 
     /// @notice Returns the withdrawal fee of an account
     /// @param account The address of the account
     /// @return The withdrawal fee of the account
     function getWithdrawalFee(address account) external view returns (uint256) {
-        return feeProvider.getWithdrawalFee(address(account));
+        return feeProvider.getWithdrawalFee(account);
     }
 
     /// @notice Returns the performance fee of an account
     /// @param account The address of the account
     /// @return The performance fee of the account
     function getPerformanceFee(address account) external view returns (uint256) {
-        return feeProvider.getPerformanceFee(address(account));
+        return feeProvider.getPerformanceFee(account);
     }
 
     /// @notice Returns the share price of a lending pool
@@ -381,10 +381,10 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         uint256 depositedBalance = _depositedBalances[account];
         uint256 fee;
         if (assets > depositedBalance) {
-            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(account) / feePrecision;
         }
 
-        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
+        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(account)) / feePrecision;
     }
 
     function decimals() public view override returns (uint8) {
@@ -494,7 +494,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee
     function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getDepositFee(address(msg.sender))) / feePrecision;
+        uint256 fee = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             asset.safeTransfer(feeRecipient, fee);
@@ -506,7 +506,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee
     function _applyWithdrawalFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
+        uint256 fee = (assets * feeProvider.getWithdrawalFee(msg.sender)) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             asset.safeTransfer(feeRecipient, fee);
@@ -523,7 +523,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         _depositedBalances[msg.sender] -= balancePortion;
         uint256 fee;
         if (assets > balancePortion) {
-            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(msg.sender) / feePrecision;
             asset.safeTransfer(feeRecipient, fee);
         }
         return (assets - fee, fee);

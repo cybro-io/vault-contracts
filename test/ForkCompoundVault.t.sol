@@ -7,11 +7,12 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {CompoundVault, IERC20Metadata} from "../src/CompoundVaultErc20.sol";
-import {CompoundVaultETH, IFeeProvider} from "../src/CompoundVaultEth.sol";
+import {CompoundVaultETH} from "../src/CompoundVaultEth.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 
 // 0x8C415331761063E5D6b1c8E700f996b13603Fc2E Orbit WBTC decimals 8
 // 0x0872b71EFC37CB8DdE22B2118De3d800427fdba0 oEther V2 decimals 18
@@ -31,8 +32,15 @@ contract CompoundVaultTest is Test {
     uint256 ethAmount;
     uint256 forkId;
     address user;
+    address user2;
     address internal admin;
     uint256 internal adminPrivateKey;
+    uint32 feePrecision;
+    IFeeProvider feeProvider;
+    address feeRecipient;
+    uint32 depositFee;
+    uint32 withdrawalFee;
+    uint32 performanceFee;
 
     function setUp() public {
         adminPrivateKey = 0xba132ce;
@@ -47,6 +55,22 @@ contract CompoundVaultTest is Test {
         wbtcAmount = 1 * 1e6;
         ethAmount = 1e18;
         user = address(100);
+        user2 = address(101);
+        feeRecipient = address(102);
+        depositFee = 0;
+        withdrawalFee = 0;
+        performanceFee = 100;
+        feePrecision = 1e5;
+        vm.startPrank(admin);
+        feeProvider = FeeProvider(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new FeeProvider(feePrecision)), admin, abi.encodeCall(FeeProvider.initialize, (admin))
+                )
+            )
+        );
+        feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
+        vm.stopPrank();
     }
 
     modifier fork() {
@@ -64,7 +88,7 @@ contract CompoundVaultTest is Test {
         vault = CompoundVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new CompoundVault(usdb, usdbPool, IFeeProvider(address(0)), address(0))),
+                    address(new CompoundVault(usdb, usdbPool, IFeeProvider(feeProvider), feeRecipient)),
                     admin,
                     abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )
@@ -74,13 +98,22 @@ contract CompoundVaultTest is Test {
         vm.startPrank(user);
         usdb.approve(address(vault), type(uint256).max);
         uint256 shares = vault.deposit(amount, user);
+        vm.assertEq(vault.getDepositedBalance(user2), 0);
+        vault.transfer(user2, shares);
 
+        vm.assertEq(vault.getDepositedBalance(user2), amount);
+        vm.assertEq(vault.getDepositedBalance(user), 0);
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));
+        vm.stopPrank();
 
-        vault.redeem(shares, user, user);
+        vm.prank(user2);
+        vault.approve(user, shares);
+
+        vm.startPrank(user);
+        vault.redeem(shares, user, user2);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));
         vm.stopPrank();

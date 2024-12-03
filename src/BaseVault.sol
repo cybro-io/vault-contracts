@@ -59,9 +59,6 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @notice Mapping of account addresses to their deposited balance of assets
     mapping(address account => uint256) internal _depositedBalances;
 
-    /// @notice Mapping of account addresses to their transfer whitelist status
-    mapping(address account => bool) public transferWhitelist;
-
     /* ========== CONSTRUCTOR ========== */
 
     /// @notice Constructs the BaseVault contract
@@ -87,7 +84,6 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
-        transferWhitelist[address(0)] = true;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -314,10 +310,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @return Whether the token can be recovered
     function _validateTokenToRecover(address token) internal virtual returns (bool);
 
-    /// @notice Override for update _depositedBalances
+    /// @notice Override for transfer restriction
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
-            revert("CYBRO: not whitelisted");
+            revert("CYBRO: Transfer not allowed");
         }
         super._update(from, to, value);
     }

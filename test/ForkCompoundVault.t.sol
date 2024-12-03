@@ -98,22 +98,16 @@ contract CompoundVaultTest is Test {
         vm.startPrank(user);
         usdb.approve(address(vault), type(uint256).max);
         uint256 shares = vault.deposit(amount, user);
-        vm.assertEq(vault.getDepositedBalance(user2), 0);
-        vault.transfer(user2, shares);
 
-        vm.assertEq(vault.getDepositedBalance(user2), amount);
-        vm.assertEq(vault.getDepositedBalance(user), 0);
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));
+        vault.approve(user2, shares);
+
         vm.stopPrank();
-
-        vm.prank(user2);
-        vault.approve(user, shares);
-
-        vm.startPrank(user);
-        vault.redeem(shares, user, user2);
+        vm.startPrank(user2);
+        vault.redeem(shares, user, user);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));
         vm.stopPrank();

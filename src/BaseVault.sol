@@ -110,7 +110,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         _asset.safeTransferFrom(_msgSender(), address(this), assets);
         uint256 depositFee;
         (assets, depositFee) = address(feeProvider) == address(0) ? (assets, 0) : _applyDepositFee(assets);
-        _depositedBalances[msg.sender] += assets;
+        _depositedBalances[receiver] += assets;
 
         _deposit(assets);
 
@@ -138,8 +138,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         uint256 withdrawalFee;
         assets = _redeem(shares);
         if (address(feeProvider) != address(0)) {
-            (assets, performanceFee) = _applyPerformanceFee(assets, shares);
-            (assets, withdrawalFee) = _applyWithdrawalFee(assets);
+            (assets, performanceFee) = _applyPerformanceFee(assets, shares, owner);
+            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
         }
 
         _burn(owner, shares);
@@ -206,10 +206,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         uint256 depositedBalance = _depositedBalances[account];
         uint256 fee;
         if (assets > depositedBalance) {
-            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(account) / feePrecision;
         }
 
-        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
+        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(account)) / feePrecision;
     }
 
     /// @notice Returns the deposited balance of an account
@@ -234,19 +234,19 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @notice Returns the deposit fee for an account
     /// @param account The address of the account
     function getDepositFee(address account) external view returns (uint256) {
-        return feeProvider.getDepositFee(address(account));
+        return feeProvider.getDepositFee(account);
     }
 
     /// @notice Returns the withdrawal fee for an account
     /// @param account The address of the account
     function getWithdrawalFee(address account) external view returns (uint256) {
-        return feeProvider.getWithdrawalFee(address(account));
+        return feeProvider.getWithdrawalFee(account);
     }
 
     /// @notice Returns the performance fee for an account
     /// @param account The address of the account
     function getPerformanceFee(address account) external view returns (uint256) {
-        return feeProvider.getPerformanceFee(address(account));
+        return feeProvider.getPerformanceFee(account);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -269,7 +269,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee and the fee amount
     function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getDepositFee(address(msg.sender))) / feePrecision;
+        uint256 fee = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
@@ -280,8 +280,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @notice Applies the withdrawal fee
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee and the fee amount
-    function _applyWithdrawalFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getWithdrawalFee(address(msg.sender))) / feePrecision;
+    function _applyWithdrawalFee(uint256 assets, address owner) internal returns (uint256, uint256) {
+        uint256 fee = (assets * feeProvider.getWithdrawalFee(owner)) / feePrecision;
         if (fee > 0) {
             assets -= fee;
             IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
@@ -292,13 +292,14 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @notice Applies the performance fee
     /// @param assets The amount of assets before fee
     /// @param shares The amount of shares being redeemed
+    /// @param owner The owner of the shares
     /// @return The amount of assets after fee and the fee amount
-    function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256, uint256) {
-        uint256 balancePortion = _depositedBalances[msg.sender] * shares / balanceOf(msg.sender);
-        _depositedBalances[msg.sender] -= balancePortion;
+    function _applyPerformanceFee(uint256 assets, uint256 shares, address owner) internal returns (uint256, uint256) {
+        uint256 balancePortion = _depositedBalances[owner] * shares / balanceOf(owner);
+        _depositedBalances[owner] -= balancePortion;
         uint256 fee;
         if (assets > balancePortion) {
-            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(address(msg.sender)) / feePrecision;
+            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(owner) / feePrecision;
             IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
         }
         return (assets - fee, fee);
@@ -308,4 +309,12 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param token The address of the token to validate
     /// @return Whether the token can be recovered
     function _validateTokenToRecover(address token) internal virtual returns (bool);
+
+    /// @notice Override for transfer restriction
+    function _update(address from, address to, uint256 value) internal override {
+        if (from != address(0) && to != address(0)) {
+            revert("CYBRO: Transfer not allowed");
+        }
+        super._update(from, to, value);
+    }
 }

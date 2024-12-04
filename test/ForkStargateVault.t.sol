@@ -132,11 +132,11 @@ abstract contract StargateVaultTest is Test {
         vm.stopPrank();
     }
 
-    function _calculatDepositFee(uint256 _amount) internal view returns (uint256) {
+    function _calculateDepositFee(uint256 _amount) internal view returns (uint256) {
         return (_amount * feeProvider.getDepositFee(user)) / feePrecision;
     }
 
-    function _calculatWithdrawalFee(uint256 _amount) internal view returns (uint256) {
+    function _calculateWithdrawalFee(uint256 _amount) internal view returns (uint256) {
         return (_amount * feeProvider.getWithdrawalFee(user)) / feePrecision;
     }
 
@@ -187,7 +187,7 @@ abstract contract StargateVaultTest is Test {
 
         uint256 assets = _redeem(shares, usdtVault);
         vm.assertEq(assets, token.balanceOf(user));
-        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
+        vm.assertGt(token.balanceOf(user), _calculateWithdrawalFee(_calculateDepositFee(amount)));
         console.log(token.balanceOf(user));
         console.log("share price", usdtVault.sharePrice());
         console.log(stg.balanceOf(address(usdtVault)));
@@ -218,7 +218,7 @@ abstract contract StargateVaultTest is Test {
 
         uint256 assets = _redeem(shares, wethVault);
         assert(assets <= token.balanceOf(user));
-        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
+        vm.assertGt(token.balanceOf(user), _calculateWithdrawalFee(_calculateDepositFee(amount)));
     }
 
     function test_usdc() public fork {
@@ -262,7 +262,7 @@ abstract contract StargateVaultTest is Test {
 
         uint256 assets = _redeem(shares, usdcVault);
         vm.assertEq(assets, token.balanceOf(user));
-        vm.assertGt(token.balanceOf(user), _calculatWithdrawalFee(_calculatDepositFee(amount)));
+        vm.assertGt(token.balanceOf(user), _calculateWithdrawalFee(_calculateDepositFee(amount)));
         console.log(token.balanceOf(user));
         console.log("share price", usdcVault.sharePrice());
         console.log(stg.balanceOf(address(usdcVault)));

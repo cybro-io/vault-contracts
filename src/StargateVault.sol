@@ -12,6 +12,7 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title StargateVault
 /// @notice A vault contract for managing Stargate liquidity
@@ -129,7 +130,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         if (asset() == address(weth)) {
             // if assets lower then convertRate assetToDeposit will be 0
             // And transaction will be reverted
-            uint256 assetToDeposit = uint64(assets / _convertRate) * _convertRate;
+            uint256 assetToDeposit = SafeCast.toUint64(assets / _convertRate) * _convertRate;
             _unwrapETH(assetToDeposit);
             pool.deposit{value: assetToDeposit}(address(this), assetToDeposit);
             if (assets > assetToDeposit) {
@@ -139,7 +140,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         } else {
             assets = pool.deposit(address(this), assets);
         }
-        staking.deposit(address(lpToken), assets);
+        staking.deposit(lpToken, assets);
     }
 
     /// @notice Redeems shares from the Stargate pool
@@ -183,13 +184,13 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /// @notice Wraps ETH into WETH
     /// @param amount The amount of ETH to wrap
     function _wrapETH(uint256 amount) internal {
-        IWETH(address(asset())).deposit{value: amount}();
+        IWETH(asset()).deposit{value: amount}();
     }
 
     /// @notice Unwraps WETH into ETH
     /// @param amount The amount of WETH to unwrap
     function _unwrapETH(uint256 amount) internal {
-        IWETH(address(asset())).withdraw(amount);
+        IWETH(asset()).withdraw(amount);
     }
 
     /// @notice Validates if a token can be recovered

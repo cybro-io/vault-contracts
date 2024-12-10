@@ -16,8 +16,14 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address admin) public initializer {
+    function initialize(address admin, uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
+        public
+        initializer
+    {
         __Ownable_init(admin);
+        _depositFee = depositFee;
+        _withdrawalFee = withdrawalFee;
+        _performanceFee = performanceFee;
     }
 
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external onlyOwner {

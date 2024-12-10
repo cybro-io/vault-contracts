@@ -69,11 +69,12 @@ contract OneClickLendingTest is Test {
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision)), admin, abi.encodeCall(FeeProvider.initialize, (admin))
+                    address(new FeeProvider(feePrecision)),
+                    admin,
+                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
                 )
             )
         );
-        feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
         lending = OneClickLending(
             address(
                 new TransparentUpgradeableProxy(

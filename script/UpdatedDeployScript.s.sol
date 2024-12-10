@@ -79,13 +79,12 @@ contract UpdatedDeployScript is Script, StdCheats {
         internal
         returns (FeeProvider feeProvider)
     {
-        (, address sender,) = vm.readCallers();
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
                     address(new FeeProvider(feePrecision)),
                     admin,
-                    abi.encodeCall(FeeProvider.initialize, (sender, depositFee, withdrawalFee, performanceFee))
+                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
                 )
             )
         );

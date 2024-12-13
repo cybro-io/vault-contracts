@@ -6,8 +6,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
-import {CompoundVault, IERC20Metadata} from "../src/CompoundVaultErc20.sol";
-import {CompoundVaultETH} from "../src/CompoundVaultEth.sol";
+import {CompoundVault, IERC20Metadata} from "../src/vaults/CompoundVaultErc20.sol";
+import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
@@ -98,7 +98,7 @@ contract CompoundVaultTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         usdb.approve(address(vault), type(uint256).max);
-        uint256 shares = vault.deposit(amount, user);
+        uint256 shares = vault.deposit(amount, user, 0);
 
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
@@ -108,7 +108,7 @@ contract CompoundVaultTest is Test {
 
         vm.stopPrank();
         vm.startPrank(user2);
-        vault.redeem(shares, user, user);
+        vault.redeem(shares, user, user, 0);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));
         vm.stopPrank();
@@ -134,11 +134,11 @@ contract CompoundVaultTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         wbtc.approve(address(vault), type(uint256).max);
-        uint256 shares = vault.deposit(wbtcAmount, user);
+        uint256 shares = vault.deposit(wbtcAmount, user, 0);
 
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
-        vault.redeem(shares, user, user);
+        vault.redeem(shares, user, user, 0);
         vm.stopPrank();
     }
 
@@ -165,11 +165,11 @@ contract CompoundVaultTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         weth.approve(address(vaultEth), type(uint256).max);
-        uint256 shares = vaultEth.deposit(ethAmount, user);
+        uint256 shares = vaultEth.deposit(ethAmount, user, 0);
 
         console.log("shares", shares);
         vm.warp(block.timestamp + 100);
-        uint256 underlyingAssets = vaultEth.redeem(shares, user, user);
+        uint256 underlyingAssets = vaultEth.redeem(shares, user, user, 0);
         vm.assertApproxEqAbs(weth.balanceOf(user), underlyingAssets, 1);
         vm.stopPrank();
     }

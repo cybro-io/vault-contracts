@@ -5,10 +5,10 @@ pragma solidity =0.8.26;
 import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IInitCore} from "./interfaces/init/IInitCore.sol";
-import {IERC20RebasingWrapper} from "./interfaces/init/IERC20RebasingWrapper.sol";
-import {IInitLendingPool} from "./interfaces/init/IInitLendingPool.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IInitCore} from "../interfaces/init/IInitCore.sol";
+import {IERC20RebasingWrapper} from "../interfaces/init/IERC20RebasingWrapper.sol";
+import {IInitLendingPool} from "../interfaces/init/IInitLendingPool.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 /// @title InitVault
 /// @notice A vault contract for interacting with Init Capital protocol

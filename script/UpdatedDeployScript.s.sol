@@ -4,12 +4,12 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata} from "../src/AaveVault.sol";
-import {InitVault} from "../src/InitVault.sol";
-import {CompoundVaultETH} from "../src/CompoundVaultEth.sol";
-import {CompoundVault} from "../src/CompoundVaultErc20.sol";
-import {JuiceVault} from "../src/JuiceVault.sol";
-import {YieldStakingVault} from "../src/YieldStakingVault.sol";
+import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
+import {InitVault} from "../src/vaults/InitVault.sol";
+import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
+import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
+import {JuiceVault} from "../src/vaults/JuiceVault.sol";
+import {YieldStakingVault} from "../src/vaults/YieldStakingVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
@@ -21,10 +21,10 @@ import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {OneClickLending} from "../src/OneClickLending.sol";
 import {IStargatePool} from "../src/interfaces/stargate/IStargatePool.sol";
 import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
-import {StargateVault} from "../src/StargateVault.sol";
+import {StargateVault} from "../src/vaults/StargateVault.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import {BaseVault} from "../src/BaseVault.sol";
+import {BaseVault} from "../src/vaults/BaseVault.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
@@ -599,8 +599,8 @@ contract UpdatedDeployScript is Script, StdCheats {
             shares = lending.deposit(amount);
             assets = lending.redeem(shares, user);
         } else {
-            shares = vault.deposit(amount, user);
-            assets = vault.redeem(shares, user, user);
+            shares = vault.deposit(amount, user, 0);
+            assets = vault.redeem(shares, user, user, 0);
         }
         console.log("Vault name", vault.name());
         console.log("Shares after deposit", shares);

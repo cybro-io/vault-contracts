@@ -4,7 +4,7 @@ pragma solidity =0.8.26;
 import {BaseVault} from "./BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 contract BufferVault is BaseVault {
     using SafeERC20 for IERC20Metadata;

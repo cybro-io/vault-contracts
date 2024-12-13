@@ -5,8 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20Mock} from "../../src/mocks/ERC20Mock.sol";
-import {LockedCYBRO} from "../../src/LockedCYBRO.sol";
-import {LockedCYBROStaking, CYBROStaking} from "../../src/LockedCYBROStaking.sol";
+import {LockedCYBRO} from "../../src/token/LockedCYBRO.sol";
+import {LockedCYBROStaking, CYBROStaking} from "../../src/token/LockedCYBROStaking.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract BaseLockedCYBRO is Test {

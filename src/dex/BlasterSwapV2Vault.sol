@@ -2,12 +2,13 @@
 
 pragma solidity 0.8.26;
 
-import {IBlasterswapV2Router02} from "./interfaces/blaster/IBlasterswapV2Router02.sol";
-import {IBlasterswapV2Factory} from "./interfaces/blaster/IBlasterswapV2Factory.sol";
+import {IBlasterswapV2Router02} from "../interfaces/blaster/IBlasterswapV2Router02.sol";
+import {IBlasterswapV2Factory} from "../interfaces/blaster/IBlasterswapV2Factory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseDexUniformVault, IERC20Metadata} from "./BaseDexUniformVault.sol";
-import {IBlasterswapV2Pair} from "./interfaces/blaster/IBlasterswapV2Pair.sol";
+import {IBlasterswapV2Pair} from "../interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 /// @title BlasterSwapV2Vault
 /// @notice This contract manages liquidity provision on the BlasterSwap V2 decentralized exchange (DEX)
@@ -25,7 +26,14 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
     /// @param _router The address of the BlasterSwap V2 router
     /// @param _token0 The address of token0 in the liquidity pool
     /// @param _token1 The address of token1 in the liquidity pool
-    constructor(address payable _router, address _token0, address _token1) BaseDexUniformVault(_token0, _token1) {
+    constructor(
+        address payable _router,
+        address _token0,
+        address _token1,
+        bool _zeroOrOne,
+        IFeeProvider _feeProvider,
+        address _feeRecipient
+    ) BaseDexUniformVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient) {
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 
@@ -34,25 +42,18 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
 
     /// @notice Initializes the contract with admin address, token name, and symbol
     /// @param admin The address of the admin
+    /// @param manager The address of the manager
     /// @param name The name of the ERC20 token representing the vault shares
     /// @param symbol The symbol of the ERC20 token representing the vault shares
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, address manager, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).forceApprove(address(router), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(router), type(uint256).max);
         IERC20Metadata(address(lpToken)).forceApprove(address(router), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseDexUniformVault_init(admin);
+        __BaseDexUniformVault_init(admin, manager);
     }
 
-    function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
-        amountFor0 = amount / 2;
-        amountFor1 = amount - amountFor0;
-    }
-
-    /// @inheritdoc BaseDexUniformVault
-    function _getTokenLiquidity() internal view override returns (uint256) {
-        return lpToken.balanceOf(address(this));
-    }
+    /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view virtual override returns (uint160) {
@@ -67,6 +68,18 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         uint256 liquidity = _getTokenLiquidity();
         amount0 = liquidity * reserve0 / totalSupply_;
         amount1 = liquidity * reserve1 / totalSupply_;
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
+        amountFor0 = amount / 2;
+        amountFor1 = amount - amountFor0;
+    }
+
+    /// @inheritdoc BaseDexUniformVault
+    function _getTokenLiquidity() internal view override returns (uint256) {
+        return lpToken.balanceOf(address(this));
     }
 
     /// @inheritdoc BaseDexUniformVault

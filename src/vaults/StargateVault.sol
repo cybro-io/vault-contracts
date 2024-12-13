@@ -5,13 +5,13 @@ pragma solidity =0.8.26;
 import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IStargatePool} from "./interfaces/stargate/IStargatePool.sol";
-import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IStargatePool} from "../interfaces/stargate/IStargatePool.sol";
+import {IStargateStaking} from "../interfaces/stargate/IStargateStaking.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {IWETH} from "./interfaces/IWETH.sol";
+import {IWETH} from "../interfaces/IWETH.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title StargateVault

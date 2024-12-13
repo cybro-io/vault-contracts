@@ -11,8 +11,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
-import {IDexVault} from "./interfaces/IDexVault.sol";
+import {IDexVault} from "../interfaces/IDexVault.sol";
 import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 /// @title BaseDexVault
 /// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
@@ -28,14 +29,16 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     uint160 public sqrtPriceLower;
     uint160 public sqrtPriceUpper;
 
-    constructor(address _token0, address _token1) BaseDexUniformVault(_token0, _token1) {}
+    constructor(address _token0, address _token1, bool _zeroOrOne, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseDexUniformVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient)
+    {}
 
-    /// @notice Initializes the contract with the given admin address
+    /// @notice Initializes the contract
     /// @param admin The address of the admin
-    function __BaseDexVault_init(address admin) public onlyInitializing {
+    function __BaseDexVault_init(address admin, address manager) public onlyInitializing {
+        __BaseDexUniformVault_init(admin, manager);
         _updateTicks();
         _updateSqrtPricesLowerAndUpper();
-        __Ownable_init(admin);
     }
 
     /// @notice Calculates the amounts neeeded to get swapped into token0 and token1 to place a position in the given range.

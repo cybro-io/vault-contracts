@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {InitVault, IERC20Metadata, IFeeProvider} from "../src/InitVault.sol";
+import {InitVault, IERC20Metadata, IFeeProvider} from "../src/vaults/InitVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {
@@ -69,13 +69,13 @@ contract InitVaultTest is Test {
     function _deposit(InitVault vault) internal returns (uint256 shares) {
         vm.startPrank(user);
         token.approve(address(vault), amount);
-        shares = vault.deposit(amount, user);
+        shares = vault.deposit(amount, user, 0);
         vm.stopPrank();
     }
 
     function _redeem(uint256 shares, InitVault vault) internal returns (uint256 assets) {
         vm.startPrank(user);
-        assets = vault.redeem(shares, user, user);
+        assets = vault.redeem(shares, user, user, 0);
         vm.stopPrank();
     }
 
@@ -93,7 +93,7 @@ contract InitVaultTest is Test {
         vm.startPrank(user);
         token.approve(address(usdbVault), amount);
         vm.expectRevert();
-        usdbVault.deposit(amount, user);
+        usdbVault.deposit(amount, user, 0);
         vm.stopPrank();
         vm.prank(admin);
         usdbVault.unpause();

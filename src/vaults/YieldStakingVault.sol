@@ -2,10 +2,10 @@
 
 pragma solidity 0.8.26;
 
-import {IYieldStaking} from "./interfaces/blastup/IYieldStacking.sol";
+import {IYieldStaking} from "../interfaces/blastup/IYieldStacking.sol";
 import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 contract YieldStakingVault is BaseVault {
     using SafeERC20 for IERC20Metadata;

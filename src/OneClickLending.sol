@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.8.26;
 
-import {ILendingPool} from "./interfaces/ILendingPool.sol";
+import {IVault} from "./interfaces/IVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
@@ -233,9 +233,9 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         require(deviationFrom > 0, "OneClickLending: Pool 'from' not deviated positively");
         require(deviationTo <= 0, "OneClickLending: Pool 'to' not deviated negatively");
 
-        uint256 assets = ILendingPool(from).redeem(sharesToWithdraw, address(this), address(this));
+        uint256 assets = IVault(from).redeem(sharesToWithdraw, address(this), address(this), 0);
 
-        ILendingPool(to).deposit(assets, address(this));
+        IVault(to).deposit(assets, address(this), 0);
 
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
@@ -258,10 +258,11 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
 
             if (deviation > 0) {
-                uint256 assets = ILendingPool(pool).redeem(
-                    uint256(deviation) * ILendingPool(pool).balanceOf(address(this)) / poolBalance,
+                uint256 assets = IVault(pool).redeem(
+                    uint256(deviation) * IVault(pool).balanceOf(address(this)) / poolBalance,
                     address(this),
-                    address(this)
+                    address(this),
+                    0
                 );
                 totalAssetsToRedistribute += assets;
             } else if (deviation < 0) {
@@ -280,10 +281,10 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             // Deposit the calculated amount into the pool
             if (depositAmount > 0) {
                 leftAssets -= depositAmount;
-                ILendingPool(poolsToDeposit[i]).deposit(depositAmount, address(this));
+                IVault(poolsToDeposit[i]).deposit(depositAmount, address(this), 0);
             }
         }
-        if (leftAssets > 0) ILendingPool(poolsToDeposit[count - 1]).deposit(leftAssets, address(this));
+        if (leftAssets > 0) IVault(poolsToDeposit[count - 1]).deposit(leftAssets, address(this), 0);
     }
 
     /// @notice Collects performance fees for multiple accounts
@@ -341,14 +342,14 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param pool The address of the lending pool
     /// @return The share price of the pool
     function getSharePriceOfPool(address pool) external view returns (uint256) {
-        return ILendingPool(pool).sharePrice();
+        return IVault(pool).sharePrice();
     }
 
     /// @notice Returns the balance of a lending pool
     /// @param pool The address of the lending pool
     /// @return The balance of the pool
     function getBalanceOfPool(address pool) external view returns (uint256) {
-        return ILendingPool(pool).balanceOf(address(this)) * ILendingPool(pool).sharePrice() / 10 ** _decimals;
+        return IVault(pool).balanceOf(address(this)) * IVault(pool).sharePrice() / 10 ** _decimals;
     }
 
     /// @notice Returns the deposited balance of an account
@@ -445,8 +446,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param poolAddress The address of the lending pool
     /// @return The balance of the pool
     function _getBalance(address poolAddress) internal view returns (uint256) {
-        return ILendingPool(poolAddress).balanceOf(address(this)) * ILendingPool(poolAddress).sharePrice()
-            / 10 ** _decimals;
+        return IVault(poolAddress).balanceOf(address(this)) * IVault(poolAddress).sharePrice() / 10 ** _decimals;
     }
 
     /// @notice Deposits assets into the lending pools proportionally to their shares
@@ -467,7 +467,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             leftAssets -= amountToDeposit;
 
             if (amountToDeposit > 0) {
-                ILendingPool(poolAddress).deposit(amountToDeposit, address(this));
+                IVault(poolAddress).deposit(amountToDeposit, address(this), 0);
             }
             if (leftAssets == 0) {
                 break;
@@ -483,9 +483,9 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
-            uint256 poolShareToRedeem = (shares * ILendingPool(poolAddress).balanceOf(address(this))) / totalSupply();
+            uint256 poolShareToRedeem = (shares * IVault(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
-                assets += ILendingPool(poolAddress).redeem(poolShareToRedeem, address(this), address(this));
+                assets += IVault(poolAddress).redeem(poolShareToRedeem, address(this), address(this), 0);
             }
         }
     }

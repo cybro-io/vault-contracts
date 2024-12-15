@@ -24,7 +24,7 @@ import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol"
 import {StargateVault} from "../src/vaults/StargateVault.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import {BaseVault} from "../src/vaults/BaseVault.sol";
+import {BaseVault} from "../src/BaseVault.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
@@ -596,8 +596,8 @@ contract UpdatedDeployScript is Script, StdCheats {
         uint256 assets;
         if (isOneClick) {
             OneClickLending lending = OneClickLending(address(vault));
-            shares = lending.deposit(amount);
-            assets = lending.redeem(shares, user);
+            shares = lending.deposit(amount, user, 0);
+            assets = lending.redeem(shares, user, user, 0);
         } else {
             shares = vault.deposit(amount, user, 0);
             assets = vault.redeem(shares, user, user, 0);

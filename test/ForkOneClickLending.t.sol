@@ -158,7 +158,7 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
@@ -170,14 +170,14 @@ contract OneClickLendingTest is Test {
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
         vm.expectRevert();
-        lending.deposit(amount2);
+        lending.deposit(amount2, user2, 0);
         vm.stopPrank();
 
         vm.prank(admin);
         lending.unpause();
 
         vm.startPrank(user2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -199,8 +199,8 @@ contract OneClickLendingTest is Test {
         vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
         vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
         vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
-        vm.assertEq(lending.getDepositedBalance(user), amountWithDepositFee);
-        vm.assertEq(lending.getDepositedBalance(user2), amount2WithDepositFee);
+        vm.assertEq(lending.getWaterline(user), amountWithDepositFee);
+        vm.assertEq(lending.getWaterline(user2), amount2WithDepositFee);
         vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
     }
 
@@ -218,13 +218,13 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -254,11 +254,11 @@ contract OneClickLendingTest is Test {
         vm.stopPrank();
         // redeem
         vm.startPrank(user);
-        lending.redeem(userShares / 2, user);
+        lending.redeem(userShares / 2, user, user, 0);
         vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, amountWithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.startPrank(user2);
-        lending.redeem(user2Shares / 2, user2);
+        lending.redeem(user2Shares / 2, user2, user2, 0);
         vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.assertGt(usdb.balanceOf(feeRecipient), 0);
@@ -276,13 +276,13 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -299,14 +299,14 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(admin);
         usdb.transfer(address(bufferVault), usdb.balanceOf(admin));
-        uint256 depositedBalanceBefore = lending.getDepositedBalance(user);
-        uint256 depositedBalance2Before = lending.getDepositedBalance(user2);
+        uint256 depositedBalanceBefore = lending.getWaterline(user);
+        uint256 depositedBalance2Before = lending.getWaterline(user2);
         address[] memory users = new address[](2);
         users[0] = user;
         users[1] = user2;
         lending.collectPerformanceFee(users);
-        vm.assertGt(lending.getDepositedBalance(user), depositedBalanceBefore);
-        vm.assertGt(lending.getDepositedBalance(user2), depositedBalance2Before);
+        vm.assertGt(lending.getWaterline(user), depositedBalanceBefore);
+        vm.assertGt(lending.getWaterline(user2), depositedBalance2Before);
         vm.stopPrank();
     }
 }

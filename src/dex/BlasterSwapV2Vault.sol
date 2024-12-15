@@ -9,6 +9,7 @@ import {BaseDexUniformVault, IERC20Metadata} from "./BaseDexUniformVault.sol";
 import {IBlasterswapV2Pair} from "../interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {BaseVault} from "../BaseVault.sol";
 
 /// @title BlasterSwapV2Vault
 /// @notice This contract manages liquidity provision on the BlasterSwap V2 decentralized exchange (DEX)
@@ -16,11 +17,18 @@ import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 contract BlasterSwapV2Vault is BaseDexUniformVault {
     using SafeERC20 for IERC20Metadata;
 
+    /* ========== IMMUTABLE VARIABLES ========== */
+
     /// @notice The router used to interact with the BlasterSwap V2 DEX
     IBlasterswapV2Router02 public immutable router;
 
     /// @notice The LP (liquidity provider) token that represents the liquidity pool on BlasterSwap V2
     IBlasterswapV2Pair public immutable lpToken;
+
+    /* ========== STORAGE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
+
+    /* ========== CONSTRUCTOR ========== */
 
     /// @notice Constructor that initializes the BlasterSwap V2 vault
     /// @param _router The address of the BlasterSwap V2 router
@@ -30,15 +38,17 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         address payable _router,
         address _token0,
         address _token1,
-        bool _zeroOrOne,
+        IERC20Metadata _asset,
         IFeeProvider _feeProvider,
         address _feeRecipient
-    ) BaseDexUniformVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient) {
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 
         _disableInitializers();
     }
+
+    /* ========== INITIALIZER ========== */
 
     /// @notice Initializes the contract with admin address, token name, and symbol
     /// @param admin The address of the admin
@@ -72,6 +82,7 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
         amountFor0 = amount / 2;
         amountFor1 = amount - amountFor0;
@@ -108,9 +119,9 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         (amount0, amount1) = router.removeLiquidity(token0, token1, liquidity, 0, 0, address(this), block.timestamp);
     }
 
-    /// @inheritdoc BaseDexUniformVault
+    /// @inheritdoc BaseVault
     /// @dev This function prevents the recovery of LP tokens to avoid disrupting the liquidity management
-    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+    function _validateTokenToRecover(address token) internal virtual override(BaseVault) returns (bool) {
         return token != address(lpToken);
     }
 }

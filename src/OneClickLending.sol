@@ -9,34 +9,15 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {BaseVault} from "./BaseVault.sol";
 
 /// @title OneClickLending
 /// @notice A contract for managing ERC20 token lending to multiple lending pools.
-contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, PausableUpgradeable {
+contract OneClickLending is BaseVault {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /* ========== ERRORS ========== */
-
-    /// @notice Thrown when trying to withdraw an invalid token
-    error InvalidTokenToWithdraw(address token);
-
     /* ========== EVENTS ========== */
-
-    /// @notice Emitted when a deposit is made
-    /// @param owner The address that owns the deposited assets
-    /// @param assets The amount of assets deposited
-    /// @param shares The amount of shares minted
-    /// @param depositFee The amount of fees paid for the deposit
-    event Deposit(address indexed owner, uint256 assets, uint256 shares, uint256 depositFee);
-
-    /// @notice Emitted when a withdrawal is made
-    /// @param owner The address that owned the withdrawn assets
-    /// @param receiver The address that received the withdrawn assets
-    /// @param assets The amount of assets withdrawn
-    /// @param shares The amount of shares burned
-    /// @param fee The amount of fees paid for the withdrawal and profit
-    event Withdraw(address indexed owner, address indexed receiver, uint256 assets, uint256 shares, uint256 fee);
 
     /// @notice Emitted when a new lending pool is added
     /// @param poolAddress The address of the lending pool
@@ -56,28 +37,8 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @notice Role identifier for strategists
     bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
 
-    /// @notice Role identifier for managers
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-
     /// @notice Maximum number of lending pools for auto rebalance
     uint256 public constant maxPools = 1000;
-
-    /* ========== IMMUTABLE STATE VARIABLES ========== */
-
-    /// @notice The ERC20 asset managed by the vault
-    IERC20Metadata public immutable asset;
-
-    /// @notice The number of decimals of the asset
-    uint8 public immutable _decimals;
-
-    /// @notice The fee provider contract
-    IFeeProvider public immutable feeProvider;
-
-    /// @notice The address that receives the fees
-    address public immutable feeRecipient;
-
-    /// @notice The precision used for fee calculations
-    uint32 public immutable feePrecision;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -90,21 +51,15 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @notice Total lending shares across all pools
     uint256 public totalLendingShares;
 
-    /// @notice Mapping of account addresses to their deposited balance of assets
-    mapping(address account => uint256) private _depositedBalances;
-
     /* ========== CONSTRUCTOR ========== */
 
     /// @notice Constructor for OneClickLending contract
     /// @param _asset The ERC20 asset managed by the vault
     /// @param _feeProvider The fee provider contract
     /// @param _feeRecipient The address that receives the fees
-    constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient) {
-        asset = _asset;
-        _decimals = asset.decimals();
-        feeProvider = _feeProvider;
-        feeRecipient = _feeRecipient;
-        feePrecision = feeProvider.getFeePrecision();
+    constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
+        BaseVault(_asset, _feeProvider, _feeRecipient)
+    {
         _disableInitializers();
     }
 
@@ -117,62 +72,11 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         initializer
     {
         __ERC20_init(name, symbol);
-        __AccessControl_init();
-        __Pausable_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        __BaseVault_init(admin, manager);
         _grantRole(STRATEGIST_ROLE, strategist);
-        _grantRole(MANAGER_ROLE, manager);
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
-
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _unpause();
-    }
-
-    /// @notice Deposits assets into the vault
-    /// @param assets The amount of assets to deposit
-    /// @return shares The amount of shares minted
-    function deposit(uint256 assets) public virtual whenNotPaused returns (uint256 shares) {
-        if (assets == 0) {
-            return 0;
-        }
-        uint256 totalAssetsBefore = totalAssets();
-        asset.safeTransferFrom(msg.sender, address(this), assets);
-        uint256 depositFee;
-        (assets, depositFee) = _applyDepositFee(assets);
-
-        _deposit(assets);
-
-        uint256 totalAssetsAfter = totalAssets();
-        uint256 increase = totalAssetsAfter - totalAssetsBefore;
-
-        shares = totalAssetsBefore == 0 ? assets : totalSupply() * increase / totalAssetsBefore;
-
-        _depositedBalances[msg.sender] += assets;
-        _mint(msg.sender, shares);
-
-        emit Deposit(msg.sender, assets, shares, depositFee);
-    }
-
-    /// @notice Redeems shares from the vault
-    /// @param shares The amount of shares to redeem
-    /// @param receiver The address to receive the assets
-    /// @return assets The amount of assets redeemed
-    function redeem(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        uint256 performanceFee;
-        uint256 withdrawalFee;
-        (assets, performanceFee) = _applyPerformanceFee(_redeem(shares), shares);
-        (assets, withdrawalFee) = _applyWithdrawalFee(assets);
-        _burn(msg.sender, shares);
-        asset.safeTransfer(receiver, assets);
-
-        emit Withdraw(msg.sender, receiver, assets, shares, performanceFee + withdrawalFee);
-    }
 
     /// @notice Adds multiple lending pools
     /// @param poolAddresses Array of lending pool addresses
@@ -180,7 +84,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             if (lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
-                asset.forceApprove(poolAddresses[i], type(uint256).max);
+                IERC20Metadata(asset()).forceApprove(poolAddresses[i], type(uint256).max);
 
                 emit LendingPoolAdded(poolAddresses[i]);
             }
@@ -198,7 +102,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
             require(lendingPoolAddresses.remove(poolAddresses[i]));
 
             // Revoke approval for the lending pool
-            asset.forceApprove(poolAddresses[i], 0);
+            IERC20Metadata(asset()).forceApprove(poolAddresses[i], 0);
 
             emit LendingPoolRemoved(poolAddresses[i]);
         }
@@ -287,56 +191,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         if (leftAssets > 0) IVault(poolsToDeposit[count - 1]).deposit(leftAssets, address(this), 0);
     }
 
-    /// @notice Collects performance fees for multiple accounts
-    /// @param accounts The addresses of the accounts to collect fees for
-    function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
-        for (uint256 i = 0; i < accounts.length; i++) {
-            uint256 assets = getBalanceInUnderlying(accounts[i]);
-            if (assets > _depositedBalances[accounts[i]]) {
-                uint256 fee = (assets - _depositedBalances[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i])
-                    / feePrecision;
-                uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
-                _depositedBalances[accounts[i]] = assets - fee;
-                super._update(accounts[i], feeRecipient, feeInShares);
-            }
-        }
-    }
-
-    /// @notice Withdraws funds accidentally sent to the contract
-    /// @param token The address of the token to withdraw
-    function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (token == address(0)) {
-            (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
-        } else if (!lendingPoolAddresses.contains(token)) {
-            IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
-        } else {
-            revert InvalidTokenToWithdraw(token);
-        }
-    }
-
     /* ========== VIEW FUNCTIONS ========== */
-
-    /// @notice Returns the deposit fee of an account
-    /// @param account The address of the account
-    /// @return The deposit fee of the account
-    function getDepositFee(address account) external view returns (uint256) {
-        return feeProvider.getDepositFee(account);
-    }
-
-    /// @notice Returns the withdrawal fee of an account
-    /// @param account The address of the account
-    /// @return The withdrawal fee of the account
-    function getWithdrawalFee(address account) external view returns (uint256) {
-        return feeProvider.getWithdrawalFee(account);
-    }
-
-    /// @notice Returns the performance fee of an account
-    /// @param account The address of the account
-    /// @return The performance fee of the account
-    function getPerformanceFee(address account) external view returns (uint256) {
-        return feeProvider.getPerformanceFee(account);
-    }
 
     /// @notice Returns the share price of a lending pool
     /// @param pool The address of the lending pool
@@ -349,47 +204,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param pool The address of the lending pool
     /// @return The balance of the pool
     function getBalanceOfPool(address pool) external view returns (uint256) {
-        return IVault(pool).balanceOf(address(this)) * IVault(pool).sharePrice() / 10 ** _decimals;
-    }
-
-    /// @notice Returns the deposited balance of an account
-    /// @param account The address of the account
-    /// @return The deposited balance of the account
-    function getDepositedBalance(address account) external view returns (uint256) {
-        return _depositedBalances[account];
-    }
-
-    /// @notice Returns the balance in underlying of an account
-    /// @param account The address of the account
-    /// @return The balance in underlying of the account
-    function getBalanceInUnderlying(address account) public view returns (uint256) {
-        return balanceOf(account) * sharePrice() / 10 ** _decimals;
-    }
-
-    /// @notice Returns the profit of an account
-    /// @param account The address of the account
-    /// @return The profit of the account
-    function getProfit(address account) external view returns (uint256) {
-        uint256 balance = getBalanceInUnderlying(account);
-        return balance > _depositedBalances[account] ? balance - _depositedBalances[account] : 0;
-    }
-
-    /// @notice Returns the withdrawal fee of an account
-    /// @param account The address of the account
-    /// @return The withdrawal fee of the account
-    function quoteWithdrawalFee(address account) external view returns (uint256) {
-        uint256 assets = getBalanceInUnderlying(account);
-        uint256 depositedBalance = _depositedBalances[account];
-        uint256 fee;
-        if (assets > depositedBalance) {
-            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(account) / feePrecision;
-        }
-
-        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(account)) / feePrecision;
-    }
-
-    function decimals() public view override returns (uint8) {
-        return _decimals;
+        return IVault(pool).balanceOf(address(this)) * IVault(pool).sharePrice() / 10 ** decimals();
     }
 
     /// @notice Returns array of all lending pools
@@ -406,7 +221,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
 
     /// @notice Returns the total assets managed by the vault
     /// @return The total assets
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() public view override returns (uint256) {
         uint256 totalBalance = 0;
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
@@ -415,24 +230,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         return totalBalance;
     }
 
-    /// @notice Calculates the current share price
-    /// @return The current share price
-    function sharePrice() public view virtual returns (uint256) {
-        uint256 assets = totalAssets();
-        uint256 supply = totalSupply();
-
-        return supply == 0 ? (10 ** _decimals) : assets * (10 ** _decimals) / supply;
-    }
-
     /* ========== INTERNAL FUNCTIONS ========== */
-
-    /// @notice Override for transfer restriction
-    function _update(address from, address to, uint256 value) internal override {
-        if (from != address(0) && to != address(0)) {
-            revert("OneClickLending: Transfer not allowed");
-        }
-        super._update(from, to, value);
-    }
 
     /// @notice Computes the deviation of a pool's balance from its target allocation
     /// @param pool The address of the lending pool
@@ -446,12 +244,12 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @param poolAddress The address of the lending pool
     /// @return The balance of the pool
     function _getBalance(address poolAddress) internal view returns (uint256) {
-        return IVault(poolAddress).balanceOf(address(this)) * IVault(poolAddress).sharePrice() / 10 ** _decimals;
+        return IVault(poolAddress).balanceOf(address(this)) * IVault(poolAddress).sharePrice() / 10 ** decimals();
     }
 
     /// @notice Deposits assets into the lending pools proportionally to their shares
     /// @param assets The amount of assets to deposit
-    function _deposit(uint256 assets) internal {
+    function _deposit(uint256 assets) internal override {
         uint256 leftAssets = assets;
         uint256 leftShares = totalLendingShares;
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
@@ -478,7 +276,7 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
     /// @notice Redeems shares from the lending pools proportionally
     /// @param shares The amount of shares to redeem
     /// @return assets The amount of assets redeemed
-    function _redeem(uint256 shares) internal returns (uint256 assets) {
+    function _redeem(uint256 shares) internal override returns (uint256 assets) {
         require(lendingPoolAddresses.length() > 0, "OneClickLending: No lending pools available");
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
@@ -490,42 +288,8 @@ contract OneClickLending is AccessControlUpgradeable, ERC20Upgradeable, Pausable
         }
     }
 
-    /// @notice Applies the deposit fee
-    /// @param assets The amount of assets before fee
-    /// @return The amount of assets after fee
-    function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
-        if (fee > 0) {
-            assets -= fee;
-            asset.safeTransfer(feeRecipient, fee);
-        }
-        return (assets, fee);
-    }
-
-    /// @notice Applies the withdrawal fee
-    /// @param assets The amount of assets before fee
-    /// @return The amount of assets after fee
-    function _applyWithdrawalFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getWithdrawalFee(msg.sender)) / feePrecision;
-        if (fee > 0) {
-            assets -= fee;
-            asset.safeTransfer(feeRecipient, fee);
-        }
-        return (assets, fee);
-    }
-
-    /// @notice Applies the performance fee
-    /// @param assets The amount of assets before fee
-    /// @param shares The amount of shares being redeemed
-    /// @return The amount of assets after fee
-    function _applyPerformanceFee(uint256 assets, uint256 shares) internal returns (uint256, uint256) {
-        uint256 balancePortion = _depositedBalances[msg.sender] * shares / balanceOf(msg.sender);
-        _depositedBalances[msg.sender] -= balancePortion;
-        uint256 fee;
-        if (assets > balancePortion) {
-            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(msg.sender) / feePrecision;
-            asset.safeTransfer(feeRecipient, fee);
-        }
-        return (assets - fee, fee);
+    /// @inheritdoc BaseVault
+    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+        return !lendingPoolAddresses.contains(token);
     }
 }

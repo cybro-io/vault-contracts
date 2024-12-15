@@ -11,15 +11,18 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
-import {IDexVault} from "../interfaces/IDexVault.sol";
 import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {BaseVault} from "../BaseVault.sol";
 
 /// @title BaseDexVault
 /// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
 /// @dev This contract is meant to be inherited by specific implementations for different DEXes
 abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
+
+    /* ========== STORAGE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
 
     /// @notice The ID of the NFT representing the Dex liquidity position
     uint256 public positionTokenId;
@@ -29,20 +32,44 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     uint160 public sqrtPriceLower;
     uint160 public sqrtPriceUpper;
 
-    constructor(address _token0, address _token1, bool _zeroOrOne, IFeeProvider _feeProvider, address _feeRecipient)
-        BaseDexUniformVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient)
-    {}
+    /* ========== CONSTRUCTOR ========== */
+
+    constructor(
+        address _token0,
+        address _token1,
+        IERC20Metadata _asset,
+        IFeeProvider _feeProvider,
+        address _feeRecipient
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {}
+
+    /* ========== INITIALIZER ========== */
 
     /// @notice Initializes the contract
     /// @param admin The address of the admin
+    /// @param manager The address of the manager
     function __BaseDexVault_init(address admin, address manager) public onlyInitializing {
         __BaseDexUniformVault_init(admin, manager);
         _updateTicks();
         _updateSqrtPricesLowerAndUpper();
     }
 
-    /// @notice Calculates the amounts neeeded to get swapped into token0 and token1 to place a position in the given range.
-    /// @param amount The total assets to be divided between token0 and token1
+    /* ========== VIEW FUNCTIONS ========== */
+
+    /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
+    /// @return amount0 The amount of token0
+    /// @return amount1 The amount of token1
+    function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
+        (uint128 owed0, uint128 owed1) = _getTokensOwed();
+        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+            getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
+        );
+        amount0 += owed0;
+        amount1 += owed1;
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal view override returns (uint256 amountFor0, uint256 amountFor1) {
         uint160 sqrtPriceX96 = getCurrentSqrtPrice();
         if (sqrtPriceX96 <= sqrtPriceLower) {
@@ -56,18 +83,6 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         } else {
             amountFor1 = amount;
         }
-    }
-
-    /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
-    /// @return amount0 The amount of token0
-    /// @return amount1 The amount of token1
-    function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
-        (uint128 owed0, uint128 owed1) = _getTokensOwed();
-        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
-        );
-        amount0 += owed0;
-        amount1 += owed1;
     }
 
     /// @notice Abstract function to mint a new Dex liquidity position
@@ -95,6 +110,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         virtual
         returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
 
+    /// @inheritdoc BaseDexUniformVault
     function _addLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
@@ -125,6 +141,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         virtual
         returns (uint256 amount0, uint256 amount1);
 
+    /// @inheritdoc BaseDexUniformVault
     function _removeLiquidity(uint256 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
         uint256 totalLiquidity = _getTokenLiquidity();
 
@@ -149,6 +166,9 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         return _getTokenLiquidity(positionTokenId);
     }
 
+    /// @notice Retrieves the current liquidity of the Dex position
+    /// @param tokenId The ID of the position
+    /// @return liquidity The current liquidity of the position
     function _getTokenLiquidity(uint256 tokenId) internal view virtual returns (uint128 liquidity);
 
     /// @notice Retrieves the amount of tokens owed to the vault from the Dex position
@@ -167,11 +187,12 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         sqrtPriceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address) internal pure override returns (bool) {
         return true;
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 }

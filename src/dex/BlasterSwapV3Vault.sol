@@ -34,10 +34,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         address _token0,
         address _token1,
         uint24 _fee,
-        bool _zeroOrOne,
+        IERC20Metadata _asset,
         IFeeProvider _feeProvider,
         address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient) {
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
         positionManager = INonfungiblePositionManager(_positionManager);
         fee = _fee;
         pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, fee));

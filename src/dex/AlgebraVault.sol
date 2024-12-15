@@ -32,10 +32,10 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         address payable _positionManager,
         address _token0,
         address _token1,
-        bool _zeroOrOne,
+        IERC20Metadata _asset,
         IFeeProvider _feeProvider,
         address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _zeroOrOne, _feeProvider, _feeRecipient) {
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
         positionManager = INonfungiblePositionManager(_positionManager);
         pool = IAlgebraPool(IAlgebraFactory(positionManager.factory()).poolByPair(_token0, _token1));
         _disableInitializers();

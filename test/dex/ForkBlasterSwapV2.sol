@@ -5,7 +5,7 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BlasterSwapV2Vault, IBlasterswapV2Router02, IBlasterswapV2Factory} from "../../src/dex/BlasterSwapV2Vault.sol";
-import {AbstractDexVaultTest, IDexVault} from "./AbstractDexVaultTest.t.sol";
+import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
@@ -26,9 +26,9 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
         amountEth = 1e16;
     }
 
-    function _initializeNewVault(bool _zeroOrOne) internal override {
+    function _initializeNewVault(IERC20Metadata _asset) internal override {
         vm.startPrank(admin);
-        vault = IDexVault(
+        vault = IVault(
             address(
                 new TransparentUpgradeableProxy(
                     address(
@@ -36,7 +36,7 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
                             payable(address(router)),
                             address(token0),
                             address(token1),
-                            _zeroOrOne,
+                            _asset,
                             feeProvider,
                             feeRecipient
                         )

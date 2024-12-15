@@ -7,7 +7,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {
     BlasterSwapV3Vault, IUniswapV3Factory, INonfungiblePositionManager
 } from "../../src/dex/BlasterSwapV3Vault.sol";
-import {AbstractDexVaultTest, IDexVault} from "./AbstractDexVaultTest.t.sol";
+import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
@@ -29,9 +29,9 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
         amountEth = 1e18;
     }
 
-    function _initializeNewVault(bool _zeroOrOne) internal override {
+    function _initializeNewVault(IERC20Metadata _asset) internal override {
         vm.startPrank(admin);
-        vault = IDexVault(
+        vault = IVault(
             address(
                 new TransparentUpgradeableProxy(
                     address(
@@ -40,7 +40,7 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
                             address(token0),
                             address(token1),
                             fee,
-                            _zeroOrOne,
+                            _asset,
                             feeProvider,
                             feeRecipient
                         )

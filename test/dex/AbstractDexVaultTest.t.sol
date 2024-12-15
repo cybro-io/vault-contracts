@@ -4,13 +4,13 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
-import {IDexVault} from "../../src/interfaces/IDexVault.sol";
+import {IVault} from "../../src/interfaces/IVault.sol";
 import {IFeeProvider} from "../../src/interfaces/IFeeProvider.sol";
 import {FeeProvider} from "../../src/FeeProvider.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 abstract contract AbstractDexVaultTest is Test {
-    IDexVault vault;
+    IVault vault;
     uint256 amount;
     uint256 amountEth;
     uint256 forkId;
@@ -68,7 +68,7 @@ abstract contract AbstractDexVaultTest is Test {
         _;
     }
 
-    function _initializeNewVault(bool _zeroOrOne) internal virtual;
+    function _initializeNewVault(IERC20Metadata _asset) internal virtual;
 
     function _deposit(address _user, bool inToken0, uint256 _amount) internal virtual returns (uint256 shares) {
         vm.startPrank(_user);
@@ -88,7 +88,7 @@ abstract contract AbstractDexVaultTest is Test {
     }
 
     function test_vault() public fork {
-        _initializeNewVault(true);
+        _initializeNewVault(token0);
         vm.startPrank(address(transferFromToken0));
         token0.transfer(user, amount);
         token0.transfer(user2, amount);
@@ -112,7 +112,7 @@ abstract contract AbstractDexVaultTest is Test {
     }
 
     function test_vault2() public fork {
-        _initializeNewVault(false);
+        _initializeNewVault(token1);
         vm.startPrank(address(transferFromToken1));
         token1.transfer(user, amountEth);
         token1.transfer(user2, amountEth);

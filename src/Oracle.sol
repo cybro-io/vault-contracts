@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: UNLICENSED
+
+pragma solidity 0.8.26;
+
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {IOracle} from "./interfaces/IOracle.sol";
+
+contract Oracle is OwnableUpgradeable, IOracle {
+    using SafeERC20 for IERC20Metadata;
+
+    error IncorrectPrice();
+
+    event PriceUpdated(uint256 newPrice);
+
+    uint256 internal _price;
+    address public immutable cybro;
+    address public immutable usdb;
+
+    constructor(address _cybro, address _usdb) {
+        cybro = _cybro;
+        usdb = _usdb;
+    }
+
+    function initialize(address admin) public initializer {
+        __Ownable_init(admin);
+    }
+
+    function updatePrice(uint256 price) external onlyOwner {
+        _price = price;
+        emit PriceUpdated(price);
+    }
+
+    function getPrice() external view returns (uint256) {
+        if (_price == 0) revert IncorrectPrice();
+        return _price;
+    }
+}

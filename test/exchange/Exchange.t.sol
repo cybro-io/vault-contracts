@@ -29,8 +29,8 @@ contract ExchangeTest is Test {
     Oracle oracleCybro;
     ERC20Mock cybro;
 
-    uint32 slippagePrecision = 10000;
-    uint32 slippage;
+    uint32 spreadPrecision = 10000;
+    uint32 spread;
 
     address internal admin;
     uint256 internal adminPrivateKey;
@@ -47,7 +47,7 @@ contract ExchangeTest is Test {
         amountEth = 1e18;
         user = address(100);
         user2 = address(101);
-        slippage = 1000;
+        spread = 1000;
         vm.startPrank(admin);
         cybro = new ERC20Mock("Cybro", "CYBRO", 18);
         oracle = IChainlinkOracle(address(0x0af23B08bcd8AD35D1e8e8f2D2B779024Bd8D24A));
@@ -65,7 +65,7 @@ contract ExchangeTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new Exchange(address(weth), address(usdb), address(oracle), address(oracleCybro))),
                     admin,
-                    abi.encodeCall(Exchange.initialize, (admin, slippage))
+                    abi.encodeCall(Exchange.initialize, (admin, spread))
                 )
             )
         );
@@ -127,12 +127,14 @@ contract ExchangeTest is Test {
         uint256 expectedAmountOfCybroByWeth = exchange.viewBuyByToken(amountEth, false);
 
         vm.prank(user);
-        exchange.buy(amount, user, true);
+        exchange.buy(expectedAmountOfCybro, user, true);
         vm.prank(user2);
-        exchange.buy(amountEth, user2, false);
+        exchange.buy(expectedAmountOfCybroByWeth, user2, false);
 
         vm.assertApproxEqAbs(cybro.balanceOf(user), expectedAmountOfCybro, 1e15);
         vm.assertApproxEqAbs(cybro.balanceOf(user2), expectedAmountOfCybroByWeth, 1e15);
+        vm.assertApproxEqAbs(usdb.balanceOf(user), 0, 1e15);
+        vm.assertApproxEqAbs(weth.balanceOf(user2), 0, 1e15);
 
         uint256 expectedAmountOfUSDB = exchange.viewSellByCybro(expectedAmountOfCybro, true);
         uint256 expectedAmountOfWeth = exchange.viewSellByCybro(expectedAmountOfCybroByWeth, false);

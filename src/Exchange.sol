@@ -20,26 +20,26 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
 
     /**
      * @notice Emitted when tokens are bought
-     * @param tokensAmount The amount of CYBRO tokens bought
-     * @param usdbCost The cost in USDB or WETH
+     * @param amount The amount of CYBRO tokens bought
+     * @param cost The cost in USDB or WETH
      * @param receiver The address receiving the CYBRO tokens
      * @param buyer The address of the buyer
      */
-    event Bought(uint256 tokensAmount, uint256 usdbCost, address receiver, address buyer);
+    event Bought(uint256 amount, uint256 cost, address receiver, address buyer);
 
     /**
      * @notice Emitted when tokens are sold
-     * @param tokensAmount The amount of CYBRO tokens sold
-     * @param usdbCost The cost received in USDB or WETH
+     * @param amount The amount of CYBRO tokens sold
+     * @param cost The cost received in USDB or WETH
      * @param receiver The address receiving the payment
      * @param seller The address of the seller
      */
-    event Sold(uint256 tokensAmount, uint256 usdbCost, address receiver, address seller);
+    event Sold(uint256 amount, uint256 cost, address receiver, address seller);
 
     /* ========== CONSTANTS ========== */
 
-    /// @notice Precision used for slippage calculations
-    uint32 public constant slippagePrecision = 10000;
+    /// @notice Precision used for spread calculations
+    uint32 public constant spreadPrecision = 10000;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
@@ -70,7 +70,7 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
-    uint32 public slippage;
+    uint32 public spread;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -86,7 +86,7 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
         WETH = IERC20Metadata(_weth);
         decimalsUSDB = IERC20Metadata(_usdb).decimals();
         oracle = IChainlinkOracle(_oracle);
-        oracleDecimals = 8;
+        oracleDecimals = oracle.decimals();
         oracleCybro = IOracle(_oracleCybro);
         cybro = IERC20Metadata(oracleCybro.cybro());
         decimalsCYBRO = cybro.decimals();
@@ -95,37 +95,30 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     /* ========== INITIALIZER ========== */
 
     /**
-     * @notice Initializes the contract, setting the admin and initial slippage
+     * @notice Initializes the contract, setting the admin and initial spread
      * @param admin The address of the admin
-     * @param _slippage The initial slippage to apply to trades
+     * @param _spread The initial spread to apply to trades
      */
-    function initialize(address admin, uint32 _slippage) public initializer {
+    function initialize(address admin, uint32 _spread) public initializer {
         __Ownable_init(admin);
-        slippage = _slippage;
+        spread = _spread;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /**
      * @notice Buys CYBRO tokens using either USDB or WETH
-     * @param amount The amount of USDB or WETH to spend
+     * @param amount The amount of CYBRO tokens to buy
      * @param receiver The address to receive CYBRO tokens
      * @param usdbOrWeth Set to true for USDB or false for WETH
-     * @return tokensAmount The amount of CYBRO tokens received
+     * @return cost The amount of USDB/WETH spend
      */
-    function buy(uint256 amount, address receiver, bool usdbOrWeth) external returns (uint256 tokensAmount) {
-        if (usdbOrWeth) {
-            tokensAmount = amount;
-            USDB.safeTransferFrom(msg.sender, address(this), amount);
-        } else {
-            tokensAmount = _convertETHToUSDB(amount);
-            WETH.safeTransferFrom(msg.sender, address(this), amount);
-        }
+    function buy(uint256 amount, address receiver, bool usdbOrWeth) external returns (uint256 cost) {
+        cost = viewBuyByCybro(amount, usdbOrWeth);
+        (usdbOrWeth ? USDB : WETH).safeTransferFrom(msg.sender, address(this), cost);
+        cybro.safeTransfer(receiver, amount);
 
-        tokensAmount = _getTokensAmount(tokensAmount, true);
-        cybro.safeTransfer(receiver, tokensAmount);
-
-        emit Bought(tokensAmount, amount, receiver, msg.sender);
+        emit Bought(amount, cost, receiver, msg.sender);
     }
 
     /**
@@ -133,23 +126,14 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
      * @param amount The amount of CYBRO tokens to sell
      * @param receiver The address to receive the payment
      * @param usdbOrWeth Set to true for USDB or false for WETH
-     * @return usdbCost The cost in USDB or WETH received
+     * @return cost The cost in USDB or WETH received
      */
-    function sell(uint256 amount, address receiver, bool usdbOrWeth)
-        external
-        whenNotPaused
-        returns (uint256 usdbCost)
-    {
-        usdbCost = _getCostInUSDB(amount, false);
+    function sell(uint256 amount, address receiver, bool usdbOrWeth) external whenNotPaused returns (uint256 cost) {
         cybro.safeTransferFrom(msg.sender, address(this), amount);
+        cost = viewSellByCybro(amount, usdbOrWeth);
+        (usdbOrWeth ? USDB : WETH).safeTransfer(receiver, cost);
 
-        if (usdbOrWeth) {
-            USDB.safeTransfer(receiver, usdbCost);
-        } else {
-            WETH.safeTransfer(receiver, _convertUSDBToETH(usdbCost));
-        }
-
-        emit Sold(amount, usdbCost, receiver, msg.sender);
+        emit Sold(amount, cost, receiver, msg.sender);
     }
 
     /**
@@ -169,21 +153,21 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     }
 
     /**
-     * @notice Sets the slippage percentage
-     * @param _slippage The slippage percentage
+     * @notice Sets the spread percentage
+     * @param _spread The spread percentage
      */
-    function setSlippage(uint32 _slippage) external onlyOwner {
-        slippage = _slippage;
+    function setSpread(uint32 _spread) external onlyOwner {
+        spread = _spread;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
 
     /**
-     * @notice Returns the current CYBRO price with applied slippage
+     * @notice Returns the current CYBRO price with applied spread
      * @param buyOrSell Set to true for buy price, false for sell price
-     * @return The price with slippage
+     * @return The price with spread
      */
-    function getPriceWithSlippage(bool buyOrSell) external view returns (uint256) {
+    function getPriceWithSpread(bool buyOrSell) external view returns (uint256) {
         return _getPriceInUSDB(buyOrSell);
     }
 
@@ -206,12 +190,22 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     }
 
     /**
+     * @notice Computes how much CYBRO needs to be sold to receive a given amount of USDB or WETH
+     * @param amount The amount of USDB or WETH
+     * @param usdbOrWeth True if receiving USDB, false if receiving WETH
+     * @return The amount of CYBRO tokens
+     */
+    function viewSellByToken(uint256 amount, bool usdbOrWeth) external view returns (uint256) {
+        return _getTokensAmount(usdbOrWeth ? amount : _convertETHToUSDB(amount), false);
+    }
+
+    /**
      * @notice Computes the cost in USDB or WETH to buy a given amount of CYBRO
      * @param amount The amount of CYBRO tokens
      * @param usdbOrWeth True if using USDB, false if using WETH
      * @return The cost in USDB or WETH
      */
-    function viewBuyByCybro(uint256 amount, bool usdbOrWeth) external view returns (uint256) {
+    function viewBuyByCybro(uint256 amount, bool usdbOrWeth) public view returns (uint256) {
         uint256 usdbCost = _getCostInUSDB(amount, true);
         return usdbOrWeth ? usdbCost : _convertUSDBToETH(usdbCost);
     }
@@ -222,19 +216,9 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
      * @param usdbOrWeth True if receiving USDB, false if receiving WETH
      * @return The amount of USDB or WETH
      */
-    function viewSellByCybro(uint256 amount, bool usdbOrWeth) external view returns (uint256) {
+    function viewSellByCybro(uint256 amount, bool usdbOrWeth) public view returns (uint256) {
         uint256 usdbCost = _getCostInUSDB(amount, false);
         return usdbOrWeth ? usdbCost : _convertUSDBToETH(usdbCost);
-    }
-
-    /**
-     * @notice Computes how much CYBRO needs to be sold to receive a given amount of USDB or WETH
-     * @param amount The amount of USDB or WETH
-     * @param usdbOrWeth True if receiving USDB, false if receiving WETH
-     * @return The amount of CYBRO tokens
-     */
-    function viewSellByToken(uint256 amount, bool usdbOrWeth) external view returns (uint256) {
-        return _getTokensAmount(usdbOrWeth ? amount : _convertETHToUSDB(amount), false);
     }
 
     /**
@@ -279,13 +263,12 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     }
 
     /**
-     * @dev Returns current CYBRO price in USDB with applied slippage
+     * @dev Returns current CYBRO price in USDB with applied spread
      * @param buyOrSell True for buy price, false for sell price
-     * @return Price with slippage in USDB
+     * @return Price with spread in USDB
      */
     function _getPriceInUSDB(bool buyOrSell) internal view returns (uint256) {
-        return getCybroPrice() * (buyOrSell ? (slippage + slippagePrecision) : (slippagePrecision - slippage))
-            / slippagePrecision;
+        return getCybroPrice() * (buyOrSell ? (spread + spreadPrecision) : (spreadPrecision - spread)) / spreadPrecision;
     }
 
     /**

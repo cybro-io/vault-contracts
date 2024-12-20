@@ -264,9 +264,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         return balance > _waterline[account] ? balance - _waterline[account] : 0;
     }
 
-    function underlyingTVL() external view virtual returns (uint256) {
-        return totalAssets();
-    }
+    /// @notice Returns the total value locked (TVL) in the underlying vault where this vault deposits its assets
+    /// @dev This value represents the TVL of the destination vault, not the TVL of this vault itself
+    /// @return The total value locked in the underlying vault, expressed in the underlying asset's decimals
+    function underlyingTVL() external view virtual returns (uint256);
 
     /// @notice Returns the deposit fee for an account
     /// @param account The address of the account

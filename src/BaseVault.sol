@@ -19,7 +19,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
 
     /// @notice Emitted when a deposit is made
     /// @param sender The address of the sender
-    /// @param owner The address of the owner
+    /// @param receiver The address of the receiver
     /// @param assets The amount of assets deposited
     /// @param shares The amount of shares minted
     /// @param depositFee The amount of deposit fee
@@ -27,7 +27,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param tvlBefore The total value locked before the deposit
     event Deposit(
         address indexed sender,
-        address indexed owner,
+        address indexed receiver,
         uint256 assets,
         uint256 shares,
         uint256 depositFee,

@@ -80,6 +80,14 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         amount1 = liquidity * reserve1 / totalSupply_;
     }
 
+    function underlyingTVL() external view override returns (uint256) {
+        (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
+        uint160 sqrtPrice = getCurrentSqrtPrice();
+        return isToken0
+            ? reserve0 + Math.mulDiv(reserve1, 2 ** 192, sqrtPrice * sqrtPrice)
+            : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault

@@ -10,6 +10,7 @@ import {INonfungiblePositionManager} from "../interfaces/algebra/INonfungiblePos
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title AlgebraVault - A vault that interacts with Algebra-based V1 pools for managing liquidity positions
 /// @notice This contract extends BaseDexVault to manage liquidity positions specifically for Algebra pools
@@ -59,6 +60,15 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function getCurrentSqrtPrice() public view override returns (uint160) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();
         return sqrtPriceX96;
+    }
+
+    function underlyingTVL() external view override returns (uint256) {
+        uint160 sqrtPrice = getCurrentSqrtPrice();
+        return isToken0
+            ? IERC20Metadata(token0).balanceOf(address(pool))
+                + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice)
+            : IERC20Metadata(token1).balanceOf(address(pool))
+                + Math.mulDiv(IERC20Metadata(token0).balanceOf(address(pool)), sqrtPrice, 2 ** 192);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

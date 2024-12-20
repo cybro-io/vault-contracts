@@ -18,7 +18,7 @@ import {IYieldStaking} from "../src/interfaces/blastup/IYieldStacking.sol";
 import {WETHMock, ERC20Mock} from "../src/mocks/WETHMock.sol";
 import {IInitCore} from "../src/interfaces/init/IInitCore.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
-import {OneClickLending} from "../src/OneClickLending.sol";
+import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {IStargatePool} from "../src/interfaces/stargate/IStargatePool.sol";
 import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
 import {StargateVault} from "../src/vaults/StargateVault.sol";
@@ -379,14 +379,12 @@ contract UpdatedDeployScript is Script, StdCheats {
 
         // OneClick Lending Fund
         feeProvider = _deployFeeProvider(admin, 0, 30, 500);
-        OneClickLending fundLending = OneClickLending(
+        OneClickIndex fundLending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new OneClickLending(usdb, feeProvider, feeRecipient)),
+                    address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(
-                        OneClickLending.initialize, (admin, "Lending Index", "usdbLendingIndex", admin, admin)
-                    )
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "usdbLendingIndex", admin, admin))
                 )
             )
         );
@@ -401,7 +399,7 @@ contract UpdatedDeployScript is Script, StdCheats {
 
         vm.stopBroadcast();
 
-        console.log("OneClickLending USDB", address(fundLending));
+        console.log("OneClickIndex USDB", address(fundLending));
         _testVaultWorks(BaseVault(vaults[0]), 1e19, false);
         _testVaultWorks(BaseVault(vaults[1]), 1e19, false);
         _testVaultWorks(BaseVault(vaults[2]), 1e19, false);
@@ -595,7 +593,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         uint256 shares;
         uint256 assets;
         if (isOneClick) {
-            OneClickLending lending = OneClickLending(address(vault));
+            OneClickIndex lending = OneClickIndex(address(vault));
             shares = lending.deposit(amount, user, 0);
             assets = lending.redeem(shares, user, user, 0);
         } else {

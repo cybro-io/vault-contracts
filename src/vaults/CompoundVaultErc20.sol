@@ -34,8 +34,14 @@ contract CompoundVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return pool.balanceOf(address(this)) * pool.exchangeRateStored() / 1e18;
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return pool.totalSupply() * pool.exchangeRateStored() / 1e18;
     }
 
     function _totalAssetsPrecise() internal override returns (uint256) {
@@ -52,6 +58,7 @@ contract CompoundVault is BaseVault {
         underlyingAssets = IERC20Metadata(asset()).balanceOf(address(this)) - balanceBefore;
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(pool);
     }

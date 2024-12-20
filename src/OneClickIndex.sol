@@ -11,9 +11,9 @@ import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {BaseVault} from "./BaseVault.sol";
 
-/// @title OneClickLending
+/// @title OneClickIndex
 /// @notice A contract for managing ERC20 token lending to multiple lending pools.
-contract OneClickLending is BaseVault {
+contract OneClickIndex is BaseVault {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -53,7 +53,7 @@ contract OneClickLending is BaseVault {
 
     /* ========== CONSTRUCTOR ========== */
 
-    /// @notice Constructor for OneClickLending contract
+    /// @notice Constructor for OneClickIndex contract
     /// @param _asset The ERC20 asset managed by the vault
     /// @param _feeProvider The fee provider contract
     /// @param _feeRecipient The address that receives the fees
@@ -128,14 +128,14 @@ contract OneClickLending is BaseVault {
     /// @param to The address of the lending pool to deposit to
     /// @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
-        require(lendingPoolAddresses.contains(from), "OneClickLending: Invalid 'from' pool address");
-        require(lendingPoolAddresses.contains(to), "OneClickLending: Invalid 'to' pool address");
+        require(lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
+        require(lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
 
         int256 deviationFrom = _computeDeviation(from);
         int256 deviationTo = _computeDeviation(to);
 
-        require(deviationFrom > 0, "OneClickLending: Pool 'from' not deviated positively");
-        require(deviationTo <= 0, "OneClickLending: Pool 'to' not deviated negatively");
+        require(deviationFrom > 0, "OneClickIndex: Pool 'from' not deviated positively");
+        require(deviationTo <= 0, "OneClickIndex: Pool 'to' not deviated negatively");
 
         uint256 assets = IVault(from).redeem(sharesToWithdraw, address(this), address(this), 0);
 
@@ -144,8 +144,8 @@ contract OneClickLending is BaseVault {
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
 
-        require(deviationFrom >= 0, "OneClickLending: Rebalance failed for 'from' pool");
-        require(deviationTo <= 0, "OneClickLending: Rebalance failed for 'to' pool");
+        require(deviationFrom >= 0, "OneClickIndex: Rebalance failed for 'from' pool");
+        require(deviationTo <= 0, "OneClickIndex: Rebalance failed for 'to' pool");
     }
 
     /// @notice Automatically rebalances assets across all lending pools
@@ -230,6 +230,27 @@ contract OneClickLending is BaseVault {
         return totalBalance;
     }
 
+    /**
+     * @notice Returns the weighted average of underlying TVL across all lending pools in the fund
+     * @dev This function calculates the underlying TVL for complex fund structures.
+     * The TVL of each pool is weighted by its relative share in the total fund.
+     *
+     * For example, if the fund has:
+     * - 30% in Aave (TVL: 1000)
+     * - 70% in Compound (TVL: 2000)
+     * The weighted underlying TVL would be: (1000 * 0.3) + (2000 * 0.7) = 1700
+     *
+     * @return tvl The weighted average underlying TVL across all lending pools
+     */
+    function underlyingTVL() external view override returns (uint256) {
+        uint256 tvl;
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address poolAddress = lendingPoolAddresses.at(i);
+            tvl += IVault(poolAddress).underlyingTVL() * lendingShares[poolAddress] / totalLendingShares;
+        }
+        return tvl;
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @notice Computes the deviation of a pool's balance from its target allocation
@@ -277,7 +298,7 @@ contract OneClickLending is BaseVault {
     /// @param shares The amount of shares to redeem
     /// @return assets The amount of assets redeemed
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        require(lendingPoolAddresses.length() > 0, "OneClickLending: No lending pools available");
+        require(lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);

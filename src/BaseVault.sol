@@ -264,6 +264,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         return balance > _waterline[account] ? balance - _waterline[account] : 0;
     }
 
+    function underlyingTVL() external view virtual returns (uint256) {
+        return totalAssets();
+    }
+
     /// @notice Returns the deposit fee for an account
     /// @param account The address of the account
     function getDepositFee(address account) external view returns (uint256) {

@@ -51,5 +51,8 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
             )
         );
         vm.stopPrank();
+        console.log(
+            BlasterSwapV3Vault(address(vault)).sqrtPriceLower(), BlasterSwapV3Vault(address(vault)).sqrtPriceUpper()
+        );
     }
 }

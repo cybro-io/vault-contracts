@@ -7,11 +7,13 @@ import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "../BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
+/// @title YieldStakingVault
 contract YieldStakingVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
+    /// @notice The Yield Staking contract
     IYieldStaking public immutable staking;
 
     /* ========== STORAGE VARIABLES =========== */
@@ -36,6 +38,11 @@ contract YieldStakingVault is BaseVault {
         return balance + rewards;
     }
 
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return staking.totalSupply(asset());
+    }
+
     function _deposit(uint256 assets) internal override {
         staking.stake(asset(), assets);
     }
@@ -51,6 +58,7 @@ contract YieldStakingVault is BaseVault {
         }
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address) internal virtual override returns (bool) {
         return true;
     }

@@ -24,8 +24,14 @@ contract BufferVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return IERC20Metadata(asset()).balanceOf(address(this));
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return totalAssets();
     }
 
     function _deposit(uint256 assets) internal pure override {}
@@ -34,6 +40,7 @@ contract BufferVault is BaseVault {
         assets = shares * totalAssets() / totalSupply();
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address) internal pure override returns (bool) {
         return true;
     }

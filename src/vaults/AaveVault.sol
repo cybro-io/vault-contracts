@@ -34,8 +34,14 @@ contract AaveVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return aToken.balanceOf(address(this));
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return aToken.totalSupply();
     }
 
     function _deposit(uint256 assets) internal override {
@@ -47,6 +53,7 @@ contract AaveVault is BaseVault {
         pool.withdraw(asset(), assets, address(this));
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(aToken);
     }

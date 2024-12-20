@@ -116,10 +116,14 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== VIEW METHODS ========== */
 
-    /// @notice Returns the total assets managed by the vault
-    /// @return The total assets in the vault
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return staking.balanceOf(lpToken, address(this));
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return pool.tvl();
     }
 
     /* ========== INTERNAL METHODS ========== */

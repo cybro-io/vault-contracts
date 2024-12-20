@@ -20,6 +20,7 @@ interface IVault is IERC20Metadata {
     function getWaterline(address account) external view returns (uint256);
     function getBalanceInUnderlying(address account) external view returns (uint256);
     function getProfit(address account) external view returns (uint256);
+    function underlyingTVL() external view returns (uint256);
     function getDepositFee(address account) external view returns (uint256);
     function getWithdrawalFee(address account) external view returns (uint256);
     function getPerformanceFee(address account) external view returns (uint256);

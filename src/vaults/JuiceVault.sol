@@ -33,8 +33,14 @@ contract JuiceVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return pool.getDepositAmount(address(this));
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view override returns (uint256) {
+        return pool.getTotalSupply();
     }
 
     function _deposit(uint256 assets) internal override {
@@ -46,6 +52,7 @@ contract JuiceVault is BaseVault {
         pool.withdraw(assets);
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(pool);
     }

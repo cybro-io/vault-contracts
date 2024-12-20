@@ -13,12 +13,12 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {JuiceVault} from "../src/vaults/JuiceVault.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
-import {OneClickLending} from "../src/OneClickLending.sol";
+import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
-contract OneClickLendingTest is Test {
+contract OneClickIndexTest is Test {
     IAavePool aavePool;
     IJuicePool usdbJuicePool;
     JuiceVault juiceVault;
@@ -31,7 +31,7 @@ contract OneClickLendingTest is Test {
     address user;
     address user2;
 
-    OneClickLending lending;
+    OneClickIndex lending;
     uint256 lendingShare;
     uint256 lendingShare2;
     uint8 precision;
@@ -75,12 +75,12 @@ contract OneClickLendingTest is Test {
                 )
             )
         );
-        lending = OneClickLending(
+        lending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new OneClickLending(usdb, feeProvider, feeRecipient)),
+                    address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault", admin, admin))
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
                 )
             )
         );

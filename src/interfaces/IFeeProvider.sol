@@ -7,4 +7,8 @@ interface IFeeProvider {
     function getPerformanceFee(address) external view returns (uint32);
     function getFeePrecision() external view returns (uint32);
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external;
+    function getUpdateUserFees(address user)
+        external
+        returns (uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee);
+    function setAssociatedContracts(address[] memory contracts, bool[] memory isAssociated) external;
 }

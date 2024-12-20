@@ -387,7 +387,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The amount of assets after fee and the fee amount
      */
     function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee_ = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
+        (uint256 fee_,,) = feeProvider.getUpdateUserFees(msg.sender);
+        fee_ = (assets * fee_) / feePrecision;
         if (fee_ > 0) {
             assets -= fee_;
             IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);

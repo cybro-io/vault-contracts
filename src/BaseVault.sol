@@ -6,33 +6,57 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IVault} from "./interfaces/IVault.sol";
 
 /// @title BaseVault
 /// @notice Abstract contract for implementing a basic vault structure with fee management
-abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessControlUpgradeable {
+abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessControlUpgradeable, IVault {
     using SafeERC20 for IERC20Metadata;
-
-    /* ========== ERRORS ========== */
-
-    /// @notice Error thrown when attempting to withdraw an invalid token
-    error InvalidTokenToWithdraw(address token);
 
     /* ========== EVENTS ========== */
 
     /// @notice Emitted when a deposit is made
-    event Deposit(address indexed sender, address indexed receiver, uint256 assets, uint256 shares, uint256 depositFee);
+    /// @param sender The address of the sender
+    /// @param receiver The address of the receiver
+    /// @param assets The amount of assets deposited
+    /// @param shares The amount of shares minted
+    /// @param depositFee The amount of deposit fee
+    /// @param totalSupplyBefore The total supply before the deposit
+    /// @param tvlBefore The total value locked before the deposit
+    event Deposit(
+        address indexed sender,
+        address indexed receiver,
+        uint256 assets,
+        uint256 shares,
+        uint256 depositFee,
+        uint256 totalSupplyBefore,
+        uint256 tvlBefore
+    );
 
     /// @notice Emitted when a withdrawal is made
+    /// @param sender The address of the sender
+    /// @param receiver The address of the receiver
+    /// @param owner The address of the owner
+    /// @param shares The amount of shares withdrawn.
+    /// @param withdrawalFee The amount of withdrawal fee
+    /// @param totalSupplyBefore The total supply before the withdrawal
+    /// @param tvlBefore The total value locked before the withdrawal
     event Withdraw(
         address indexed sender,
         address indexed receiver,
         address indexed owner,
-        uint256 assets,
         uint256 shares,
-        uint256 fee
+        uint256 withdrawalFee,
+        uint256 totalSupplyBefore,
+        uint256 tvlBefore
     );
+
+    /// @notice Emitted when performance fee is collected
+    /// @param owner The address of the user who is being charged
+    /// @param fee The amount of fee collected
+    event PerformanceFeeCollected(address indexed owner, uint256 fee);
 
     /* ========== CONSTANTS ========== */
 
@@ -57,7 +81,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     // Always add to the bottom! Contract is upgradeable
 
     /// @notice Mapping of account addresses to their deposited balance of assets
-    mapping(address account => uint256) internal _depositedBalances;
+    mapping(address account => uint256) internal _waterline;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -79,6 +103,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
 
     /// @notice Initializes the BaseVault contract
     /// @param admin The address of the admin
+    /// @param manager The address of the manager
     function __BaseVault_init(address admin, address manager) internal onlyInitializing {
         __AccessControl_init();
         __Pausable_init();
@@ -102,26 +127,27 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param assets The amount of assets to deposit
     /// @param receiver The address to receive the shares
     /// @return shares The amount of shares minted
-    function deposit(uint256 assets, address receiver) public virtual whenNotPaused returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver, uint256) public virtual whenNotPaused returns (uint256 shares) {
         if (assets == 0) {
             return 0;
         }
         uint256 totalAssetsBefore = _totalAssetsPrecise();
+        uint256 totalSupplyBefore = totalSupply();
         _asset.safeTransferFrom(_msgSender(), address(this), assets);
         uint256 depositFee;
         (assets, depositFee) = address(feeProvider) == address(0) ? (assets, 0) : _applyDepositFee(assets);
-        _depositedBalances[receiver] += assets;
+        _waterline[receiver] += assets;
 
         _deposit(assets);
 
         uint256 totalAssetsAfter = _totalAssetsPrecise();
         uint256 increase = totalAssetsAfter - totalAssetsBefore;
 
-        shares = totalAssetsBefore == 0 ? assets : totalSupply() * increase / totalAssetsBefore;
+        shares = totalAssetsBefore == 0 ? assets : totalSupplyBefore * increase / totalAssetsBefore;
 
         _mint(receiver, shares);
 
-        emit Deposit(_msgSender(), receiver, assets, shares, depositFee);
+        emit Deposit(_msgSender(), receiver, assets, shares, depositFee, totalSupplyBefore, totalAssetsBefore);
     }
 
     /// @notice Redeems shares from the vault
@@ -129,23 +155,30 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param receiver The address to receive the assets
     /// @param owner The owner of the shares
     /// @return assets The amount of assets redeemed
-    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address owner, uint256 minAssets)
+        public
+        virtual
+        returns (uint256 assets)
+    {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
 
-        uint256 performanceFee;
         uint256 withdrawalFee;
+        uint256 tvlBefore = totalAssets();
+        uint256 totalSupplyBefore = totalSupply();
         assets = _redeem(shares);
         if (address(feeProvider) != address(0)) {
-            (assets, performanceFee) = _applyPerformanceFee(assets, shares, owner);
+            (assets,) = _applyPerformanceFee(assets, shares, owner);
             (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
         }
+
+        require(assets >= minAssets, "CYBRO: minAssets");
 
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
 
-        emit Withdraw(_msgSender(), receiver, owner, assets, shares, performanceFee + withdrawalFee);
+        emit Withdraw(_msgSender(), receiver, owner, shares, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /// @notice Collects performance fees for multiple accounts
@@ -153,12 +186,12 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
-            if (assets > _depositedBalances[accounts[i]]) {
-                uint256 fee = (assets - _depositedBalances[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i])
-                    / feePrecision;
-                uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
-                _depositedBalances[accounts[i]] = assets - fee;
-                super._update(accounts[i], feeRecipient, feeInShares);
+            if (assets > _waterline[accounts[i]]) {
+                uint256 fee =
+                    (assets - _waterline[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i]) / feePrecision;
+                _waterline[accounts[i]] = assets - fee;
+                emit PerformanceFeeCollected(accounts[i], fee);
+                super._update(accounts[i], feeRecipient, fee * 10 ** _decimals / sharePrice());
             }
         }
     }
@@ -179,7 +212,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @notice Returns the number of decimals of the vault's shares
-    function decimals() public view override returns (uint8) {
+    function decimals() public view override(IERC20Metadata, ERC20Upgradeable) returns (uint8) {
         return _decimals;
     }
 
@@ -203,19 +236,19 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param account The address of the account
     function quoteWithdrawalFee(address account) external view returns (uint256) {
         uint256 assets = getBalanceInUnderlying(account);
-        uint256 depositedBalance = _depositedBalances[account];
-        uint256 fee;
-        if (assets > depositedBalance) {
-            fee = (assets - depositedBalance) * feeProvider.getPerformanceFee(account) / feePrecision;
+        uint256 waterline = _waterline[account];
+        uint256 fee_;
+        if (assets > waterline) {
+            fee_ = (assets - waterline) * feeProvider.getPerformanceFee(account) / feePrecision;
         }
 
-        return fee + ((assets - fee) * feeProvider.getWithdrawalFee(account)) / feePrecision;
+        return fee_ + ((assets - fee_) * feeProvider.getWithdrawalFee(account)) / feePrecision;
     }
 
-    /// @notice Returns the deposited balance of an account
+    /// @notice Returns the waterline of an account
     /// @param account The address of the account
-    function getDepositedBalance(address account) external view returns (uint256) {
-        return _depositedBalances[account];
+    function getWaterline(address account) external view returns (uint256) {
+        return _waterline[account];
     }
 
     /// @notice Returns the balance in underlying assets of an account
@@ -228,8 +261,13 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param account The address of the account
     function getProfit(address account) external view returns (uint256) {
         uint256 balance = getBalanceInUnderlying(account);
-        return balance > _depositedBalances[account] ? balance - _depositedBalances[account] : 0;
+        return balance > _waterline[account] ? balance - _waterline[account] : 0;
     }
+
+    /// @notice Returns the total value locked (TVL) in the underlying vault where this vault deposits its assets
+    /// @dev This value represents the TVL of the destination vault, not the TVL of this vault itself
+    /// @return The total value locked in the underlying vault, expressed in the underlying asset's decimals
+    function underlyingTVL() external view virtual returns (uint256);
 
     /// @notice Returns the deposit fee for an account
     /// @param account The address of the account
@@ -269,24 +307,24 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee and the fee amount
     function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
-        if (fee > 0) {
-            assets -= fee;
-            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
+        uint256 fee_ = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
+        if (fee_ > 0) {
+            assets -= fee_;
+            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);
         }
-        return (assets, fee);
+        return (assets, fee_);
     }
 
     /// @notice Applies the withdrawal fee
     /// @param assets The amount of assets before fee
     /// @return The amount of assets after fee and the fee amount
     function _applyWithdrawalFee(uint256 assets, address owner) internal returns (uint256, uint256) {
-        uint256 fee = (assets * feeProvider.getWithdrawalFee(owner)) / feePrecision;
-        if (fee > 0) {
-            assets -= fee;
-            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
+        uint256 fee_ = (assets * feeProvider.getWithdrawalFee(owner)) / feePrecision;
+        if (fee_ > 0) {
+            assets -= fee_;
+            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);
         }
-        return (assets, fee);
+        return (assets, fee_);
     }
 
     /// @notice Applies the performance fee
@@ -295,14 +333,15 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param owner The owner of the shares
     /// @return The amount of assets after fee and the fee amount
     function _applyPerformanceFee(uint256 assets, uint256 shares, address owner) internal returns (uint256, uint256) {
-        uint256 balancePortion = _depositedBalances[owner] * shares / balanceOf(owner);
-        _depositedBalances[owner] -= balancePortion;
-        uint256 fee;
+        uint256 balancePortion = _waterline[owner] * shares / balanceOf(owner);
+        _waterline[owner] -= balancePortion;
+        uint256 fee_;
         if (assets > balancePortion) {
-            fee = (assets - balancePortion) * feeProvider.getPerformanceFee(owner) / feePrecision;
-            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee);
+            fee_ = (assets - balancePortion) * feeProvider.getPerformanceFee(owner) / feePrecision;
+            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);
         }
-        return (assets - fee, fee);
+        emit PerformanceFeeCollected(owner, fee_);
+        return (assets - fee_, fee_);
     }
 
     /// @notice Validates if a token can be recovered

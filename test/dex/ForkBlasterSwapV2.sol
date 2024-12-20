@@ -4,8 +4,8 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {BlasterSwapV2Vault, IBlasterswapV2Router02, IBlasterswapV2Factory} from "../../src/BlasterSwapV2Vault.sol";
-import {AbstractDexVaultTest, IDexVault} from "./AbstractDexVaultTest.t.sol";
+import {BlasterSwapV2Vault, IBlasterswapV2Router02, IBlasterswapV2Factory} from "../../src/dex/BlasterSwapV2Vault.sol";
+import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
@@ -22,17 +22,27 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
         transferFromToken1 = address(0x44f33bC796f7d3df55040cd3C631628B560715C2);
         vm.label(address(token0), "USDB");
         vm.label(address(token1), "WETH");
-        amountEth = 1e18;
+        amount = 1e18;
+        amountEth = 1e16;
     }
 
-    function _initializeNewVault() internal override {
+    function _initializeNewVault(IERC20Metadata _asset) internal override {
         vm.startPrank(admin);
-        vault = IDexVault(
+        vault = IVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new BlasterSwapV2Vault(payable(address(router)), address(token0), address(token1))),
+                    address(
+                        new BlasterSwapV2Vault(
+                            payable(address(router)),
+                            address(token0),
+                            address(token1),
+                            _asset,
+                            feeProvider,
+                            feeRecipient
+                        )
+                    ),
                     admin,
-                    abi.encodeCall(BlasterSwapV2Vault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(BlasterSwapV2Vault.initialize, (admin, admin, "nameVault", "symbolVault"))
                 )
             )
         );

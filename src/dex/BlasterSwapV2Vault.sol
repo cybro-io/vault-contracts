@@ -2,12 +2,14 @@
 
 pragma solidity 0.8.26;
 
-import {IBlasterswapV2Router02} from "./interfaces/blaster/IBlasterswapV2Router02.sol";
-import {IBlasterswapV2Factory} from "./interfaces/blaster/IBlasterswapV2Factory.sol";
+import {IBlasterswapV2Router02} from "../interfaces/blaster/IBlasterswapV2Router02.sol";
+import {IBlasterswapV2Factory} from "../interfaces/blaster/IBlasterswapV2Factory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BaseDexUniformVault, IERC20Metadata} from "./BaseDexUniformVault.sol";
-import {IBlasterswapV2Pair} from "./interfaces/blaster/IBlasterswapV2Pair.sol";
+import {IBlasterswapV2Pair} from "../interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {BaseVault} from "../BaseVault.sol";
 
 /// @title BlasterSwapV2Vault
 /// @notice This contract manages liquidity provision on the BlasterSwap V2 decentralized exchange (DEX)
@@ -15,44 +17,53 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 contract BlasterSwapV2Vault is BaseDexUniformVault {
     using SafeERC20 for IERC20Metadata;
 
+    /* ========== IMMUTABLE VARIABLES ========== */
+
     /// @notice The router used to interact with the BlasterSwap V2 DEX
     IBlasterswapV2Router02 public immutable router;
 
     /// @notice The LP (liquidity provider) token that represents the liquidity pool on BlasterSwap V2
     IBlasterswapV2Pair public immutable lpToken;
 
+    /* ========== STORAGE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
+
+    /* ========== CONSTRUCTOR ========== */
+
     /// @notice Constructor that initializes the BlasterSwap V2 vault
     /// @param _router The address of the BlasterSwap V2 router
     /// @param _token0 The address of token0 in the liquidity pool
     /// @param _token1 The address of token1 in the liquidity pool
-    constructor(address payable _router, address _token0, address _token1) BaseDexUniformVault(_token0, _token1) {
+    constructor(
+        address payable _router,
+        address _token0,
+        address _token1,
+        IERC20Metadata _asset,
+        IFeeProvider _feeProvider,
+        address _feeRecipient
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 
         _disableInitializers();
     }
 
+    /* ========== INITIALIZER ========== */
+
     /// @notice Initializes the contract with admin address, token name, and symbol
     /// @param admin The address of the admin
+    /// @param manager The address of the manager
     /// @param name The name of the ERC20 token representing the vault shares
     /// @param symbol The symbol of the ERC20 token representing the vault shares
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    function initialize(address admin, address manager, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).forceApprove(address(router), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(router), type(uint256).max);
         IERC20Metadata(address(lpToken)).forceApprove(address(router), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseDexUniformVault_init(admin);
+        __BaseDexUniformVault_init(admin, manager);
     }
 
-    function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
-        amountFor0 = amount / 2;
-        amountFor1 = amount - amountFor0;
-    }
-
-    /// @inheritdoc BaseDexUniformVault
-    function _getTokenLiquidity() internal view override returns (uint256) {
-        return lpToken.balanceOf(address(this));
-    }
+    /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view virtual override returns (uint160) {
@@ -67,6 +78,27 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         uint256 liquidity = _getTokenLiquidity();
         amount0 = liquidity * reserve0 / totalSupply_;
         amount1 = liquidity * reserve1 / totalSupply_;
+    }
+
+    function underlyingTVL() external view override returns (uint256) {
+        (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
+        uint160 sqrtPrice = getCurrentSqrtPrice();
+        return isToken0
+            ? reserve0 + Math.mulDiv(reserve1, 2 ** 192, sqrtPrice * sqrtPrice)
+            : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @inheritdoc BaseDexUniformVault
+    function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {
+        amountFor0 = amount / 2;
+        amountFor1 = amount - amountFor0;
+    }
+
+    /// @inheritdoc BaseDexUniformVault
+    function _getTokenLiquidity() internal view override returns (uint256) {
+        return lpToken.balanceOf(address(this));
     }
 
     /// @inheritdoc BaseDexUniformVault
@@ -95,9 +127,9 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         (amount0, amount1) = router.removeLiquidity(token0, token1, liquidity, 0, 0, address(this), block.timestamp);
     }
 
-    /// @inheritdoc BaseDexUniformVault
+    /// @inheritdoc BaseVault
     /// @dev This function prevents the recovery of LP tokens to avoid disrupting the liquidity management
-    function _validateTokenToRecover(address token) internal virtual override returns (bool) {
+    function _validateTokenToRecover(address token) internal virtual override(BaseVault) returns (bool) {
         return token != address(lpToken);
     }
 }

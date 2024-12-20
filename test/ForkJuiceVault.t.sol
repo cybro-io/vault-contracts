@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {JuiceVault, IERC20Metadata, IFeeProvider} from "../src/JuiceVault.sol";
+import {JuiceVault, IERC20Metadata, IFeeProvider} from "../src/vaults/JuiceVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
@@ -44,7 +44,7 @@ contract JuiceVaultTest is Test {
 
     function _redeem(uint256 shares) internal returns (uint256 assets) {
         vm.startPrank(user);
-        assets = vault.redeem(shares, user, user);
+        assets = vault.redeem(shares, user, user, 0);
         vm.stopPrank();
     }
 
@@ -69,7 +69,7 @@ contract JuiceVaultTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
-        uint256 shares = vault.deposit(amount, user);
+        uint256 shares = vault.deposit(amount, user, 0);
         vm.stopPrank();
 
         vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
@@ -100,7 +100,7 @@ contract JuiceVaultTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
-        uint256 shares = vault.deposit(amount, user);
+        uint256 shares = vault.deposit(amount, user, 0);
         vm.stopPrank();
 
         vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));

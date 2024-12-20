@@ -2,13 +2,13 @@
 
 pragma solidity =0.8.26;
 
-import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
+import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "../BaseVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IInitCore} from "./interfaces/init/IInitCore.sol";
-import {IERC20RebasingWrapper} from "./interfaces/init/IERC20RebasingWrapper.sol";
-import {IInitLendingPool} from "./interfaces/init/IInitLendingPool.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IInitCore} from "../interfaces/init/IInitCore.sol";
+import {IERC20RebasingWrapper} from "../interfaces/init/IERC20RebasingWrapper.sol";
+import {IInitLendingPool} from "../interfaces/init/IInitLendingPool.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 /// @title InitVault
 /// @notice A vault contract for interacting with Init Capital protocol
@@ -63,6 +63,15 @@ contract InitVault is BaseVault {
         }
     }
 
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view override returns (uint256) {
+        if (asset() == address(underlying)) {
+            return pool.toAmt(pool.totalSupply());
+        } else {
+            return underlying.toAmt(pool.toAmt(pool.totalSupply()));
+        }
+    }
+
     /// @notice Internal function to handle deposits
     /// @param assets The amount of assets to deposit
     function _deposit(uint256 assets) internal override {
@@ -97,9 +106,7 @@ contract InitVault is BaseVault {
         }
     }
 
-    /// @notice Validates if a token can be recovered from the vault
-    /// @param token The address of the token to recover
-    /// @return bool Returns true if the token can be recovered, false otherwise
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         // Prevent recovery of the pool token
         return token != address(pool);

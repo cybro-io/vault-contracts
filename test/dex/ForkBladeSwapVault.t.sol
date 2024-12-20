@@ -3,7 +3,7 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {AlgebraVault, IAlgebraFactory, INonfungiblePositionManager} from "../../src/AlgebraVault.sol";
+import {AlgebraVault, IAlgebraFactory, INonfungiblePositionManager} from "../../src/dex/AlgebraVault.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 

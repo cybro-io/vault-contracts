@@ -3,7 +3,7 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "../src/YieldStakingVault.sol";
+import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "../src/vaults/YieldStakingVault.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IShares} from "../src/interfaces/IShares.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
@@ -53,13 +53,13 @@ contract ForkYieldStakingTest is Test {
         vm.stopPrank();
         vm.startPrank(user);
         token.approve(address(vault), amount);
-        shares = vault.deposit(amount, user);
+        shares = vault.deposit(amount, user, 0);
         vm.stopPrank();
     }
 
     function _redeem(uint256 shares) internal returns (uint256 assets) {
         vm.prank(user);
-        assets = vault.redeem(shares, user, user);
+        assets = vault.redeem(shares, user, user, 0);
     }
 
     function test_usdb() public fork {

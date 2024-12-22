@@ -11,25 +11,33 @@ import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {BaseVault} from "./BaseVault.sol";
 
-/// @title OneClickIndex
-/// @notice A contract for managing ERC20 token lending to multiple lending pools.
+/**
+ * @title OneClickIndex
+ * @notice A contract for managing ERC20 token lending to multiple lending pools.
+ */
 contract OneClickIndex is BaseVault {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /* ========== EVENTS ========== */
 
-    /// @notice Emitted when a new lending pool is added
-    /// @param poolAddress The address of the lending pool
+    /**
+     * @notice Emitted when a new lending pool is added
+     * @param poolAddress The address of the lending pool
+     */
     event LendingPoolAdded(address indexed poolAddress);
 
-    /// @notice Emitted when a lending pool is removed
-    /// @param poolAddress The address of the removed lending pool
+    /**
+     * @notice Emitted when a lending pool is removed
+     * @param poolAddress The address of the removed lending pool
+     */
     event LendingPoolRemoved(address indexed poolAddress);
 
-    /// @notice Emitted when a lending pool's share is updated
-    /// @param poolAddress The address of the updated lending pool
-    /// @param newLendingShare The new share allocated to the lending pool
+    /**
+     * @notice Emitted when a lending pool's share is updated
+     * @param poolAddress The address of the updated lending pool
+     * @param newLendingShare The new share allocated to the lending pool
+     */
     event LendingPoolUpdated(address indexed poolAddress, uint256 newLendingShare);
 
     /* ========== CONSTANTS ========== */
@@ -53,10 +61,12 @@ contract OneClickIndex is BaseVault {
 
     /* ========== CONSTRUCTOR ========== */
 
-    /// @notice Constructor for OneClickIndex contract
-    /// @param _asset The ERC20 asset managed by the vault
-    /// @param _feeProvider The fee provider contract
-    /// @param _feeRecipient The address that receives the fees
+    /**
+     * @notice Constructor for OneClickIndex contract
+     * @param _asset The ERC20 asset managed by the vault
+     * @param _feeProvider The fee provider contract
+     * @param _feeRecipient The address that receives the fees
+     */
     constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
         BaseVault(_asset, _feeProvider, _feeRecipient)
     {
@@ -65,8 +75,14 @@ contract OneClickIndex is BaseVault {
 
     /* ========== INITIALIZER ========== */
 
-    /// @notice Initializes the contract with admin
-    /// @param admin The address of the admin
+    /**
+     * @notice Initializes the contract with admin
+     * @param admin The address of the admin
+     * @param name The name of the ERC20 token representing vault shares
+     * @param symbol The symbol of the ERC20 token representing vault shares
+     * @param strategist The address of the strategist
+     * @param manager The address of the manager
+     */
     function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
         public
         initializer
@@ -78,8 +94,10 @@ contract OneClickIndex is BaseVault {
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
-    /// @notice Adds multiple lending pools
-    /// @param poolAddresses Array of lending pool addresses
+    /**
+     * @notice Adds multiple lending pools
+     * @param poolAddresses Array of lending pool addresses
+     */
     function addLendingPools(address[] memory poolAddresses) public onlyRole(STRATEGIST_ROLE) {
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             if (lendingPoolAddresses.add(poolAddresses[i])) {
@@ -91,8 +109,10 @@ contract OneClickIndex is BaseVault {
         }
     }
 
-    /// @notice Removes multiple lending pools
-    /// @param poolAddresses Array of lending pool addresses to remove
+    /**
+     * @notice Removes multiple lending pools
+     * @param poolAddresses Array of lending pool addresses to remove
+     */
     function removeLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
         for (uint256 i = 0; i < poolAddresses.length; i++) {
             totalLendingShares -= lendingShares[poolAddresses[i]];
@@ -108,9 +128,11 @@ contract OneClickIndex is BaseVault {
         }
     }
 
-    /// @notice Updates lending shares for multiple pools
-    /// @param poolAddresses Array of lending pool addresses
-    /// @param newLendingShares Array of new lending shares
+    /**
+     * @notice Updates lending shares for multiple pools
+     * @param poolAddresses Array of lending pool addresses
+     * @param newLendingShares Array of new lending shares
+     */
     function setLendingShares(address[] memory poolAddresses, uint256[] memory newLendingShares)
         public
         onlyRole(MANAGER_ROLE)
@@ -123,10 +145,12 @@ contract OneClickIndex is BaseVault {
         }
     }
 
-    /// @notice Rebalances assets between two lending pools
-    /// @param from The address of the lending pool to withdraw from
-    /// @param to The address of the lending pool to deposit to
-    /// @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
+    /**
+     * @notice Rebalances assets between two lending pools
+     * @param from The address of the lending pool to withdraw from
+     * @param to The address of the lending pool to deposit to
+     * @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
+     */
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
         require(lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
         require(lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
@@ -148,7 +172,9 @@ contract OneClickIndex is BaseVault {
         require(deviationTo <= 0, "OneClickIndex: Rebalance failed for 'to' pool");
     }
 
-    /// @notice Automatically rebalances assets across all lending pools
+    /**
+     * @notice Automatically rebalances assets across all lending pools
+     */
     function rebalanceAuto() external onlyRole(MANAGER_ROLE) {
         uint256 totalAssetsToRedistribute;
         uint256 totalAssetsToDeposit;
@@ -193,34 +219,45 @@ contract OneClickIndex is BaseVault {
 
     /* ========== VIEW FUNCTIONS ========== */
 
-    /// @notice Returns the share price of a lending pool
-    /// @param pool The address of the lending pool
-    /// @return The share price of the pool
+    /**
+     * @notice Returns the share price of a lending pool
+     * @param pool The address of the lending pool
+     * @return The share price of the pool
+     */
     function getSharePriceOfPool(address pool) external view returns (uint256) {
         return IVault(pool).sharePrice();
     }
 
-    /// @notice Returns the balance of a lending pool
-    /// @param pool The address of the lending pool
-    /// @return The balance of the pool
+    /**
+     * @notice Returns the balance of a lending pool
+     * @param pool The address of the lending pool
+     * @return The balance of the pool
+     */
     function getBalanceOfPool(address pool) external view returns (uint256) {
         return IVault(pool).balanceOf(address(this)) * IVault(pool).sharePrice() / 10 ** decimals();
     }
 
-    /// @notice Returns array of all lending pools
-    /// @return Array of lending pools
+    /**
+     * @notice Returns array of all lending pools
+     * @return Array of lending pools
+     */
     function getPools() external view returns (address[] memory) {
         return lendingPoolAddresses.values();
     }
 
-    /// @notice Returns the count of lending pools
-    /// @return The number of lending pools
+    /**
+     * @notice Returns the count of lending pools
+     * @return The number of lending pools
+     */
     function getLendingPoolCount() external view returns (uint256) {
         return lendingPoolAddresses.length();
     }
 
-    /// @notice Returns the total assets managed by the vault
-    /// @return The total assets
+    /**
+     * @notice Returns the total assets managed by the vault
+     * as the sum of the assets of all lending pools
+     * @return The total assets
+     */
     function totalAssets() public view override returns (uint256) {
         uint256 totalBalance = 0;
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
@@ -253,23 +290,29 @@ contract OneClickIndex is BaseVault {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    /// @notice Computes the deviation of a pool's balance from its target allocation
-    /// @param pool The address of the lending pool
-    /// @return deviation The deviation of the pool's balance
+    /**
+     * @notice Computes the deviation of a pool's balance from its target allocation
+     * @param pool The address of the lending pool
+     * @return deviation The deviation of the pool's balance
+     */
     function _computeDeviation(address pool) internal view returns (int256 deviation) {
         uint256 amount = (totalAssets() * lendingShares[pool]) / totalLendingShares;
         deviation = int256(_getBalance(pool)) - int256(amount);
     }
 
-    /// @notice Returns the balance of a lending pool
-    /// @param poolAddress The address of the lending pool
-    /// @return The balance of the pool
+    /**
+     * @notice Returns the balance of a lending pool
+     * @param poolAddress The address of the lending pool
+     * @return The balance of the pool
+     */
     function _getBalance(address poolAddress) internal view returns (uint256) {
         return IVault(poolAddress).balanceOf(address(this)) * IVault(poolAddress).sharePrice() / 10 ** decimals();
     }
 
-    /// @notice Deposits assets into the lending pools proportionally to their shares
-    /// @param assets The amount of assets to deposit
+    /**
+     * @notice Deposits assets into the lending pools proportionally to their shares
+     * @param assets The amount of assets to deposit
+     */
     function _deposit(uint256 assets) internal override {
         uint256 leftAssets = assets;
         uint256 leftShares = totalLendingShares;
@@ -294,9 +337,11 @@ contract OneClickIndex is BaseVault {
         }
     }
 
-    /// @notice Redeems shares from the lending pools proportionally
-    /// @param shares The amount of shares to redeem
-    /// @return assets The amount of assets redeemed
+    /**
+     * @notice Redeems shares from the lending pools proportionally
+     * @param shares The amount of shares to redeem
+     * @return assets The amount of assets redeemed
+     */
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         require(lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
 

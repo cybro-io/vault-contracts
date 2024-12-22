@@ -11,9 +11,12 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BaseVault} from "../BaseVault.sol";
 
-/// @title BlasterSwapV3Vault - A vault for managing liquidity positions on BlasterSwap V3 pools
-/// @notice This contract extends BaseDexVault to manage liquidity positions specifically for BlasterSwap V3 pools
+/**
+ * @title BlasterSwapV3Vault
+ * @notice A vault for managing liquidity positions on BlasterSwap V3 pools
+ */
 contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
 
@@ -47,11 +50,13 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
 
     /* ========== INITIALIZER ========== */
 
-    /// @notice Initializes the vault with the specified admin, token name, and symbol
-    /// @param admin The address of the admin to be set as the owner
-    /// @param manager The address of the manager
-    /// @param name The name of the ERC20 token representing vault shares
-    /// @param symbol The symbol of the ERC20 token representing vault shares
+    /**
+     * @notice Initializes the vault with the specified admin, token name, and symbol
+     * @param admin The address of the admin to be set as the owner
+     * @param manager The address of the manager
+     * @param name The name of the ERC20 token representing vault shares
+     * @param symbol The symbol of the ERC20 token representing vault shares
+     */
     function initialize(address admin, address manager, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).forceApprove(address(positionManager), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(positionManager), type(uint256).max);
@@ -66,6 +71,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         (sqrtPriceX96,,,,,,) = pool.slot0();
     }
 
+    /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
         uint160 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
@@ -83,8 +89,14 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokensOwed() internal view virtual override returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
+    function _getTokensOwed(uint256 tokenId)
+        internal
+        view
+        virtual
+        override
+        returns (uint128 amount0, uint128 amount1)
+    {
+        (,,,,,,,,,, amount0, amount1) = positionManager.positions(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -113,10 +125,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 tokenId, uint256 amount0Used, uint256 amount1Used)
     {
         // Mint a new liquidity position using the specified amounts of token0 and token1
-        (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
+        (tokenId,, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -137,10 +149,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     function _increaseLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 amount0Used, uint256 amount1Used)
     {
         // Increase liquidity for the existing position using additional token0 and token1
-        (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
+        (, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,

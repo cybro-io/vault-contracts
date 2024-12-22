@@ -44,14 +44,17 @@ contract CompoundVault is BaseVault {
         return pool.totalSupply() * pool.exchangeRateStored() / 1e18;
     }
 
+    /// @inheritdoc BaseVault
     function _totalAssetsPrecise() internal override returns (uint256) {
         return pool.balanceOfUnderlying(address(this));
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         require(pool.mint(assets) == 0, "Pool Error");
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 underlyingAssets) {
         uint256 balanceBefore = IERC20Metadata(asset()).balanceOf(address(this));
         require(pool.redeem(shares * pool.balanceOf(address(this)) / totalSupply()) == 0, "Pool Error");

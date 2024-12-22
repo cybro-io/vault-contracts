@@ -44,10 +44,12 @@ contract AaveVault is BaseVault {
         return aToken.totalSupply();
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         pool.supply(asset(), assets, address(this), 0);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         assets = shares * aToken.balanceOf(address(this)) / totalSupply();
         pool.withdraw(asset(), assets, address(this));

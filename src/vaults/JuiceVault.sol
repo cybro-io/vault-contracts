@@ -43,10 +43,12 @@ contract JuiceVault is BaseVault {
         return pool.getTotalSupply();
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         pool.deposit(assets);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         assets = shares * pool.getDepositAmount(address(this)) / totalSupply();
         pool.withdraw(assets);

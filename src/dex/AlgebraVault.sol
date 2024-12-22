@@ -11,9 +11,12 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BaseVault} from "../BaseVault.sol";
 
-/// @title AlgebraVault - A vault that interacts with Algebra-based V1 pools for managing liquidity positions
-/// @notice This contract extends BaseDexVault to manage liquidity positions specifically for Algebra pools
+/**
+ * @title AlgebraVault
+ * @notice This contract extends BaseDexVault to manage liquidity positions specifically for Algebra pools
+ */
 contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     using SafeERC20 for IERC20Metadata;
 
@@ -44,11 +47,13 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     /* ========== INITIALIZER ========== */
 
-    /// @notice Initializes the vault
-    /// @param admin The address of the admin to be set as the owner
-    /// @param manager The address of the manager
-    /// @param name The name of the ERC20 token representing vault shares
-    /// @param symbol The symbol of the ERC20 token representing vault shares
+    /**
+     * @notice Initializes the vault
+     * @param admin The address of the admin to be set as the owner
+     * @param manager The address of the manager
+     * @param name The name of the ERC20 token representing vault shares
+     * @param symbol The symbol of the ERC20 token representing vault shares
+     */
     function initialize(address admin, address manager, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).forceApprove(address(positionManager), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(positionManager), type(uint256).max);
@@ -62,6 +67,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         return sqrtPriceX96;
     }
 
+    /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
         uint160 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
@@ -79,8 +85,14 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokensOwed() internal view virtual override returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
+    function _getTokensOwed(uint256 tokenId)
+        internal
+        view
+        virtual
+        override
+        returns (uint128 amount0, uint128 amount1)
+    {
+        (,,,,,,,,, amount0, amount1) = positionManager.positions(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -107,9 +119,9 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 tokenId, uint256 amount0Used, uint256 amount1Used)
     {
-        (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
+        (tokenId,, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -129,9 +141,9 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function _increaseLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 amount0Used, uint256 amount1Used)
     {
-        (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
+        (, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,
@@ -174,10 +186,12 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     /* ========== CALLBACK FUNCTIONS ========== */
 
-    /// @notice Callback function for swaps
-    /// @param amount0Delta The change in token0 amount
-    /// @param amount1Delta The change in token1 amount
-    /// @param data Additional data needed to process the callback
+    /**
+     * @notice Callback function for swaps
+     * @param amount0Delta The change in token0 amount
+     * @param amount1Delta The change in token1 amount
+     * @param data Additional data needed to process the callback
+     */
     function algebraSwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         // Validate that the swap callback was called by the correct pool
         require(amount0Delta > 0 || amount1Delta > 0);

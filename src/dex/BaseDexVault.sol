@@ -15,9 +15,11 @@ import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
 
-/// @title BaseDexVault
-/// @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
-/// @dev This contract is meant to be inherited by specific implementations for different DEXes
+/**
+ * @title BaseDexVault
+ * @notice This abstract contract provides a base implementation for managing liquidity on a decentralized exchange (Dex)
+ * @dev This contract is meant to be inherited by specific implementations for different DEXes
+ */
 abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
 
@@ -44,9 +46,11 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /* ========== INITIALIZER ========== */
 
-    /// @notice Initializes the contract
-    /// @param admin The address of the admin
-    /// @param manager The address of the manager
+    /**
+     * @notice Initializes the contract
+     * @param admin The address of the admin
+     * @param manager The address of the manager
+     */
     function __BaseDexVault_init(address admin, address manager) public onlyInitializing {
         __BaseDexUniformVault_init(admin, manager);
         _updateTicks();
@@ -55,9 +59,11 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /* ========== VIEW FUNCTIONS ========== */
 
-    /// @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
-    /// @return amount0 The amount of token0
-    /// @return amount1 The amount of token1
+    /**
+     * @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
+     * @return amount0 The amount of token0
+     * @return amount1 The amount of token1
+     */
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
@@ -85,57 +91,63 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         }
     }
 
-    /// @notice Abstract function to mint a new Dex liquidity position
-    /// @dev Must be implemented by the inheriting contract
-    /// @param amount0 The amount of token0 to add to the liquidity position
-    /// @param amount1 The amount of token1 to add to the liquidity position
-    /// @return tokenId The ID of the newly minted liquidity position
-    /// @return liquidity The amount of liquidity added
-    /// @return amount0Used The amount of token0 used in the liquidity provision
-    /// @return amount1Used The amount of token1 used in the liquidity provision
+    /**
+     * @notice Abstract function to mint a new Dex liquidity position
+     * @dev Must be implemented by the inheriting contract
+     * @param amount0 The amount of token0 to add to the liquidity position
+     * @param amount1 The amount of token1 to add to the liquidity position
+     * @return tokenId The ID of the newly minted liquidity position
+     * @return amount0Used The amount of token0 used in the liquidity provision
+     * @return amount1Used The amount of token1 used in the liquidity provision
+     */
     function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         virtual
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
+        returns (uint256 tokenId, uint256 amount0Used, uint256 amount1Used);
 
-    /// @notice Abstract function to increase the liquidity of an existing Dex position
-    /// @dev Must be implemented by the inheriting contract
-    /// @param amount0 The amount of token0 to add to the liquidity position
-    /// @param amount1 The amount of token1 to add to the liquidity position
-    /// @return liquidity The amount of liquidity added to the position
-    /// @return amount0Used The amount of token0 used in the liquidity provision
-    /// @return amount1Used The amount of token1 used in the liquidity provision
+    /**
+     * @notice Abstract function to increase the liquidity of an existing Dex position
+     * @dev Must be implemented by the inheriting contract
+     * @param amount0 The amount of token0 to add to the liquidity position
+     * @param amount1 The amount of token1 to add to the liquidity position
+     * @return amount0Used The amount of token0 used in the liquidity provision
+     * @return amount1Used The amount of token1 used in the liquidity provision
+     */
     function _increaseLiquidity(uint256 amount0, uint256 amount1)
         internal
         virtual
-        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used);
+        returns (uint256 amount0Used, uint256 amount1Used);
 
     /// @inheritdoc BaseDexUniformVault
     function _addLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint256 amount0Used, uint256 amount1Used, uint256 liquidity)
+        returns (uint256 amount0Used, uint256 amount1Used)
     {
         if (positionTokenId == 0) {
-            (positionTokenId, liquidity, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
+            (positionTokenId, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
         } else {
-            (liquidity, amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
+            (amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
         }
     }
 
-    /// @notice Abstract function to decrease the liquidity of an existing Dex position
-    /// @dev Must be implemented by the inheriting contract
-    /// @param liquidity The amount of liquidity to remove from the position
-    /// @return amount0 The amount of token0 received from decreasing liquidity
-    /// @return amount1 The amount of token1 received from decreasing liquidity
+    /**
+     * @notice Abstract function to decrease the liquidity of an existing Dex position
+     * @dev Must be implemented by the inheriting contract
+     * @param liquidity The amount of liquidity to remove from the position
+     * @return amount0 The amount of token0 received from decreasing liquidity
+     * @return amount1 The amount of token1 received from decreasing liquidity
+     */
     function _decreaseLiquidity(uint128 liquidity) internal virtual returns (uint256 amount0, uint256 amount1);
 
-    /// @notice Abstract function to collect fees earned by the Dex position
-    /// @dev Must be implemented by the inheriting contract
-    /// @param amountMax0 The maximum amount of token0 to collect
-    /// @param amountMax1 The maximum amount of token1 to collect
-    /// @return amount0 The amount of token0 collected
-    /// @return amount1 The amount of token1 collected
+    /**
+     * @notice Abstract function to collect fees earned by the Dex position
+     * @dev Must be implemented by the inheriting contract
+     * @param amountMax0 The maximum amount of token0 to collect
+     * @param amountMax1 The maximum amount of token1 to collect
+     * @return amount0 The amount of token0 collected
+     * @return amount1 The amount of token1 collected
+     */
     function _collect(uint128 amountMax0, uint128 amountMax1)
         internal
         virtual
@@ -156,8 +168,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         );
     }
 
-    /// @notice Retrieves the current liquidity of the Dex position
-    /// @return liquidity The current liquidity of the position
+    /// @inheritdoc BaseDexUniformVault
     function _getTokenLiquidity() internal view virtual override returns (uint256 liquidity) {
         if (positionTokenId == 0) {
             return 0;
@@ -166,15 +177,23 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         return _getTokenLiquidity(positionTokenId);
     }
 
-    /// @notice Retrieves the current liquidity of the Dex position
-    /// @param tokenId The ID of the position
-    /// @return liquidity The current liquidity of the position
     function _getTokenLiquidity(uint256 tokenId) internal view virtual returns (uint128 liquidity);
 
-    /// @notice Retrieves the amount of tokens owed to the vault from the Dex position
-    /// @return amount0 The amount of token0 owed
-    /// @return amount1 The amount of token1 owed
-    function _getTokensOwed() internal view virtual returns (uint128 amount0, uint128 amount1);
+    /**
+     * @notice Retrieves the amount of tokens owed to the vault from the Dex position
+     * @dev If the position is not initialized, returns (0, 0)
+     * @return amount0 The amount of token0 owed
+     * @return amount1 The amount of token1 owed
+     */
+    function _getTokensOwed() internal view virtual returns (uint128 amount0, uint128 amount1) {
+        if (positionTokenId == 0) {
+            return (0, 0);
+        }
+
+        return _getTokensOwed(positionTokenId);
+    }
+
+    function _getTokensOwed(uint256 tokenId) internal view virtual returns (uint128 amount0, uint128 amount1);
 
     /// @notice Abstract function to update the current ticks of the Dex pool
     /// @dev Must be implemented by the inheriting contract

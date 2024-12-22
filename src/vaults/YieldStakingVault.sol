@@ -33,6 +33,7 @@ contract YieldStakingVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(asset(), address(this));
         return balance + rewards;
@@ -43,10 +44,12 @@ contract YieldStakingVault is BaseVault {
         return staking.totalSupply(asset());
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         staking.stake(asset(), assets);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(asset(), address(this));
         assets = shares * (balance + rewards) / totalSupply();

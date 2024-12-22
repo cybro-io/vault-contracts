@@ -14,8 +14,10 @@ import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/call
 import {IWETH} from "../interfaces/IWETH.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-/// @title StargateVault
-/// @notice A vault contract for managing Stargate liquidity
+/**
+ * @title StargateVault
+ * @notice A vault contract for managing Stargate liquidity
+ */
 contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
 
@@ -50,15 +52,17 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== CONSTRUCTOR ========== */
 
-    /// @notice Constructor for the StargateVault contract
-    /// @param _pool Stargate pool used for asset management
-    /// @param _feeProvider Fee provider contract
-    /// @param _feeRecipient Address to receive fees
-    /// @param _staking Staking contract for Stargate
-    /// @param _stg STG token contract
-    /// @param _weth WETH token contract
-    /// @param _stgWethPool Uniswap V3 pool for STG/WETH
-    /// @param _assetWethPool Uniswap V3 pool for asset/WETH
+    /**
+     * @notice Constructor for the StargateVault contract
+     * @param _pool Stargate pool used for asset management
+     * @param _feeProvider Fee provider contract
+     * @param _feeRecipient Address to receive fees
+     * @param _staking Staking contract for Stargate
+     * @param _stg STG token contract
+     * @param _weth WETH token contract
+     * @param _stgWethPool Uniswap V3 pool for STG/WETH
+     * @param _assetWethPool Uniswap V3 pool for asset/WETH
+     */
     constructor(
         IStargatePool _pool,
         IFeeProvider _feeProvider,
@@ -83,10 +87,13 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== INITIALIZER ========== */
 
-    /// @notice Initializer function for setting up the vault
-    /// @param admin The admin address for the vault
-    /// @param name The name of the ERC20 token
-    /// @param symbol The symbol of the ERC20 token
+    /**
+     * @notice Initializer function for setting up the vault
+     * @param admin The admin address for the vault
+     * @param name The name of the ERC20 token
+     * @param symbol The symbol of the ERC20 token
+     * @param manager The address of the manager
+     */
     function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(asset()).forceApprove(address(pool), type(uint256).max);
         IERC20Metadata(lpToken).forceApprove(address(staking), type(uint256).max);
@@ -96,9 +103,11 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
-    /// @notice Claims rewards, swaps them for the underlying asset and reinvests
-    /// @param minAssets Minimum amount of assets to receive from the swap
-    /// @return assets The amount of assets obtained and reinvested
+    /**
+     * @notice Claims rewards, swaps them for the underlying asset and reinvests
+     * @param minAssets Minimum amount of assets to receive from the swap
+     * @return assets The amount of assets obtained and reinvested
+     */
     function claimReinvest(uint256 minAssets) external onlyRole(MANAGER_ROLE) returns (uint256 assets) {
         address[] memory tokens = new address[](1);
         tokens[0] = lpToken;
@@ -128,8 +137,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== INTERNAL METHODS ========== */
 
-    /// @notice Internal method for depositing assets into the Stargate pool and staking
-    /// @param assets The amount of assets to deposit
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         if (asset() == address(weth)) {
             // if assets lower then convertRate assetToDeposit will be 0
@@ -147,9 +155,7 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         staking.deposit(lpToken, assets);
     }
 
-    /// @notice Redeems shares from the Stargate pool
-    /// @param shares The amount of shares to redeem
-    /// @return assets The amount of assets obtained from redeeming
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         assets = shares * staking.balanceOf(lpToken, address(this)) / totalSupply();
         staking.withdraw(lpToken, assets);
@@ -159,9 +165,11 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
-    /// @notice Swaps tokens to the vault's designated asset using Uniswap V3
-    /// @param amount The amount of tokens to swap
-    /// @return assets The amount of the asset obtained from the swap
+    /**
+     * @notice Swaps tokens to the vault's designated asset using Uniswap V3
+     * @param amount The amount of tokens to swap
+     * @return assets The amount of the asset obtained from the swap
+     */
     function _swapToAssets(uint256 amount) internal returns (uint256 assets) {
         bool zeroForOne = stg < weth;
         (int256 amount0, int256 amount1) = stgWethPool.swap(
@@ -185,29 +193,33 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
-    /// @notice Wraps ETH into WETH
-    /// @param amount The amount of ETH to wrap
+    /**
+     * @notice Wraps ETH into WETH
+     * @param amount The amount of ETH to wrap
+     */
     function _wrapETH(uint256 amount) internal {
         IWETH(asset()).deposit{value: amount}();
     }
 
-    /// @notice Unwraps WETH into ETH
-    /// @param amount The amount of WETH to unwrap
+    /**
+     * @notice Unwraps WETH into ETH
+     * @param amount The amount of WETH to unwrap
+     */
     function _unwrapETH(uint256 amount) internal {
         IWETH(asset()).withdraw(amount);
     }
 
-    /// @notice Validates if a token can be recovered
-    /// @param token The address of the token to validate
-    /// @return True if the token can be recovered, false otherwise
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(pool);
     }
 
-    /// @notice Uniswap V3 swap callback for providing required token amounts during swaps
-    /// @param amount0Delta Amount of the first token delta
-    /// @param amount1Delta Amount of the second token delta
-    /// @param data Encoded data containing swap details
+    /**
+     * @notice Uniswap V3 swap callback for providing required token amounts during swaps
+     * @param amount0Delta Amount of the first token delta
+     * @param amount1Delta Amount of the second token delta
+     * @param data Encoded data containing swap details
+     */
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         require(amount0Delta > 0 || amount1Delta > 0);
         require(

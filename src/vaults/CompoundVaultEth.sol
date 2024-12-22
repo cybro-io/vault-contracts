@@ -44,16 +44,23 @@ contract CompoundVaultETH is BaseVault {
         return pool.totalSupply() * pool.exchangeRateStored() / 1e18;
     }
 
-    /// @notice Wraps native ETH into WETH.
+    /**
+     * @notice Wraps native ETH into WETH.
+     * @param amount The amount of ETH to wrap
+     */
     function _wrapETH(uint256 amount) internal {
         IWETH(address(asset())).deposit{value: amount}();
     }
 
-    /// @notice Unwraps WETH into ETH.
+    /**
+     * @notice Unwraps WETH into ETH.
+     * @param amount The amount of WETH to unwrap
+     */
     function _unwrapETH(uint256 amount) internal {
         IWETH(address(asset())).withdraw(amount);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 underlyingAssets) {
         uint256 balanceBefore = address(this).balance;
         require(pool.redeem(shares * pool.balanceOf(address(this)) / totalSupply()) == 0, "Pool Error");
@@ -61,11 +68,13 @@ contract CompoundVaultETH is BaseVault {
         _wrapETH(underlyingAssets);
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal virtual override {
         _unwrapETH(assets);
         pool.mint{value: assets}();
     }
 
+    /// @inheritdoc BaseVault
     function _totalAssetsPrecise() internal virtual override returns (uint256) {
         return pool.balanceOfUnderlying(address(this));
     }

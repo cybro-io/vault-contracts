@@ -34,8 +34,10 @@ contract BufferVault is BaseVault {
         return totalAssets();
     }
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal pure override {}
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal view override returns (uint256 assets) {
         assets = shares * totalAssets() / totalSupply();
     }

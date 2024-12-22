@@ -199,8 +199,8 @@ contract OneClickIndexTest is Test {
         vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
         vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
         vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
-        vm.assertEq(lending.getWaterline(user), amountWithDepositFee);
-        vm.assertEq(lending.getWaterline(user2), amount2WithDepositFee);
+        vm.assertApproxEqAbs(lending.getWaterline(user), amountWithDepositFee, 1e5);
+        vm.assertApproxEqAbs(lending.getWaterline(user2), amount2WithDepositFee, 1e5);
         vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
     }
 

@@ -283,6 +283,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The withdrawal fee
      */
     function quoteWithdrawalFee(address account) external view returns (uint256) {
+        if (address(feeProvider) == address(0)) {
+            return 0;
+        }
         uint256 assets = getBalanceInUnderlying(account);
         uint256 waterline = _waterline[account];
         uint256 fee_;

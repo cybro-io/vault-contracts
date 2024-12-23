@@ -65,7 +65,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
+            uint160(getCurrentSqrtPrice()), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
         );
         amount0 += owed0;
         amount1 += owed1;
@@ -75,7 +75,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal view override returns (uint256 amountFor0, uint256 amountFor1) {
-        uint160 sqrtPriceX96 = getCurrentSqrtPrice();
+        uint256 sqrtPriceX96 = getCurrentSqrtPrice();
         if (sqrtPriceX96 <= sqrtPriceLower) {
             amountFor0 = amount;
         } else if (sqrtPriceX96 < sqrtPriceUpper) {

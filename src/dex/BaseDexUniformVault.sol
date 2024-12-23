@@ -77,7 +77,7 @@ abstract contract BaseDexUniformVault is BaseVault {
      * @dev Must be implemented by the inheriting contract
      * @return The current square root price
      */
-    function getCurrentSqrtPrice() public view virtual returns (uint160);
+    function getCurrentSqrtPrice() public view virtual returns (uint256);
 
     /// @inheritdoc BaseVault
     function totalAssets() public view virtual override returns (uint256 totalValue) {
@@ -135,7 +135,7 @@ abstract contract BaseDexUniformVault is BaseVault {
      * @return The amount of tokens in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = uint256(getCurrentSqrtPrice());
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

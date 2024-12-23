@@ -75,9 +75,9 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault
-    function getCurrentSqrtPrice() public view virtual override returns (uint160) {
+    function getCurrentSqrtPrice() public view virtual override returns (uint256) {
         (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
-        return uint160(Math.sqrt(reserve1) * Math.sqrt(2 ** 192 / reserve0));
+        return Math.sqrt(reserve1) * Math.sqrt(2 ** 192 / reserve0);
     }
 
     /// @inheritdoc BaseDexUniformVault
@@ -91,10 +91,10 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
 
     function underlyingTVL() external view override returns (uint256) {
         (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
-        uint160 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
-            ? reserve0 + Math.mulDiv(reserve1, 2 ** 192, uint256(sqrtPrice) * uint256(sqrtPrice))
-            : reserve1 + Math.mulDiv(reserve0, uint256(sqrtPrice) * uint256(sqrtPrice), 2 ** 192);
+            ? reserve0 + Math.mulDiv(reserve1, 2 ** 192, sqrtPrice * sqrtPrice)
+            : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

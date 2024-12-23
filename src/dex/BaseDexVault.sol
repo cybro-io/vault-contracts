@@ -183,7 +183,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
      * @return amount0 The amount of token0 owed
      * @return amount1 The amount of token1 owed
      */
-    function _getTokensOwed() internal view virtual returns (uint128 amount0, uint128 amount1) {
+    function _getTokensOwed() internal view returns (uint128 amount0, uint128 amount1) {
         if (positionTokenId == 0) {
             return (0, 0);
         }

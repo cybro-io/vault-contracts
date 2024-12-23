@@ -278,7 +278,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Returns the withdrawal fee for an account
+     * @notice Returns the sum of the withdrawal fee and performance fee for an account
+     * that will be charged during the redeem process
      * @param account The address of the account
      * @return The withdrawal fee
      */

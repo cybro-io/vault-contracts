@@ -2,12 +2,10 @@
 
 pragma solidity 0.8.26;
 
-import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "../BaseVault.sol";
-import {IAavePool} from "../interfaces/aave/IPool.sol";
+import {BaseVault, IERC20Metadata} from "../BaseVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CErc20} from "../interfaces/compound/IcERC.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 contract CompoundVault is BaseVault {

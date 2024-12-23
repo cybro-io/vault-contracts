@@ -5,6 +5,10 @@ import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/Own
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+/**
+ * @title FeeProvider
+ * @notice A contract for managing fees for users
+ */
 contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     struct UserFees {
         bool initialized;
@@ -20,7 +24,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     uint32 private _performanceFee;
 
     mapping(address user => UserFees fees) private _users;
-    mapping(address contractAddress => bool isAssociated) public associatedContracts;
+
+    /// @notice Mapping of contracts that are allowed to update user fees
+    mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
 
     constructor(uint32 feePrecision) {
         _feePrecision = feePrecision;
@@ -39,18 +45,36 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
-    function setAssociatedContracts(address[] memory contracts, bool[] memory isAssociated) external onlyOwner {
+    /**
+     * @notice Sets the whitelisted contracts
+     * @param contracts The addresses of the contracts
+     * @param isWhitelisted Whether the contracts are whitelisted with the FeeProvider
+     */
+    function setWhitelistedContracts(address[] memory contracts, bool[] memory isWhitelisted) external onlyOwner {
         for (uint256 i = 0; i < contracts.length; i++) {
-            associatedContracts[contracts[i]] = isAssociated[i];
+            whitelistedContracts[contracts[i]] = isWhitelisted[i];
         }
     }
 
+    /**
+     * @notice Sets the global fees
+     * @param depositFee The deposit fee
+     * @param withdrawalFee The withdrawal fee
+     * @param performanceFee The performance fee
+     */
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external onlyOwner {
         _depositFee = depositFee;
         _withdrawalFee = withdrawalFee;
         _performanceFee = performanceFee;
     }
 
+    /**
+     * @notice Sets the fees for multiple users
+     * @param users The addresses of the users
+     * @param depositFees The deposit fees for the users
+     * @param withdrawalFees The withdrawal fees for the users
+     * @param performanceFees The performance fees for the users
+     */
     function setFeesForUsers(
         address[] memory users,
         uint32[] memory depositFees,
@@ -67,30 +91,37 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
                 userFees.initialized = true;
             }
             // we don't need to verify that global fees are lower than user fees
-            // because it will be automatically checked in updateUserFees modifier
+            // because it will be automatically checked in getUpdateUserFees
             userFees.depositFee = depositFees[i];
             userFees.withdrawalFee = withdrawalFees[i];
             userFees.performanceFee = performanceFees[i];
         }
     }
 
+    /**
+     * @notice Returns and updates the fees for a user
+     * @param user The address of the user
+     * @return depositFee The deposit fee of the user
+     * @return withdrawalFee The withdrawal fee of the user
+     * @return performanceFee The performance fee of the user
+     */
     function getUpdateUserFees(address user)
         external
         returns (uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
     {
-        bool isAssociatedContract = associatedContracts[msg.sender];
+        bool isWhitelistedContract = whitelistedContracts[msg.sender];
         UserFees storage userFees = _users[user];
         if (!userFees.initialized) {
             depositFee = _depositFee;
             withdrawalFee = _withdrawalFee;
             performanceFee = _performanceFee;
         } else {
-            depositFee = _min(_depositFee, userFees.depositFee);
-            withdrawalFee = _min(_withdrawalFee, userFees.withdrawalFee);
-            performanceFee = _min(_performanceFee, userFees.performanceFee);
+            depositFee = uint32(Math.min(_depositFee, userFees.depositFee));
+            withdrawalFee = uint32(Math.min(_withdrawalFee, userFees.withdrawalFee));
+            performanceFee = uint32(Math.min(_performanceFee, userFees.performanceFee));
         }
 
-        if (isAssociatedContract) {
+        if (isWhitelistedContract) {
             userFees.initialized = true;
             userFees.depositFee = depositFee;
             userFees.withdrawalFee = withdrawalFee;
@@ -100,36 +131,39 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
 
     /* ========== VIEW FUNCTIONS ========== */
 
-    /// @notice Returns the fee precision
-    /// @return The fee precision
+    /**
+     * @notice Returns the fee precision
+     * @return The fee precision
+     */
     function getFeePrecision() external view returns (uint32) {
         return _feePrecision;
     }
 
-    /// @notice Returns the deposit fee for an account
-    /// @param user The address of the user
-    /// @return The deposit fee
+    /**
+     * @notice Returns the deposit fee for an account
+     * @param user The address of the user
+     * @return The deposit fee
+     */
     function getDepositFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? _min(_depositFee, _users[user].depositFee) : _depositFee;
+        return _users[user].initialized ? uint32(Math.min(_depositFee, _users[user].depositFee)) : _depositFee;
     }
 
-    /// @notice Returns the withdrawal fee for an account
-    /// @param user The address of the user
-    /// @return The withdrawal fee
+    /**
+     * @notice Returns the withdrawal fee for an account
+     * @param user The address of the user
+     * @return The withdrawal fee
+     */
     function getWithdrawalFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? _min(_withdrawalFee, _users[user].withdrawalFee) : _withdrawalFee;
+        return _users[user].initialized ? uint32(Math.min(_withdrawalFee, _users[user].withdrawalFee)) : _withdrawalFee;
     }
 
-    /// @notice Returns the performance fee for an account
-    /// @param user The address of the user
-    /// @return The performance fee
+    /**
+     * @notice Returns the performance fee for an account
+     * @param user The address of the user
+     * @return The performance fee
+     */
     function getPerformanceFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? _min(_performanceFee, _users[user].performanceFee) : _performanceFee;
-    }
-
-    /* ========== INTERNAL FUNCTIONS ========== */
-
-    function _min(uint32 a, uint32 b) internal pure returns (uint32) {
-        return a < b ? a : b;
+        return
+            _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee;
     }
 }

@@ -72,11 +72,11 @@ contract CompoundVaultTest is Test {
                 )
             )
         );
-        address[] memory associatedContracts = new address[](1);
-        associatedContracts[0] = vaultAddress;
-        bool[] memory isAssociated = new bool[](1);
-        isAssociated[0] = true;
-        feeProvider.setAssociatedContracts(associatedContracts, isAssociated);
+        address[] memory whitelistedContracts = new address[](1);
+        whitelistedContracts[0] = vaultAddress;
+        bool[] memory isWhitelisted = new bool[](1);
+        isWhitelisted[0] = true;
+        feeProvider.setWhitelistedContracts(whitelistedContracts, isWhitelisted);
         vm.stopPrank();
     }
 
@@ -108,7 +108,7 @@ contract CompoundVaultTest is Test {
 
         console.log("shares", shares);
         vm.stopPrank();
-        
+
         vm.startPrank(admin);
         feeProvider.setFees(depositFee * 2, withdrawalFee * 2, performanceFee * 2);
         vm.assertEq(vault.getDepositFee(user), depositFee);

@@ -10,5 +10,5 @@ interface IFeeProvider {
     function getUpdateUserFees(address user)
         external
         returns (uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee);
-    function setAssociatedContracts(address[] memory contracts, bool[] memory isAssociated) external;
+    function setWhitelistedContracts(address[] memory contracts, bool[] memory isAssociated) external;
 }

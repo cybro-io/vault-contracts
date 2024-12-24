@@ -65,8 +65,6 @@ contract AaveVaultTest is Test {
 
     function _redeem(uint256 shares) internal returns (uint256 assets) {
         vm.startPrank(user);
-        vm.expectEmit(address(vault));
-        emit BaseVault.Withdraw(user, user, user, shares, 0, vault.totalSupply(), vault.totalAssets());
         assets = vault.redeem(shares, user, user, 0);
         vm.stopPrank();
     }

@@ -44,6 +44,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param sender The address of the sender
      * @param receiver The address of the receiver
      * @param owner The address of the owner
+     * @param assets The amount of assets withdrawn
      * @param shares The amount of shares withdrawn
      * @param withdrawalFee The amount of withdrawal fee
      * @param totalSupplyBefore The total supply before the withdrawal
@@ -54,6 +55,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         address indexed receiver,
         address indexed owner,
         uint256 shares,
+        uint256 assets,
         uint256 withdrawalFee,
         uint256 totalSupplyBefore,
         uint256 tvlBefore
@@ -207,7 +209,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
 
-        emit Withdraw(_msgSender(), receiver, owner, shares, withdrawalFee, totalSupplyBefore, tvlBefore);
+        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /**

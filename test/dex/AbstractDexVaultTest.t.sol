@@ -113,7 +113,7 @@ abstract contract AbstractDexVaultTest is Test {
         uint256 withdrawalFee_ = vault.quoteWithdrawalFee(_owner);
         vm.assertGt(withdrawalFee_, 0);
         vm.expectEmit(true, true, true, false, address(vault));
-        emit BaseVault.Withdraw(_receiver, _receiver, _owner, _shares, 0, 0, 0);
+        emit BaseVault.Withdraw(_receiver, _receiver, _owner, _shares, 0, 0, 0, 0);
         assets = vault.redeem(_shares, _receiver, _owner, 0);
         vm.stopPrank();
     }

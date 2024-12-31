@@ -6,9 +6,7 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import {FixedPoint96} from "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
@@ -67,7 +65,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            getCurrentSqrtPrice(), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
+            uint160(getCurrentSqrtPrice()), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
         );
         amount0 += owed0;
         amount1 += owed1;
@@ -77,7 +75,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal view override returns (uint256 amountFor0, uint256 amountFor1) {
-        uint160 sqrtPriceX96 = getCurrentSqrtPrice();
+        uint256 sqrtPriceX96 = getCurrentSqrtPrice();
         if (sqrtPriceX96 <= sqrtPriceLower) {
             amountFor0 = amount;
         } else if (sqrtPriceX96 < sqrtPriceUpper) {
@@ -185,7 +183,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
      * @return amount0 The amount of token0 owed
      * @return amount1 The amount of token1 owed
      */
-    function _getTokensOwed() internal view virtual returns (uint128 amount0, uint128 amount1) {
+    function _getTokensOwed() internal view returns (uint128 amount0, uint128 amount1) {
         if (positionTokenId == 0) {
             return (0, 0);
         }

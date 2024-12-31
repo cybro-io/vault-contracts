@@ -62,14 +62,14 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexUniformVault
-    function getCurrentSqrtPrice() public view override returns (uint160) {
+    function getCurrentSqrtPrice() public view override returns (uint256) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();
-        return sqrtPriceX96;
+        return uint256(sqrtPriceX96);
     }
 
     /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
-        uint160 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? IERC20Metadata(token0).balanceOf(address(pool))
                 + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice)

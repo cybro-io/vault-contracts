@@ -44,6 +44,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param sender The address of the sender
      * @param receiver The address of the receiver
      * @param owner The address of the owner
+     * @param assets The amount of assets withdrawn
      * @param shares The amount of shares withdrawn
      * @param withdrawalFee The amount of withdrawal fee
      * @param totalSupplyBefore The total supply before the withdrawal
@@ -54,6 +55,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         address indexed receiver,
         address indexed owner,
         uint256 shares,
+        uint256 assets,
         uint256 withdrawalFee,
         uint256 totalSupplyBefore,
         uint256 tvlBefore
@@ -207,7 +209,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
 
-        emit Withdraw(_msgSender(), receiver, owner, shares, withdrawalFee, totalSupplyBefore, tvlBefore);
+        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /**
@@ -278,7 +280,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Returns the withdrawal fee for an account
+     * @notice Returns the sum of the withdrawal fee and performance fee for an account
+     * that will be charged during the redeem process
      * @param account The address of the account
      * @return The withdrawal fee
      */
@@ -387,7 +390,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The amount of assets after fee and the fee amount
      */
     function _applyDepositFee(uint256 assets) internal returns (uint256, uint256) {
-        uint256 fee_ = (assets * feeProvider.getDepositFee(msg.sender)) / feePrecision;
+        (uint256 fee_,,) = feeProvider.getUpdateUserFees(msg.sender);
+        fee_ = (assets * fee_) / feePrecision;
         if (fee_ > 0) {
             assets -= fee_;
             IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);

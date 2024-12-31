@@ -67,13 +67,14 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault
-    function getCurrentSqrtPrice() public view override returns (uint160 sqrtPriceX96) {
+    function getCurrentSqrtPrice() public view override returns (uint256 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = pool.slot0();
+        return uint256(sqrtPriceX96);
     }
 
     /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
-        uint160 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? IERC20Metadata(token0).balanceOf(address(pool))
                 + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice)

@@ -62,6 +62,7 @@ contract CompoundVaultTest is Test {
         performanceFee = 100;
         feePrecision = 1e5;
         vm.startPrank(admin);
+        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
@@ -71,6 +72,11 @@ contract CompoundVaultTest is Test {
                 )
             )
         );
+        address[] memory whitelistedContracts = new address[](1);
+        whitelistedContracts[0] = vaultAddress;
+        bool[] memory isWhitelisted = new bool[](1);
+        isWhitelisted[0] = true;
+        feeProvider.setWhitelistedContracts(whitelistedContracts, isWhitelisted);
         vm.stopPrank();
     }
 
@@ -101,6 +107,20 @@ contract CompoundVaultTest is Test {
         uint256 shares = vault.deposit(amount, user, 0);
 
         console.log("shares", shares);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        feeProvider.setFees(depositFee * 2, withdrawalFee * 2, performanceFee * 2);
+        vm.assertEq(vault.getDepositFee(user), depositFee);
+        vm.assertEq(vault.getWithdrawalFee(user), withdrawalFee);
+        vm.assertEq(vault.getPerformanceFee(user), performanceFee);
+        vm.assertEq(vault.getDepositFee(user2), depositFee * 2);
+        vm.assertEq(vault.getWithdrawalFee(user2), withdrawalFee * 2);
+        vm.assertEq(vault.getPerformanceFee(user2), performanceFee * 2);
+        feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
+        vm.stopPrank();
+
+        vm.startPrank(user);
         vm.warp(block.timestamp + 100);
         console.log(vault.totalAssets(), usdbPool.balanceOf(address(vault)) * usdbPool.exchangeRateStored());
         console.log(usdbPool.balanceOfUnderlying(address(vault)));

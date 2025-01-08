@@ -103,8 +103,8 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     /// @inheritdoc BaseDexVault
     function _updateTicks() internal override {
         // Calculate upper and lower ticks based on the pool's tick spacing and maximum tick values
-        tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
-        tickLower = -tickUpper;
+        int24 tickUpper_ = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
+        _setTicks(-tickUpper_, tickUpper_);
     }
 
     /// @inheritdoc BaseDexUniformVault
@@ -134,8 +134,8 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
                 token0: token0,
                 token1: token1,
                 fee: fee,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
+                tickLower: tickLower(),
+                tickUpper: tickUpper(),
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -155,7 +155,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         // Increase liquidity for the existing position using additional token0 and token1
         (, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -170,7 +170,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         // Decrease liquidity for the current position and return the received token amounts
         (amount0, amount1) = positionManager.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 liquidity: liquidity,
                 amount0Min: 0,
                 amount1Min: 0,
@@ -188,7 +188,7 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         // Collect earned fees from the liquidity position
         (amount0, amount1) = positionManager.collect(
             INonfungiblePositionManager.CollectParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 recipient: address(this),
                 amount0Max: amount0Max,
                 amount1Max: amount1Max

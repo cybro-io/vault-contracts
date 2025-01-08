@@ -97,8 +97,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     /// @inheritdoc BaseDexVault
     function _updateTicks() internal virtual override {
-        tickUpper = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
-        tickLower = -tickUpper;
+        int24 tickUpper_ = TickMath.MAX_TICK - TickMath.MAX_TICK % pool.tickSpacing();
+        _setTicks(-tickUpper_, tickUpper_);
     }
 
     /// @inheritdoc BaseDexUniformVault
@@ -125,8 +125,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
+                tickLower: tickLower(),
+                tickUpper: tickUpper(),
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -145,7 +145,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     {
         (, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 amount0Desired: amount0,
                 amount1Desired: amount1,
                 amount0Min: 0,
@@ -159,7 +159,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function _decreaseLiquidity(uint128 liquidity) internal override returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = positionManager.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 liquidity: liquidity,
                 amount0Min: 0,
                 amount1Min: 0,
@@ -176,7 +176,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     {
         (amount0, amount1) = positionManager.collect(
             INonfungiblePositionManager.CollectParams({
-                tokenId: positionTokenId,
+                tokenId: positionTokenId(),
                 recipient: address(this),
                 amount0Max: amount0Max,
                 amount1Max: amount1Max

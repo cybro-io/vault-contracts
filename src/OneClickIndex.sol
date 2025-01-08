@@ -16,6 +16,24 @@ contract OneClickIndex is BaseVault {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /**
+     * @custom:storage-location erc7201:cybro.storage.OneClickIndex
+     * @param totalLendingShares Total lending shares across all pools
+     * @param lendingShares Mapping of lending pool addresses to their respective lending shares (in scaled units)
+     * @param lendingPoolAddresses Set of lending pool addresses
+     */
+    struct OneClickIndexStorage {
+        uint256 totalLendingShares;
+        mapping(address => uint256) lendingShares;
+        EnumerableSet.AddressSet lendingPoolAddresses;
+    }
+
+    function _getOneClickIndexStorage() private pure returns (OneClickIndexStorage storage $) {
+        assembly {
+            $.slot := ONE_CLICK_INDEX_STORAGE_LOCATION
+        }
+    }
+
     /* ========== EVENTS ========== */
 
     /**
@@ -39,22 +57,15 @@ contract OneClickIndex is BaseVault {
 
     /* ========== CONSTANTS ========== */
 
+    // keccak256(abi.encode(uint256(keccak256("cybro.storage.OneClickIndex")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant ONE_CLICK_INDEX_STORAGE_LOCATION =
+        0xdec11856be6f87e880ddd635f39a64318725d466249220963e77dbb029744600;
+
     /// @notice Role identifier for strategists
     bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
 
     /// @notice Maximum number of lending pools for auto rebalance
     uint256 public constant maxPools = 1000;
-
-    /* ========== STATE VARIABLES ========== */
-
-    /// @notice Mapping of lending pool addresses to their respective lending shares (in scaled units)
-    mapping(address => uint256) public lendingShares;
-
-    /// @notice Set of lending pool addresses
-    EnumerableSet.AddressSet private lendingPoolAddresses;
-
-    /// @notice Total lending shares across all pools
-    uint256 public totalLendingShares;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -96,8 +107,9 @@ contract OneClickIndex is BaseVault {
      * @param poolAddresses Array of lending pool addresses
      */
     function addLendingPools(address[] memory poolAddresses) public onlyRole(STRATEGIST_ROLE) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            if (lendingPoolAddresses.add(poolAddresses[i])) {
+            if ($.lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
                 IERC20Metadata(asset()).forceApprove(poolAddresses[i], type(uint256).max);
 
@@ -111,12 +123,13 @@ contract OneClickIndex is BaseVault {
      * @param poolAddresses Array of lending pool addresses to remove
      */
     function removeLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            totalLendingShares -= lendingShares[poolAddresses[i]];
+            $.totalLendingShares -= $.lendingShares[poolAddresses[i]];
 
-            delete lendingShares[poolAddresses[i]];
+            delete $.lendingShares[poolAddresses[i]];
 
-            require(lendingPoolAddresses.remove(poolAddresses[i]));
+            require($.lendingPoolAddresses.remove(poolAddresses[i]));
 
             // Revoke approval for the lending pool
             IERC20Metadata(asset()).forceApprove(poolAddresses[i], 0);
@@ -134,9 +147,10 @@ contract OneClickIndex is BaseVault {
         public
         onlyRole(MANAGER_ROLE)
     {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            totalLendingShares = totalLendingShares - lendingShares[poolAddresses[i]] + newLendingShares[i];
-            lendingShares[poolAddresses[i]] = newLendingShares[i];
+            $.totalLendingShares = $.totalLendingShares - $.lendingShares[poolAddresses[i]] + newLendingShares[i];
+            $.lendingShares[poolAddresses[i]] = newLendingShares[i];
 
             emit LendingPoolUpdated(poolAddresses[i], newLendingShares[i]);
         }
@@ -149,8 +163,9 @@ contract OneClickIndex is BaseVault {
      * @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
      */
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
-        require(lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
-        require(lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        require($.lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
+        require($.lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
 
         int256 deviationFrom = _computeDeviation(from);
         int256 deviationTo = _computeDeviation(to);
@@ -173,16 +188,18 @@ contract OneClickIndex is BaseVault {
      * @notice Automatically rebalances assets across all lending pools
      */
     function rebalanceAuto() external onlyRole(MANAGER_ROLE) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 totalAssetsToRedistribute;
         uint256 totalAssetsToDeposit;
         address[maxPools] memory poolsToDeposit;
         uint256[maxPools] memory amountsToDeposit;
         uint256 count;
 
-        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
-            address pool = lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
+            address pool = $.lendingPoolAddresses.at(i);
             uint256 poolBalance = _getBalance(pool);
-            int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
+            int256 deviation =
+                int256(poolBalance) - int256(totalAssets() * $.lendingShares[pool] / $.totalLendingShares);
 
             if (deviation > 0) {
                 uint256 assets = IVault(pool).redeem(
@@ -216,6 +233,11 @@ contract OneClickIndex is BaseVault {
 
     /* ========== VIEW FUNCTIONS ========== */
 
+    function totalLendingShares() external view returns (uint256) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        return $.totalLendingShares;
+    }
+
     /**
      * @notice Returns the share price of a lending pool
      * @param pool The address of the lending pool
@@ -239,7 +261,8 @@ contract OneClickIndex is BaseVault {
      * @return Array of lending pools
      */
     function getPools() external view returns (address[] memory) {
-        return lendingPoolAddresses.values();
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        return $.lendingPoolAddresses.values();
     }
 
     /**
@@ -247,7 +270,8 @@ contract OneClickIndex is BaseVault {
      * @return The number of lending pools
      */
     function getLendingPoolCount() external view returns (uint256) {
-        return lendingPoolAddresses.length();
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        return $.lendingPoolAddresses.length();
     }
 
     /**
@@ -256,9 +280,10 @@ contract OneClickIndex is BaseVault {
      * @return The total assets
      */
     function totalAssets() public view override returns (uint256) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 totalBalance = 0;
-        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
-            address poolAddress = lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
+            address poolAddress = $.lendingPoolAddresses.at(i);
             totalBalance += _getBalance(poolAddress);
         }
         return totalBalance;
@@ -277,10 +302,11 @@ contract OneClickIndex is BaseVault {
      * @return tvl The weighted average underlying TVL across all lending pools
      */
     function underlyingTVL() external view override returns (uint256) {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 tvl;
-        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
-            address poolAddress = lendingPoolAddresses.at(i);
-            tvl += IVault(poolAddress).underlyingTVL() * lendingShares[poolAddress] / totalLendingShares;
+        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
+            address poolAddress = $.lendingPoolAddresses.at(i);
+            tvl += IVault(poolAddress).underlyingTVL() * $.lendingShares[poolAddress] / $.totalLendingShares;
         }
         return tvl;
     }
@@ -293,7 +319,8 @@ contract OneClickIndex is BaseVault {
      * @return deviation The deviation of the pool's balance
      */
     function _computeDeviation(address pool) internal view returns (int256 deviation) {
-        uint256 amount = (totalAssets() * lendingShares[pool]) / totalLendingShares;
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        uint256 amount = (totalAssets() * $.lendingShares[pool]) / $.totalLendingShares;
         deviation = int256(_getBalance(pool)) - int256(amount);
     }
 
@@ -311,17 +338,18 @@ contract OneClickIndex is BaseVault {
      * @param assets The amount of assets to deposit
      */
     function _deposit(uint256 assets) internal override {
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 leftAssets = assets;
-        uint256 leftShares = totalLendingShares;
-        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
-            address poolAddress = lendingPoolAddresses.at(i);
-            leftShares -= lendingShares[poolAddress];
+        uint256 leftShares = $.totalLendingShares;
+        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
+            address poolAddress = $.lendingPoolAddresses.at(i);
+            leftShares -= $.lendingShares[poolAddress];
 
             uint256 amountToDeposit;
             if (leftShares == 0) {
                 amountToDeposit = leftAssets;
             } else {
-                amountToDeposit = assets * lendingShares[poolAddress] / totalLendingShares;
+                amountToDeposit = assets * $.lendingShares[poolAddress] / $.totalLendingShares;
             }
             leftAssets -= amountToDeposit;
 
@@ -340,10 +368,11 @@ contract OneClickIndex is BaseVault {
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        require(lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        require($.lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
 
-        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
-            address poolAddress = lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
+            address poolAddress = $.lendingPoolAddresses.at(i);
             uint256 poolShareToRedeem = (shares * IVault(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
                 assets += IVault(poolAddress).redeem(poolShareToRedeem, address(this), address(this), 0);
@@ -353,6 +382,7 @@ contract OneClickIndex is BaseVault {
 
     /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
-        return !lendingPoolAddresses.contains(token);
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        return !$.lendingPoolAddresses.contains(token);
     }
 }

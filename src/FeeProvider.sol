@@ -10,6 +10,28 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice A contract for managing fees for users
  */
 contract FeeProvider is IFeeProvider, OwnableUpgradeable {
+    /**
+     * @custom:storage-location erc7201:cybro.storage.FeeProvider
+     * @param depositFee The global deposit fee
+     * @param withdrawalFee The global withdrawal fee
+     * @param performanceFee The global performance fee
+     * @param users The mapping of users and their fees
+     * @param whitelistedContracts The mapping of contracts that are allowed to update user fees
+     */
+    struct FeeProviderStorage {
+        uint32 depositFee;
+        uint32 withdrawalFee;
+        uint32 performanceFee;
+        mapping(address user => UserFees fees) users;
+        mapping(address contractAddress => bool isWhitelisted) whitelistedContracts;
+    }
+
+    function _getFeeProviderStorage() private pure returns (FeeProviderStorage storage $) {
+        assembly {
+            $.slot := FEE_PROVIDER_STORAGE_LOCATION
+        }
+    }
+
     struct UserFees {
         bool initialized;
         uint32 depositFee;
@@ -17,16 +39,11 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32 performanceFee;
     }
 
+    // keccak256(abi.encode(uint256(keccak256("cybro.storage.FeeProvider")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant FEE_PROVIDER_STORAGE_LOCATION =
+        0x5a3f433112e5f6f2d07abf89dabbd357876e4b5e6bbd594e3e68f92dd92e7a00;
+
     uint32 private immutable _feePrecision;
-
-    uint32 private _depositFee;
-    uint32 private _withdrawalFee;
-    uint32 private _performanceFee;
-
-    mapping(address user => UserFees fees) private _users;
-
-    /// @notice Mapping of contracts that are allowed to update user fees
-    mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
 
     constructor(uint32 feePrecision) {
         _feePrecision = feePrecision;
@@ -38,9 +55,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         initializer
     {
         __Ownable_init(admin);
-        _depositFee = depositFee;
-        _withdrawalFee = withdrawalFee;
-        _performanceFee = performanceFee;
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        $.depositFee = depositFee;
+        $.withdrawalFee = withdrawalFee;
+        $.performanceFee = performanceFee;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -51,8 +69,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @param isWhitelisted Whether the contracts are whitelisted with the FeeProvider
      */
     function setWhitelistedContracts(address[] memory contracts, bool[] memory isWhitelisted) external onlyOwner {
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
         for (uint256 i = 0; i < contracts.length; i++) {
-            whitelistedContracts[contracts[i]] = isWhitelisted[i];
+            $.whitelistedContracts[contracts[i]] = isWhitelisted[i];
         }
     }
 
@@ -63,9 +82,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @param performanceFee The performance fee
      */
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external onlyOwner {
-        _depositFee = depositFee;
-        _withdrawalFee = withdrawalFee;
-        _performanceFee = performanceFee;
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        $.depositFee = depositFee;
+        $.withdrawalFee = withdrawalFee;
+        $.performanceFee = performanceFee;
     }
 
     /**
@@ -81,8 +101,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32[] memory withdrawalFees,
         uint32[] memory performanceFees
     ) external onlyOwner {
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
         for (uint256 i = 0; i < users.length; i++) {
-            UserFees storage userFees = _users[users[i]];
+            UserFees storage userFees = $.users[users[i]];
             if (userFees.initialized) {
                 require(depositFees[i] <= userFees.depositFee, "FeeProvider: invalid deposit fee");
                 require(withdrawalFees[i] <= userFees.withdrawalFee, "FeeProvider: invalid withdrawal fee");
@@ -109,16 +130,17 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         external
         returns (uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
     {
-        bool isWhitelistedContract = whitelistedContracts[msg.sender];
-        UserFees storage userFees = _users[user];
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        UserFees storage userFees = $.users[user];
+        bool isWhitelistedContract = $.whitelistedContracts[msg.sender];
         if (!userFees.initialized) {
-            depositFee = _depositFee;
-            withdrawalFee = _withdrawalFee;
-            performanceFee = _performanceFee;
+            depositFee = $.depositFee;
+            withdrawalFee = $.withdrawalFee;
+            performanceFee = $.performanceFee;
         } else {
-            depositFee = uint32(Math.min(_depositFee, userFees.depositFee));
-            withdrawalFee = uint32(Math.min(_withdrawalFee, userFees.withdrawalFee));
-            performanceFee = uint32(Math.min(_performanceFee, userFees.performanceFee));
+            depositFee = uint32(Math.min($.depositFee, userFees.depositFee));
+            withdrawalFee = uint32(Math.min($.withdrawalFee, userFees.withdrawalFee));
+            performanceFee = uint32(Math.min($.performanceFee, userFees.performanceFee));
         }
 
         if (isWhitelistedContract) {
@@ -145,7 +167,8 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The deposit fee
      */
     function getDepositFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? uint32(Math.min(_depositFee, _users[user].depositFee)) : _depositFee;
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        return $.users[user].initialized ? uint32(Math.min($.depositFee, $.users[user].depositFee)) : $.depositFee;
     }
 
     /**
@@ -154,7 +177,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The withdrawal fee
      */
     function getWithdrawalFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? uint32(Math.min(_withdrawalFee, _users[user].withdrawalFee)) : _withdrawalFee;
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        return
+            $.users[user].initialized ? uint32(Math.min($.withdrawalFee, $.users[user].withdrawalFee)) : $.withdrawalFee;
     }
 
     /**
@@ -163,7 +188,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The performance fee
      */
     function getPerformanceFee(address user) external view returns (uint32) {
-        return
-            _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee;
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        return $.users[user].initialized
+            ? uint32(Math.min($.performanceFee, $.users[user].performanceFee))
+            : $.performanceFee;
     }
 }

@@ -21,16 +21,24 @@ import {BaseVault} from "../BaseVault.sol";
 abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
 
-    /* ========== STORAGE VARIABLES =========== */
-    // Always add to the bottom! Contract is upgradeable
+    /// @custom:storage-location erc7201:cybro.storage.BaseDexVault
+    struct BaseDexVaultStorage {
+        uint256 positionTokenId;
+        int24 tickLower;
+        int24 tickUpper;
+        uint160 sqrtPriceLower;
+        uint160 sqrtPriceUpper;
+    }
 
-    /// @notice The ID of the NFT representing the Dex liquidity position
-    uint256 public positionTokenId;
+    function _getBaseDexVaultStorage() private pure returns (BaseDexVaultStorage storage $) {
+        assembly {
+            $.slot := BASE_DEX_VAULT_STORAGE_LOCATION
+        }
+    }
 
-    int24 public tickLower;
-    int24 public tickUpper;
-    uint160 public sqrtPriceLower;
-    uint160 public sqrtPriceUpper;
+    // keccak256(abi.encode(uint256(keccak256("cybro.storage.BaseDexVault")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant BASE_DEX_VAULT_STORAGE_LOCATION =
+        0x29bf470113e700e8de784ff86fa6f291763217c272e1254db191a93543cce800;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -57,15 +65,41 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /* ========== VIEW FUNCTIONS ========== */
 
+    function positionTokenId() public view returns (uint256) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        return $.positionTokenId;
+    }
+
+    function sqrtPriceLower() public view returns (uint160) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        return $.sqrtPriceLower;
+    }
+
+    function sqrtPriceUpper() public view returns (uint160) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        return $.sqrtPriceUpper;
+    }
+
+    function tickLower() public view returns (int24) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        return $.tickLower;
+    }
+
+    function tickUpper() public view returns (int24) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        return $.tickUpper;
+    }
+
     /**
      * @notice Retrieves the amounts of token0 and token1 that correspond to the current liquidity
      * @return amount0 The amount of token0
      * @return amount1 The amount of token1
      */
     function getPositionAmounts() public view override returns (uint256 amount0, uint256 amount1) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
         (uint128 owed0, uint128 owed1) = _getTokensOwed();
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            uint160(getCurrentSqrtPrice()), sqrtPriceLower, sqrtPriceUpper, uint128(_getTokenLiquidity())
+            uint160(getCurrentSqrtPrice()), $.sqrtPriceLower, $.sqrtPriceUpper, uint128(_getTokenLiquidity())
         );
         amount0 += owed0;
         amount1 += owed1;
@@ -75,12 +109,13 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal view override returns (uint256 amountFor0, uint256 amountFor1) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
         uint256 sqrtPriceX96 = getCurrentSqrtPrice();
-        if (sqrtPriceX96 <= sqrtPriceLower) {
+        if (sqrtPriceX96 <= $.sqrtPriceLower) {
             amountFor0 = amount;
-        } else if (sqrtPriceX96 < sqrtPriceUpper) {
-            uint256 n = FullMath.mulDiv(sqrtPriceUpper, sqrtPriceX96 - sqrtPriceLower, FixedPoint96.Q96);
-            uint256 d = FullMath.mulDiv(sqrtPriceX96, sqrtPriceUpper - sqrtPriceX96, FixedPoint96.Q96);
+        } else if (sqrtPriceX96 < $.sqrtPriceUpper) {
+            uint256 n = FullMath.mulDiv($.sqrtPriceUpper, sqrtPriceX96 - $.sqrtPriceLower, FixedPoint96.Q96);
+            uint256 d = FullMath.mulDiv(sqrtPriceX96, $.sqrtPriceUpper - sqrtPriceX96, FixedPoint96.Q96);
             uint256 x = FullMath.mulDiv(n, FixedPoint96.Q96, d);
             amountFor0 = FullMath.mulDiv(amount, FixedPoint96.Q96, x + FixedPoint96.Q96);
             amountFor1 = amount - amountFor0;
@@ -122,8 +157,9 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         override
         returns (uint256 amount0Used, uint256 amount1Used)
     {
-        if (positionTokenId == 0) {
-            (positionTokenId, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        if ($.positionTokenId == 0) {
+            ($.positionTokenId, amount0Used, amount1Used) = _mintPosition(amount0, amount1);
         } else {
             (amount0Used, amount1Used) = _increaseLiquidity(amount0, amount1);
         }
@@ -168,11 +204,12 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
 
     /// @inheritdoc BaseDexUniformVault
     function _getTokenLiquidity() internal view virtual override returns (uint256 liquidity) {
-        if (positionTokenId == 0) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        if ($.positionTokenId == 0) {
             return 0;
         }
 
-        return _getTokenLiquidity(positionTokenId);
+        return _getTokenLiquidity($.positionTokenId);
     }
 
     function _getTokenLiquidity(uint256 tokenId) internal view virtual returns (uint128 liquidity);
@@ -184,11 +221,12 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
      * @return amount1 The amount of token1 owed
      */
     function _getTokensOwed() internal view returns (uint128 amount0, uint128 amount1) {
-        if (positionTokenId == 0) {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        if ($.positionTokenId == 0) {
             return (0, 0);
         }
 
-        return _getTokensOwed(positionTokenId);
+        return _getTokensOwed($.positionTokenId);
     }
 
     function _getTokensOwed(uint256 tokenId) internal view virtual returns (uint128 amount0, uint128 amount1);
@@ -197,11 +235,18 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
     /// @dev Must be implemented by the inheriting contract
     function _updateTicks() internal virtual;
 
+    function _setTicks(int24 _tickLower, int24 _tickUpper) internal {
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        $.tickLower = _tickLower;
+        $.tickUpper = _tickUpper;
+    }
+
     /// @notice Abstract function to update the current square root prices of the Dex pool
     /// Use only after updating the ticks
     function _updateSqrtPricesLowerAndUpper() internal virtual {
-        sqrtPriceLower = TickMath.getSqrtRatioAtTick(tickLower);
-        sqrtPriceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        $.sqrtPriceLower = TickMath.getSqrtRatioAtTick($.tickLower);
+        $.sqrtPriceUpper = TickMath.getSqrtRatioAtTick($.tickUpper);
     }
 
     /// @inheritdoc BaseVault

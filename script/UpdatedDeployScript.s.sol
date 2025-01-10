@@ -75,16 +75,22 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), vaultData.admin));
     }
 
-    function _deployFeeProvider(address admin, uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
-        internal
-        returns (FeeProvider feeProvider)
-    {
+    function _deployFeeProvider(
+        address admin,
+        uint32 depositFee,
+        uint32 withdrawalFee,
+        uint32 performanceFee,
+        uint32 administrationFee,
+        uint32 maxAdministrationFee
+    ) internal returns (FeeProvider feeProvider) {
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision)),
+                    address(new FeeProvider(feePrecision, maxAdministrationFee)),
                     admin,
-                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
+                    abi.encodeCall(
+                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)
+                    )
                 )
             )
         );
@@ -318,7 +324,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.label(address(usdb), "USDB");
 
         // Zerolend USDB
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         address pool = address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8);
         vaults.push(
             address(
@@ -338,7 +344,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Pac USDB
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         pool = address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8);
         vaults.push(
             address(
@@ -358,7 +364,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Juice USDB
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         pool = address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a);
         vaults.push(
             address(
@@ -378,7 +384,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // OneClick Lending Fund
-        feeProvider = _deployFeeProvider(admin, 0, 30, 500);
+        feeProvider = _deployFeeProvider(admin, 0, 30, 500, 0, 1000);
         OneClickIndex fundLending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
@@ -425,7 +431,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdt), address(weth), 500)));
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500)));
 
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         IStargatePool pool = IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
         vaults.push(
             address(
@@ -450,7 +456,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate USDC
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));
         vaults.push(
             address(
@@ -475,7 +481,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate WETH
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
         vaults.push(
             address(
@@ -519,7 +525,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         swapPools.push(IUniswapV3Pool(factory.getPool(address(stg), address(weth), 10000)));
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500)));
 
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         IStargatePool pool = IStargatePool(payable(address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26)));
         vaults.push(
             address(
@@ -544,7 +550,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate WETH
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
         vaults.push(
             address(

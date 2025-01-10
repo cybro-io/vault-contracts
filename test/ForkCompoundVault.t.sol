@@ -41,6 +41,8 @@ contract CompoundVaultTest is Test {
     uint32 depositFee;
     uint32 withdrawalFee;
     uint32 performanceFee;
+    uint32 administrationFee;
+    uint32 maxAdministrationFee;
 
     function setUp() public {
         adminPrivateKey = 0xba132ce;
@@ -60,15 +62,19 @@ contract CompoundVaultTest is Test {
         depositFee = 0;
         withdrawalFee = 0;
         performanceFee = 100;
+        administrationFee = 100;
+        maxAdministrationFee = 1000;
         feePrecision = 1e5;
         vm.startPrank(admin);
         address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 3);
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision)),
+                    address(new FeeProvider(feePrecision, maxAdministrationFee)),
                     admin,
-                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
+                    abi.encodeCall(
+                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)
+                    )
                 )
             )
         );

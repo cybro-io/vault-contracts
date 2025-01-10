@@ -22,6 +22,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32 depositFee;
         uint32 withdrawalFee;
         uint32 performanceFee;
+        uint32 administrationFee;
         mapping(address user => UserFees fees) users;
         mapping(address contractAddress => bool isWhitelisted) whitelistedContracts;
     }
@@ -39,26 +40,47 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32 performanceFee;
     }
 
+    /* ========== EVENTS ========== */
+
+    event GlobbalDepositFeeUpdated(uint32 newDepositFee);
+    event GlobbalWithdrawalFeeUpdated(uint32 newWithdrawalFee);
+    event GlobbalPerformanceFeeUpdated(uint32 newPerformanceFee);
+    event AdministrationFeeUpdated(uint32 newAdministrationFee);
+
+    /* ========== CONSTANTS ========== */
+
     // keccak256(abi.encode(uint256(keccak256("cybro.storage.FeeProvider")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant FEE_PROVIDER_STORAGE_LOCATION =
         0x5a3f433112e5f6f2d07abf89dabbd357876e4b5e6bbd594e3e68f92dd92e7a00;
 
-    uint32 private immutable _feePrecision;
+    /* ========== IMMUTABLE VARIABLES ========== */
 
-    constructor(uint32 feePrecision) {
+    uint32 private immutable _feePrecision;
+    uint32 private immutable _maxAdministrationFee;
+
+    /* ========== CONSTRUCTOR ========== */
+
+    constructor(uint32 feePrecision, uint32 maxAdministrationFee) {
         _feePrecision = feePrecision;
+        _maxAdministrationFee = maxAdministrationFee;
         _disableInitializers();
     }
 
-    function initialize(address admin, uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
-        public
-        initializer
-    {
+    /* ========== INITIALIZER ========== */
+
+    function initialize(
+        address admin,
+        uint32 depositFee,
+        uint32 withdrawalFee,
+        uint32 performanceFee,
+        uint32 administrationFee
+    ) public initializer {
         __Ownable_init(admin);
         FeeProviderStorage storage $ = _getFeeProviderStorage();
         $.depositFee = depositFee;
         $.withdrawalFee = withdrawalFee;
         $.performanceFee = performanceFee;
+        $.administrationFee = administrationFee < _maxAdministrationFee ? administrationFee : _maxAdministrationFee;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -76,6 +98,17 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     }
 
     /**
+     * @notice Sets the administration fee
+     * @param administrationFee The administration fee
+     */
+    function setAdministrationFee(uint32 administrationFee) external onlyOwner {
+        require(administrationFee <= _maxAdministrationFee, "FeeProvider: invalid administration fee");
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        $.administrationFee = administrationFee;
+        emit AdministrationFeeUpdated(administrationFee);
+    }
+
+    /**
      * @notice Sets the global fees
      * @param depositFee The deposit fee
      * @param withdrawalFee The withdrawal fee
@@ -83,6 +116,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      */
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external onlyOwner {
         FeeProviderStorage storage $ = _getFeeProviderStorage();
+        if ($.depositFee != depositFee) emit GlobbalDepositFeeUpdated(depositFee);
+        if ($.withdrawalFee != withdrawalFee) emit GlobbalWithdrawalFeeUpdated(withdrawalFee);
+        if ($.performanceFee != performanceFee) emit GlobbalPerformanceFeeUpdated(performanceFee);
         $.depositFee = depositFee;
         $.withdrawalFee = withdrawalFee;
         $.performanceFee = performanceFee;
@@ -104,18 +140,12 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         FeeProviderStorage storage $ = _getFeeProviderStorage();
         for (uint256 i = 0; i < users.length; i++) {
             UserFees storage userFees = $.users[users[i]];
-            if (userFees.initialized) {
-                require(depositFees[i] <= userFees.depositFee, "FeeProvider: invalid deposit fee");
-                require(withdrawalFees[i] <= userFees.withdrawalFee, "FeeProvider: invalid withdrawal fee");
-                require(performanceFees[i] <= userFees.performanceFee, "FeeProvider: invalid performance fee");
-            } else {
-                userFees.initialized = true;
-            }
+            userFees.initialized = true;
             // we don't need to verify that global fees are lower than user fees
             // because it will be automatically checked in getUpdateUserFees
-            userFees.depositFee = depositFees[i];
-            userFees.withdrawalFee = withdrawalFees[i];
-            userFees.performanceFee = performanceFees[i];
+            userFees.depositFee = uint32(Math.min(depositFees[i], userFees.depositFee));
+            userFees.withdrawalFee = uint32(Math.min(withdrawalFees[i], userFees.withdrawalFee));
+            userFees.performanceFee = uint32(Math.min(performanceFees[i], userFees.performanceFee));
         }
     }
 
@@ -192,5 +222,18 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         return $.users[user].initialized
             ? uint32(Math.min($.performanceFee, $.users[user].performanceFee))
             : $.performanceFee;
+    }
+
+    /**
+     * @notice Returns the administration fee
+     * @return The administration fee
+     */
+    function getAdministrationFee() external view returns (uint32) {
+        FeeProviderStorage storage $ = _getFeeProviderStorage();
+        return $.administrationFee;
+    }
+
+    function getMaxAdministrationFee() external view returns (uint32) {
+        return _maxAdministrationFee;
     }
 }

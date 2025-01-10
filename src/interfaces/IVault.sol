@@ -25,5 +25,7 @@ interface IVault is IERC20Metadata {
     function getWithdrawalFee(address account) external view returns (uint256);
     function getPerformanceFee(address account) external view returns (uint256);
     function collectPerformanceFee(address[] memory accounts) external;
+    function getAdministrationFee() external view returns (uint256);
+    function collectAdministrationFee() external;
     function withdrawFunds(address token) external;
 }

@@ -50,7 +50,6 @@ abstract contract StargateVaultTest is Test {
     uint32 withdrawalFee;
     uint32 performanceFee;
     uint32 administrationFee;
-    uint32 maxAdministrationFee;
     uint32 feePrecision;
 
     IUniswapV3Pool swapPool;
@@ -79,13 +78,12 @@ abstract contract StargateVaultTest is Test {
         withdrawalFee = 200;
         performanceFee = 300;
         administrationFee = 100;
-        maxAdministrationFee = 1000;
         feePrecision = 1e5;
         vm.startPrank(admin);
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision, maxAdministrationFee)),
+                    address(new FeeProvider(feePrecision)),
                     admin,
                     abi.encodeCall(
                         FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)

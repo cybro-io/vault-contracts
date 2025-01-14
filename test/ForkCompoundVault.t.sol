@@ -70,7 +70,7 @@ contract CompoundVaultTest is Test {
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision, maxAdministrationFee)),
+                    address(new FeeProvider(feePrecision)),
                     admin,
                     abi.encodeCall(
                         FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)

@@ -248,9 +248,15 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
 
     /**
      * @notice Collects administration fee for the contract
+     *
+     * For example, if the administrationFee is 10% and the total supply is 1000,
+     * then the administration fee will be 111 and the new total supply will be 1111.
+     * And if the total assets is 1000, then all users shares
+     * will be equal to 900 after the fee collection.
      */
     function collectAdministrationFee() external onlyRole(MANAGER_ROLE) {
-        uint256 shares = totalSupply() * feeProvider.getAdministrationFee() / feePrecision;
+        uint32 administrationFee = feeProvider.getAdministrationFee();
+        uint256 shares = totalSupply() * administrationFee / (feePrecision - administrationFee);
         _mint(feeRecipient, shares);
         emit AdministrationFeeCollected(shares);
     }

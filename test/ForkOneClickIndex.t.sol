@@ -45,6 +45,7 @@ contract OneClickIndexTest is Test {
     uint32 depositFee;
     uint32 withdrawalFee;
     uint32 performanceFee;
+    uint32 administrationFee;
     uint32 feePrecision;
 
     function setUp() public {
@@ -64,6 +65,7 @@ contract OneClickIndexTest is Test {
         depositFee = 100;
         withdrawalFee = 200;
         performanceFee = 300;
+        administrationFee = 100;
         feePrecision = 1e5;
         vm.startPrank(admin);
         feeProvider = FeeProvider(
@@ -71,7 +73,9 @@ contract OneClickIndexTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new FeeProvider(feePrecision)),
                     admin,
-                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
+                    abi.encodeCall(
+                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)
+                    )
                 )
             )
         );

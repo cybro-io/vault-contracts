@@ -22,6 +22,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     event GlobalDepositFeeUpdated(uint32 newDepositFee);
     event GlobalWithdrawalFeeUpdated(uint32 newWithdrawalFee);
     event GlobalPerformanceFeeUpdated(uint32 newPerformanceFee);
+    event AdministrationFeeUpdated(uint32 newAdministrationFee);
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
@@ -40,6 +41,8 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     /// @notice Mapping of contracts that are allowed to update user fees
     mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
 
+    uint32 private _administrationFee;
+
     /* ========== CONSTRUCTOR ========== */
 
     constructor(uint32 feePrecision) {
@@ -49,14 +52,18 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
 
     /* ========== INITIALIZER ========== */
 
-    function initialize(address admin, uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
-        public
-        initializer
-    {
+    function initialize(
+        address admin,
+        uint32 depositFee,
+        uint32 withdrawalFee,
+        uint32 performanceFee,
+        uint32 administrationFee
+    ) public initializer {
         __Ownable_init(admin);
         _depositFee = depositFee;
         _withdrawalFee = withdrawalFee;
         _performanceFee = performanceFee;
+        _administrationFee = administrationFee;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -70,6 +77,15 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         for (uint256 i = 0; i < contracts.length; i++) {
             whitelistedContracts[contracts[i]] = isWhitelisted[i];
         }
+    }
+
+    /**
+     * @notice Sets the administration fee
+     * @param administrationFee The administration fee
+     */
+    function setAdministrationFee(uint32 administrationFee) external onlyOwner {
+        _administrationFee = administrationFee;
+        emit AdministrationFeeUpdated(administrationFee);
     }
 
     /**
@@ -178,5 +194,13 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     function getPerformanceFee(address user) external view returns (uint32) {
         return
             _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee;
+    }
+
+    /**
+     * @notice Returns the administration fee.
+     * @return The administration fee.
+     */
+    function getAdministrationFee() external view returns (uint32) {
+        return _administrationFee;
     }
 }

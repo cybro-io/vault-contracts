@@ -79,6 +79,12 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     event PerformanceFeeCollected(address indexed owner, uint256 fee);
 
+    /**
+     * @notice Emitted when administration fee is collected
+     * @param shares The amount of shares minted
+     */
+    event AdministrationFeeCollected(uint256 shares);
+
     /* ========== CONSTANTS ========== */
 
     // keccak256(abi.encode(uint256(keccak256("cybro.storage.BaseVault")) - 1)) & ~bytes32(uint256(0xff))
@@ -241,6 +247,21 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
+     * @notice Collects administration fee for the contract
+     *
+     * For example, if the administrationFee is 10% and the total supply is 1000,
+     * then the administration fee will be 111 and the new total supply will be 1111.
+     * And if the total assets is 1000, then all users shares
+     * will be equal to 900 after the fee collection.
+     */
+    function collectAdministrationFee() external onlyRole(MANAGER_ROLE) {
+        uint32 administrationFee = feeProvider.getAdministrationFee();
+        uint256 shares = totalSupply() * administrationFee / (feePrecision - administrationFee);
+        _mint(feeRecipient, shares);
+        emit AdministrationFeeCollected(shares);
+    }
+
+    /**
      * @notice Withdraws funds accidentally sent to the contract
      * @param token The address of the token to withdraw
      */
@@ -373,6 +394,14 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     function getPerformanceFee(address account) external view returns (uint256) {
         return feeProvider.getPerformanceFee(account);
+    }
+
+    /**
+     * @notice Returns the administration fee
+     * @return The administration fee
+     */
+    function getAdministrationFee() external view returns (uint256) {
+        return feeProvider.getAdministrationFee();
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

@@ -10,6 +10,7 @@ interface IVault is IERC20Metadata {
 
     function pause() external;
     function unpause() external;
+    function asset() external view returns (address);
     function totalAssets() external view returns (uint256);
     function sharePrice() external view returns (uint256);
     function deposit(uint256 assets, address receiver, uint256 minShares) external returns (uint256 shares);

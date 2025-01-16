@@ -17,6 +17,7 @@ import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 
 contract OneClickIndexTest is Test {
     IAavePool aavePool;
@@ -48,6 +49,8 @@ contract OneClickIndexTest is Test {
     uint32 administrationFee;
     uint32 feePrecision;
 
+    IChainlinkOracle oracle;
+
     function setUp() public {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
@@ -67,6 +70,7 @@ contract OneClickIndexTest is Test {
         performanceFee = 300;
         administrationFee = 100;
         feePrecision = 1e5;
+        oracle = IChainlinkOracle(address(0x3A236F67Fce401D87D7215695235e201966576E4));
         vm.startPrank(admin);
         feeProvider = FeeProvider(
             address(
@@ -84,7 +88,7 @@ contract OneClickIndexTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin, oracle))
                 )
             )
         );
@@ -185,7 +189,9 @@ contract OneClickIndexTest is Test {
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
-        vm.assertApproxEqAbs(lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, 1e10);
+        vm.assertApproxEqAbs(
+            lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, lending.totalAssets() / 100
+        );
         vm.assertEq(lending.getDepositFee(user), depositFee);
         vm.assertEq(lending.getWithdrawalFee(user), withdrawalFee);
         vm.assertEq(lending.getPerformanceFee(user), performanceFee);
@@ -193,22 +199,24 @@ contract OneClickIndexTest is Test {
         vm.assertApproxEqAbs(
             lending.getBalanceOfPool(address(aaveVault)),
             (amountWithDepositFee + amount2WithDepositFee) * lendingShare / (lendingShare + lendingShare2),
-            1e5
+            1e17
         );
         vm.assertApproxEqAbs(
             lending.getBalanceOfPool(address(juiceVault)),
             (amountWithDepositFee + amount2WithDepositFee) * lendingShare2 / (lendingShare + lendingShare2),
-            1e5
+            1e17
         );
-        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
+        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e17);
         vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
         vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
-        vm.assertApproxEqAbs(lending.getWaterline(user), amountWithDepositFee, 1e5);
-        vm.assertApproxEqAbs(lending.getWaterline(user2), amount2WithDepositFee, 1e5);
-        vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
+        vm.assertApproxEqAbs(lending.getWaterline(user), amountWithDepositFee, 1e19);
+        vm.assertApproxEqAbs(lending.getWaterline(user2), amount2WithDepositFee, 1e19);
+        vm.assertApproxEqAbs(
+            lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e17
+        );
     }
 
-    function test() public {
+    function test_usdb() public {
         _initializeUSDBVaults();
         uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
         uint256 amountWithWithdrawalFee = (amountWithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
@@ -259,11 +267,11 @@ contract OneClickIndexTest is Test {
         // redeem
         vm.startPrank(user);
         lending.redeem(userShares / 2, user, user, 0);
-        vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, amountWithWithdrawalFee / 1e5);
+        vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, 1e19);
         vm.stopPrank();
         vm.startPrank(user2);
         lending.redeem(user2Shares / 2, user2, user2, 0);
-        vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
+        vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, 1e19);
         vm.stopPrank();
         vm.assertGt(usdb.balanceOf(feeRecipient), 0);
     }

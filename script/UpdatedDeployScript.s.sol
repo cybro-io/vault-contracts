@@ -30,6 +30,7 @@ import {
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
+import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 
 contract UpdatedDeployScript is Script, StdCheats {
     struct DeployVault {
@@ -389,7 +390,10 @@ contract UpdatedDeployScript is Script, StdCheats {
                 new TransparentUpgradeableProxy(
                     address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "usdbLendingIndex", admin, admin))
+                    abi.encodeCall(
+                        OneClickIndex.initialize,
+                        (admin, "Lending Index", "usdbLendingIndex", admin, admin, IChainlinkOracle(address(0)))
+                    )
                 )
             )
         );

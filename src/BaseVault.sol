@@ -261,6 +261,30 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         emit AdministrationFeeCollected(shares);
     }
 
+    function emergencyWithdraw(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            uint256 balance = balanceOf(account);
+            if (balance > 0) {
+                uint256 withdrawalFee;
+                uint256 tvlBefore = totalAssets();
+                uint256 totalSupplyBefore = totalSupply();
+                uint256 assets = _redeem(balance);
+                if (address(feeProvider) != address(0)) {
+                    (assets,) = _applyPerformanceFee(assets, balance, account);
+                    (assets, withdrawalFee) = _applyWithdrawalFee(assets, account);
+                }
+
+                _burn(account, balance);
+                _asset.safeTransfer(account, assets);
+
+                emit Withdraw(
+                    _msgSender(), account, account, balance, assets, withdrawalFee, totalSupplyBefore, tvlBefore
+                );
+            }
+        }
+    }
+
     /**
      * @notice Withdraws funds accidentally sent to the contract
      * @param token The address of the token to withdraw

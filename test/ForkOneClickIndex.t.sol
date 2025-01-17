@@ -88,7 +88,7 @@ contract OneClickIndexTest is Test {
                 new TransparentUpgradeableProxy(
                     address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin, oracle))
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
                 )
             )
         );

@@ -398,7 +398,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The deposit fee
      */
-    function getDepositFee(address account) external view returns (uint256) {
+    function getDepositFee(address account) external view returns (uint32) {
         return feeProvider.getDepositFee(account);
     }
 
@@ -407,7 +407,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The withdrawal fee
      */
-    function getWithdrawalFee(address account) external view returns (uint256) {
+    function getWithdrawalFee(address account) external view returns (uint32) {
         return feeProvider.getWithdrawalFee(account);
     }
 
@@ -416,7 +416,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The performance fee
      */
-    function getPerformanceFee(address account) external view returns (uint256) {
+    function getPerformanceFee(address account) external view returns (uint32) {
         return feeProvider.getPerformanceFee(account);
     }
 
@@ -424,7 +424,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @notice Returns the administration fee
      * @return The administration fee
      */
-    function getAdministrationFee() external view returns (uint256) {
+    function getAdministrationFee() external view returns (uint32) {
         return feeProvider.getAdministrationFee();
     }
 

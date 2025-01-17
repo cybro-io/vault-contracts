@@ -62,7 +62,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     /// @notice Total lending shares across all pools
     uint256 public totalLendingShares;
 
-    mapping(address from => mapping(address to => address pool)) public swapPools;
+    mapping(address from => mapping(address to => IUniswapV3Pool pool)) public swapPools;
     mapping(address token => IChainlinkOracle oracle) public oracles;
 
     uint32 public slippage;
@@ -91,18 +91,13 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param strategist The address of the strategist
      * @param manager The address of the manager
      */
-    function initialize(
-        address admin,
-        string memory name,
-        string memory symbol,
-        address strategist,
-        address manager,
-        IChainlinkOracle oracle
-    ) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
+        public
+        initializer
+    {
         __ERC20_init(name, symbol);
         __BaseVault_init(admin, manager);
         _grantRole(STRATEGIST_ROLE, strategist);
-        oracles[asset()] = oracle;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -162,20 +157,29 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         slippage = _slippage;
     }
 
-    function setSwapPools(address[] memory from, address[] memory to, address[] memory _swapPools)
+    function setSwapPools(address[] memory from, address[] memory to, IUniswapV3Pool[] memory _swapPools)
         external
         onlyRole(MANAGER_ROLE)
     {
         for (uint256 i = 0; i < _swapPools.length; i++) {
             swapPools[from[i]][to[i]] = _swapPools[i];
-            IERC20Metadata(from[i]).forceApprove(_swapPools[i], type(uint256).max);
+            IERC20Metadata(from[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
         }
     }
 
     function removeSwapPools(address[] memory from, address[] memory to) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < from.length; i++) {
-            IERC20Metadata(from[i]).forceApprove(swapPools[from[i]][to[i]], 0);
-            swapPools[from[i]][to[i]] = address(0);
+            IERC20Metadata(from[i]).forceApprove(address(swapPools[from[i]][to[i]]), 0);
+            swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
+        }
+    }
+
+    function setOracles(address[] calldata tokens, IChainlinkOracle[] calldata oracles_)
+        external
+        onlyRole(MANAGER_ROLE)
+    {
+        for (uint256 i = 0; i < tokens.length; i++) {
+            oracles[tokens[i]] = oracles_[i];
         }
     }
 
@@ -195,13 +199,15 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         require(deviationFrom > 0, "OneClickIndex: Pool 'from' not deviated positively");
         require(deviationTo <= 0, "OneClickIndex: Pool 'to' not deviated negatively");
 
-        uint256 assets = IVault(from).redeem(sharesToWithdraw, address(this), address(this), 0);
-
-        if (IVault(from).asset() != IVault(to).asset()) {
-            assets = _swap(IVault(from).asset(), IVault(to).asset(), assets);
-        }
-
-        IVault(to).deposit(assets, address(this), 0);
+        IVault(to).deposit(
+            _swap(
+                IVault(from).asset(),
+                IVault(to).asset(),
+                IVault(from).redeem(sharesToWithdraw, address(this), address(this), 0)
+            ),
+            address(this),
+            0
+        );
 
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
@@ -226,17 +232,16 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
             int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
 
             if (deviation > 0) {
-                uint256 assets = IVault(pool).redeem(
-                    uint256(deviation) * IVault(pool).balanceOf(address(this)) / poolBalance,
-                    address(this),
-                    address(this),
-                    0
+                totalAssetsToRedistribute += _swap(
+                    IVault(pool).asset(),
+                    asset(),
+                    IVault(pool).redeem(
+                        uint256(deviation) * IVault(pool).balanceOf(address(this)) / poolBalance,
+                        address(this),
+                        address(this),
+                        0
+                    )
                 );
-                address vaultAsset = IVault(pool).asset();
-                if (vaultAsset != asset()) {
-                    assets = _swap(vaultAsset, asset(), assets);
-                }
-                totalAssetsToRedistribute += assets;
             } else if (deviation < 0) {
                 poolsToDeposit[count] = pool;
                 amountsToDeposit[count] = uint256(-deviation);
@@ -253,17 +258,14 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
             // Deposit the calculated amount into the pool
             if (depositAmount > 0) {
                 leftAssets -= depositAmount;
-                address vaultAsset = IVault(poolsToDeposit[i]).asset();
-                if (vaultAsset != asset()) {
-                    depositAmount = _swap(asset(), vaultAsset, depositAmount);
-                }
-                IVault(poolsToDeposit[i]).deposit(depositAmount, address(this), 0);
+                IVault(poolsToDeposit[i]).deposit(
+                    _swap(asset(), IVault(poolsToDeposit[i]).asset(), depositAmount), address(this), 0
+                );
             }
         }
         if (leftAssets > 0) {
-            address vaultAsset = IVault(poolsToDeposit[count - 1]).asset();
             IVault(poolsToDeposit[count - 1]).deposit(
-                vaultAsset != asset() ? _swap(asset(), vaultAsset, leftAssets) : leftAssets, address(this), 0
+                _swap(asset(), IVault(poolsToDeposit[count - 1]).asset(), leftAssets), address(this), 0
             );
         }
     }
@@ -285,9 +287,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return The balance of the pool
      */
     function getBalanceOfPool(address pool) external view returns (uint256) {
-        return _getInUnderlyingAsset(
-            IVault(pool).asset(), IVault(pool).balanceOf(address(this)) * IVault(pool).sharePrice() / 10 ** decimals()
-        );
+        return _getBalance(pool);
     }
 
     /**
@@ -361,8 +361,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param poolAddress The address of the lending pool
      * @return balance The balance of the pool
      */
-    function _getBalance(address poolAddress) internal view returns (uint256 balance) {
-        balance = _getInUnderlyingAsset(
+    function _getBalance(address poolAddress) internal view returns (uint256) {
+        return _getInUnderlyingAsset(
             IVault(poolAddress).asset(),
             IVault(poolAddress).balanceOf(address(this)) * IVault(poolAddress).sharePrice()
                 / (10 ** IVault(poolAddress).decimals())
@@ -389,11 +389,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
             leftAssets -= amountToDeposit;
 
             if (amountToDeposit > 0) {
-                address toAsset = IVault(poolAddress).asset();
-                if (asset() != toAsset) {
-                    amountToDeposit = _swap(asset(), toAsset, amountToDeposit);
-                }
-                IVault(poolAddress).deposit(amountToDeposit, address(this), 0);
+                IVault(poolAddress).deposit(
+                    _swap(asset(), IVault(poolAddress).asset(), amountToDeposit), address(this), 0
+                );
             }
             if (leftAssets == 0) {
                 break;
@@ -413,19 +411,18 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
             address poolAddress = lendingPoolAddresses.at(i);
             uint256 poolShareToRedeem = (shares * IVault(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
-                assets += asset() != IVault(poolAddress).asset()
-                    ? _swap(
-                        IVault(poolAddress).asset(),
-                        asset(),
-                        IVault(poolAddress).redeem(poolShareToRedeem, address(this), address(this), 0)
-                    )
-                    : IVault(poolAddress).redeem(poolShareToRedeem, address(this), address(this), 0);
+                assets += _swap(
+                    IVault(poolAddress).asset(),
+                    asset(),
+                    IVault(poolAddress).redeem(poolShareToRedeem, address(this), address(this), 0)
+                );
             }
         }
     }
 
     function _swap(address from, address to, uint256 amountIn) internal returns (uint256 amountOut) {
-        IUniswapV3Pool pool = IUniswapV3Pool(swapPools[from][to]);
+        if (from == to) return amountIn;
+        IUniswapV3Pool pool = swapPools[from][to];
         bool zeroForOne = from < to;
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
@@ -484,18 +481,13 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
         require(
-            swapPools[tokenIn][tokenOut] == msg.sender || swapPools[tokenOut][tokenIn] == msg.sender,
+            address(swapPools[tokenIn][tokenOut]) == msg.sender || address(swapPools[tokenOut][tokenIn]) == msg.sender,
             "OneClickIndex: invalid swap callback caller"
         );
 
-        (bool isExactInput, uint256 amountToPay) =
-            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
-
         // Transfer the required amount back to the pool
-        if (isExactInput) {
-            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
-        } else {
-            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
-        }
+        IERC20Metadata(tokenIn).safeTransfer(
+            msg.sender, amount0Delta > 0 ? uint256(amount0Delta) : uint256(amount1Delta)
+        );
     }
 }

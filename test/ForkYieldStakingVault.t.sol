@@ -7,91 +7,63 @@ import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "..
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IShares} from "../src/interfaces/IShares.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
+import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
-contract ForkYieldStakingTest is Test {
-    YieldStakingVault vault;
+contract ForkYieldStakingTest is AbstractBaseVaultTest {
     IYieldStaking staking;
-    IERC20Metadata token;
-    uint256 amount;
-    uint256 forkId;
-    address user;
+    IERC20Metadata weth;
+    IERC20Metadata usdb;
 
-    address internal admin;
-    uint256 internal adminPrivateKey;
-
-    function setUp() public {
-        adminPrivateKey = 0xba132ce;
-        admin = vm.addr(adminPrivateKey);
+    function setUp() public override {
         forkId = vm.createSelectFork("blast", 8149175);
-        user = address(100);
+        super.setUp();
+        name = "Yield Staking Vault";
+        symbol = "YVLT";
+        weth = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
+        usdb = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         amount = 1e20;
         staking = IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
+        feeProvider = IFeeProvider(address(0));
+        feeRecipient = address(0);
     }
 
-    modifier fork() {
-        vm.selectFork(forkId);
-        _;
-    }
-
-    function _deposit() internal returns (uint256 shares) {
+    function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
-        token.approve(vaultAddress, amount);
         vault = YieldStakingVault(
             payable(
                 address(
                     new TransparentUpgradeableProxy(
-                        address(
-                            new YieldStakingVault(token, IYieldStaking(staking), IFeeProvider(address(0)), address(0))
-                        ),
+                        address(new YieldStakingVault(asset, staking, IFeeProvider(address(0)), address(0))),
                         admin,
-                        abi.encodeCall(YieldStakingVault.initialize, (admin, "Yield Staking Vault", "YVLT", admin))
+                        abi.encodeCall(YieldStakingVault.initialize, (admin, name, symbol, admin))
                     )
                 )
             )
         );
         vm.stopPrank();
-        vm.startPrank(user);
-        token.approve(address(vault), amount);
-        shares = vault.deposit(amount, user, 0);
-        vm.stopPrank();
     }
 
-    function _redeem(uint256 shares) internal returns (uint256 assets) {
-        vm.prank(user);
-        assets = vault.redeem(shares, user, user, 0);
+    function _increaseVaultAssets() internal override returns (bool) {
+        if (asset == weth) {
+            vm.deal(address(asset), address(asset).balance * 101 / 100);
+
+            vm.prank(address(0x4300000000000000000000000000000000000000));
+            IShares(address(asset)).addValue(0);
+        } else {
+            vm.startPrank(address(0xB341285d5683C74935ad14c446E137c8c8829549));
+            IShares(address(asset)).addValue(IShares(address(asset)).count() * 3);
+            vm.stopPrank();
+        }
+        return true;
     }
 
     function test_usdb() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        uint256 shares = _deposit();
-
-        vm.startPrank(address(0xB341285d5683C74935ad14c446E137c8c8829549));
-        IShares(address(token)).addValue(IShares(address(token)).count() * 3);
-        vm.stopPrank();
-
-        _redeem(shares);
-        vm.assertGt(token.balanceOf(user), amount);
+        asset = usdb;
+        baseVaultTest(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c), true);
     }
 
     function test_weth() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        uint256 shares = _deposit();
-
-        vm.deal(address(token), address(token).balance * 101 / 100);
-
-        vm.prank(address(0x4300000000000000000000000000000000000000));
-        IShares(address(token)).addValue(0);
-
-        _redeem(shares);
-        vm.assertGt(token.balanceOf(user), amount);
+        asset = weth;
+        baseVaultTest(address(0x44f33bC796f7d3df55040cd3C631628B560715C2), true);
     }
 }

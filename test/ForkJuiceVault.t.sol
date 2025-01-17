@@ -12,101 +12,53 @@ import {
     TransparentUpgradeableProxy,
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
 // 0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a Juice usdb lending pool
 // 0x44f33bC796f7d3df55040cd3C631628B560715C2 Juice weth lending pool
 
-contract JuiceVaultTest is Test {
+contract JuiceVaultTest is AbstractBaseVaultTest {
     IJuicePool usdbPool;
     IJuicePool wethPool;
-    JuiceVault vault;
-    IERC20Metadata token;
-    uint256 amount;
-    uint256 forkId;
-    address user;
-    address internal admin;
-    uint256 internal adminPrivateKey;
+    IJuicePool currentPool;
 
-    function setUp() public {
-        adminPrivateKey = 0xba132ce;
-        admin = vm.addr(adminPrivateKey);
+    function setUp() public override {
         forkId = vm.createSelectFork("blast", 8149175);
+        super.setUp();
         usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
         wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         amount = 1e20;
-        user = address(100);
+        feeProvider = IFeeProvider(address(0));
+        feeRecipient = address(0);
     }
 
-    modifier fork() {
-        vm.selectFork(forkId);
-        _;
-    }
-
-    function _redeem(uint256 shares) internal returns (uint256 assets) {
-        vm.startPrank(user);
-        assets = vault.redeem(shares, user, user, 0);
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = JuiceVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new JuiceVault(asset, currentPool, IFeeProvider(address(0)), address(0))),
+                    admin,
+                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
+                )
+            )
+        );
         vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
     }
 
     function test_usdb() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        vm.startPrank(admin);
-        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
-        token.approve(vaultAddress, amount);
-        vault = JuiceVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new JuiceVault(token, usdbPool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
-        vm.stopPrank();
-        vm.startPrank(user);
-        token.approve(address(vault), amount);
-        uint256 shares = vault.deposit(amount, user, 0);
-        vm.stopPrank();
-
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
-        token.transfer(address(usdbPool), amount * 100);
-        _redeem(shares);
-        console.log(token.balanceOf(user));
-        // vm.assertGt(assets, amount);
+        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
+        currentPool = usdbPool;
+        baseVaultTest(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e), true);
     }
 
     function test_weth_deposit() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        vm.startPrank(admin);
-        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
-        token.approve(vaultAddress, amount);
-        vault = JuiceVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new JuiceVault(token, wethPool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
-        vm.stopPrank();
-        vm.startPrank(user);
-        token.approve(address(vault), amount);
-        uint256 shares = vault.deposit(amount, user, 0);
-        vm.stopPrank();
-
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-        token.transfer(address(wethPool), amount * 3);
-        _redeem(shares);
-        console.log(token.balanceOf(user));
-        // vm.assertGt(assets, amount);
+        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
+        currentPool = wethPool;
+        baseVaultTest(address(0x44f33bC796f7d3df55040cd3C631628B560715C2), true);
     }
 }

@@ -390,10 +390,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                 new TransparentUpgradeableProxy(
                     address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(
-                        OneClickIndex.initialize,
-                        (admin, "Lending Index", "usdbLendingIndex", admin, admin, IChainlinkOracle(address(0)))
-                    )
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "usdbLendingIndex", admin, admin))
                 )
             )
         );

@@ -5,13 +5,8 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {JuiceVault, IERC20Metadata, IFeeProvider} from "../src/vaults/JuiceVault.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
 // 0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a Juice usdb lending pool

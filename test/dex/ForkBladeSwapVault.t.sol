@@ -3,7 +3,7 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {AlgebraVault, IAlgebraFactory, INonfungiblePositionManager} from "../../src/dex/AlgebraVault.sol";
+import {IAlgebraFactory, INonfungiblePositionManager} from "../../src/dex/AlgebraVault.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 
@@ -13,8 +13,9 @@ import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 // Algebra Pool Deployer 0xfFeEcb1fe0EAaEFeE69d122F6B7a0368637cb593
 // BLAST token address 0xb1a5700fa2358173fe465e6ea4ff52e36e88e2ad
 // USDB/WETH pool 0xdA5AaEb22eD5b8aa76347eC57424CA0d109eFB2A
+
 contract ForkBladeSwapVaultTest is AbstractAlgebraVaultTest {
-    function setUp() public virtual override {
+    function setUp() public virtual override(AbstractAlgebraVaultTest) {
         super.setUp();
         token0 = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         token1 = IERC20Metadata(address(0x4300000000000000000000000000000000000004));

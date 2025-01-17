@@ -8,11 +8,8 @@ import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {CompoundVault, IERC20Metadata} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IFeeProvider} from "../src/FeeProvider.sol";
 import {AbstractBaseVaultTest, IVault} from "./AbstractBaseVault.t.sol";
 
 // 0x8C415331761063E5D6b1c8E700f996b13603Fc2E Orbit WBTC decimals 8

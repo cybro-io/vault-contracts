@@ -5,13 +5,7 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {InitVault, IERC20Metadata, IFeeProvider} from "../src/vaults/InitVault.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {IERC20RebasingWrapper} from "../src/interfaces/init/IERC20RebasingWrapper.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 

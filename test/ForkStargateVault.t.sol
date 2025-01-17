@@ -6,14 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StargateVault, IERC20Metadata, IStargatePool} from "../src/vaults/StargateVault.sol";
 import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
-import {IStargateMultiRewarder} from "../src/interfaces/stargate/IStargateMultirewarder.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
@@ -27,7 +20,6 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
     IStargatePool wethPool;
 
     IStargateStaking staking;
-    IStargateMultiRewarder rewarder;
 
     StargateVault usdtVault;
     StargateVault usdcVault;
@@ -86,9 +78,14 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         return asset == weth ? false : true;
     }
 
-    // function _checkStargateGetters() internal {
-
-    // }
+    function _checkStargateGetters() internal view {
+        StargateVault stargateVault = StargateVault(payable(address(vault)));
+        vm.assertEq(address(stargateVault.stg()), address(stg));
+        vm.assertEq(address(stargateVault.weth()), address(weth));
+        vm.assertEq(address(stargateVault.stgWethPool()), address(swapPool));
+        vm.assertEq(address(stargateVault.assetWethPool()), address(currentSwapPool));
+        vm.assertEq(address(stargateVault.pool()), address(currentPool));
+    }
 
     function test_usdt() public fork {
         if (block.chainid == 8453) {
@@ -98,6 +95,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         currentPool = usdtPool;
         currentSwapPool = swapPoolUSDTWETH;
         baseVaultTest(usdtPrank, true);
+        _checkStargateGetters();
     }
 
     function test_weth() public {
@@ -106,6 +104,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         currentPool = wethPool;
         currentSwapPool = IUniswapV3Pool(address(0));
         baseVaultTest(wethPrank, true);
+        _checkStargateGetters();
     }
 
     function test_usdc() public {
@@ -113,6 +112,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         currentPool = usdcPool;
         currentSwapPool = swapPoolUSDCWETH;
         baseVaultTest(usdcPrank, true);
+        _checkStargateGetters();
     }
 }
 

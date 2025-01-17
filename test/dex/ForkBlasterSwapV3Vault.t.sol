@@ -15,7 +15,7 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
     INonfungiblePositionManager positionManager;
     uint24 fee;
 
-    function setUp() public virtual override {
+    function setUp() public virtual override(AbstractDexVaultTest) {
         super.setUp();
         fee = 500;
         token0 = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
@@ -29,7 +29,7 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
         amountEth = 1e18;
     }
 
-    function _initializeNewVault(IERC20Metadata _asset) internal override {
+    function _initializeNewVault() internal override {
         vm.startPrank(admin);
         vault = IVault(
             address(
@@ -40,19 +40,16 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
                             address(token0),
                             address(token1),
                             fee,
-                            _asset,
+                            asset,
                             feeProvider,
                             feeRecipient
                         )
                     ),
                     admin,
-                    abi.encodeCall(BlasterSwapV3Vault.initialize, (admin, admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(BlasterSwapV3Vault.initialize, (admin, admin, name, symbol))
                 )
             )
         );
         vm.stopPrank();
-        console.log(
-            BlasterSwapV3Vault(address(vault)).sqrtPriceLower(), BlasterSwapV3Vault(address(vault)).sqrtPriceUpper()
-        );
     }
 }

@@ -3,10 +3,7 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BaseVault} from "../src/BaseVault.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -128,6 +125,8 @@ abstract contract AbstractBaseVaultTest is Test {
         vault.unpause();
     }
 
+    function _additionalChecksAfterDeposit(address _user, uint256 amount_, uint256 shares) internal virtual {}
+
     function _deposit(address _user, uint256 amount_) internal returns (uint256 shares) {
         uint256 amountWithFee = amount_;
         if (feeProvider != IFeeProvider(address(0))) {
@@ -170,6 +169,7 @@ abstract contract AbstractBaseVaultTest is Test {
             feeProvider.setFees(depositFee, withdrawalFee, performanceFee);
             vm.stopPrank();
         }
+        _additionalChecksAfterDeposit(_user, amount_, shares);
     }
 
     function _redeem(address _caller, address _owner, address _receiver, uint256 _shares)
@@ -180,13 +180,7 @@ abstract contract AbstractBaseVaultTest is Test {
         uint256 tvlBefore = vault.totalAssets();
         uint256 balanceOfUserBefore = vault.balanceOf(_owner);
         uint256 balanceOfReceiverBefore = asset.balanceOf(_receiver);
-        uint256 amountWithFees = _shares * vault.sharePrice() / (10 ** vault.decimals());
-        if (feeProvider != IFeeProvider(address(0))) {
-            uint32 withdrawalFee_ = vault.getWithdrawalFee(_owner);
-            uint32 performanceFee_ = vault.getPerformanceFee(_owner);
-            amountWithFees = (amountWithFees * (feePrecision - performanceFee_) / feePrecision)
-                * (feePrecision - withdrawalFee_) / feePrecision;
-        }
+        uint256 amountWithoutFees = _shares * vault.sharePrice() / (10 ** vault.decimals());
 
         vm.startPrank(_caller);
         assets = vault.redeem(_shares, _receiver, _owner, 0);
@@ -194,8 +188,8 @@ abstract contract AbstractBaseVaultTest is Test {
 
         vm.assertEq(totalSupplyBefore - vault.totalSupply(), _shares);
         vm.assertEq(balanceOfUserBefore - vault.balanceOf(_owner), _shares);
-        vm.assertApproxEqAbs(tvlBefore - vault.totalAssets(), assets, assets / 100);
-        vm.assertApproxEqAbs(asset.balanceOf(_receiver) - balanceOfReceiverBefore, amountWithFees, amountWithFees / 100);
+        vm.assertApproxEqAbs(tvlBefore - vault.totalAssets(), amountWithoutFees, amountWithoutFees / 100);
+        vm.assertApproxEqAbs(asset.balanceOf(_receiver) - balanceOfReceiverBefore, assets, assets / 100);
     }
 
     function _redeemExpectRevert(address _owner, address _receiver, uint256 _shares) internal {
@@ -230,15 +224,6 @@ abstract contract AbstractBaseVaultTest is Test {
 
         uint256 assets1 = _redeem(user, user, user, shares1);
         console.log("assets1", assets1);
-
-        // check collect perfomance fee
-        // vm.startPrank(admin);
-        // uint256 depositedBalanceBefore = usdtVault.getWaterline(user);
-        // address[] memory users = new address[](2);
-        // users[0] = user;
-        // usdtVault.collectPerformanceFee(users);
-        // assert(usdtVault.getWaterline(user) >= depositedBalanceBefore);
-        // vm.stopPrank();
 
         _redeemExpectRevert(user2, user, shares2);
 

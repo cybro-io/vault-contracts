@@ -12,7 +12,7 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
     IBlasterswapV2Factory factory;
     IBlasterswapV2Router02 router;
 
-    function setUp() public virtual override {
+    function setUp() public virtual override(AbstractDexVaultTest) {
         super.setUp();
         token0 = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         token1 = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
@@ -26,23 +26,18 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
         amountEth = 1e16;
     }
 
-    function _initializeNewVault(IERC20Metadata _asset) internal override {
+    function _initializeNewVault() internal override {
         vm.startPrank(admin);
         vault = IVault(
             address(
                 new TransparentUpgradeableProxy(
                     address(
                         new BlasterSwapV2Vault(
-                            payable(address(router)),
-                            address(token0),
-                            address(token1),
-                            _asset,
-                            feeProvider,
-                            feeRecipient
+                            payable(address(router)), address(token0), address(token1), asset, feeProvider, feeRecipient
                         )
                     ),
                     admin,
-                    abi.encodeCall(BlasterSwapV2Vault.initialize, (admin, admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(BlasterSwapV2Vault.initialize, (admin, admin, name, symbol))
                 )
             )
         );

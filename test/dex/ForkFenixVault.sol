@@ -12,7 +12,7 @@ import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 // Algebra NonfungiblePositionManager 0x8881b3Fb762d1D50e6172f621F107E24299AA1Cd
 
 contract ForkFenixVaultTest is AbstractAlgebraVaultTest {
-    function setUp() public virtual override {
+    function setUp() public virtual override(AbstractAlgebraVaultTest) {
         super.setUp();
         token0 = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         token1 = IERC20Metadata(address(0x4300000000000000000000000000000000000004));

@@ -120,6 +120,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     /**
      * @notice Removes multiple lending pools
      * @param poolAddresses Array of lending pool addresses to remove
+     *
+     * Reduces the total lending shares and revokes asset approval for each pool.
      */
     function removeLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
         for (uint256 i = 0; i < poolAddresses.length; i++) {
@@ -140,6 +142,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @notice Updates lending shares for multiple pools
      * @param poolAddresses Array of lending pool addresses
      * @param newLendingShares Array of new lending shares
+     *
+     * Adjusts the total lending shares to reflect the updated shares for each pool.
      */
     function setLendingShares(address[] memory poolAddresses, uint256[] memory newLendingShares)
         public
@@ -153,10 +157,20 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
+    /**
+     * @notice Sets the current slippage tolerance
+     * @param _slippage Slippage value
+     */
     function setSlippage(uint32 _slippage) external onlyRole(MANAGER_ROLE) {
         slippage = _slippage;
     }
 
+    /**
+     * @notice Sets swap pools for token pairs
+     * @param from Array of source tokens
+     * @param to Array of target tokens
+     * @param _swapPools Array of Uniswap V3 pools for swapping
+     */
     function setSwapPools(address[] memory from, address[] memory to, IUniswapV3Pool[] memory _swapPools)
         external
         onlyRole(MANAGER_ROLE)
@@ -167,6 +181,11 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
+    /**
+     * @notice Removes swap pools for token pairs
+     * @param from Array of source tokens
+     * @param to Array of target tokens
+     */
     function removeSwapPools(address[] memory from, address[] memory to) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < from.length; i++) {
             IERC20Metadata(from[i]).forceApprove(address(swapPools[from[i]][to[i]]), 0);
@@ -174,6 +193,11 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
+    /**
+     * @notice Sets oracles for tokens
+     * @param tokens Array of tokens
+     * @param oracles_ Array of corresponding oracles
+     */
     function setOracles(address[] calldata tokens, IChainlinkOracle[] calldata oracles_)
         external
         onlyRole(MANAGER_ROLE)
@@ -420,7 +444,17 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         }
     }
 
+    /**
+     * @notice Swaps tokens using the configured Uniswap V3 pools
+     * @param from The address of the token to swap from
+     * @param to The address of the token to swap to
+     * @param amountIn The amount of tokens to swap
+     * @return amountOut The amount of tokens received from the swap
+     *
+     * Validates slippage to ensure the swap is within acceptable thresholds.
+     */
     function _swap(address from, address to, uint256 amountIn) internal returns (uint256 amountOut) {
+        // If the tokens are the same, return the input amount
         if (from == to) return amountIn;
         IUniswapV3Pool pool = swapPools[from][to];
         bool zeroForOne = from < to;
@@ -435,6 +469,15 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         _checkSlippage(from, to, amountIn, amountOut);
     }
 
+    /**
+     * @notice Checks if the swap was within the allowed slippage
+     * @param from The address of the token swapped from
+     * @param to The address of the token swapped to
+     * @param amountIn The initial amount of tokens swapped
+     * @param amountOut The amount of tokens received
+     *
+     * Ensures that the price impact of the swap doesn't exceed the permitted slippage.
+     */
     function _checkSlippage(address from, address to, uint256 amountIn, uint256 amountOut) internal view {
         uint256 priceFrom = _getPrice(from);
         uint256 priceTo = _getPrice(to);
@@ -445,6 +488,11 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         );
     }
 
+    /**
+     * @notice Gets the latest price for a token using oracle
+     * @param token The address of the token
+     * @return The latest price from the oracle
+     */
     function _getPrice(address token) internal view returns (uint256) {
         IChainlinkOracle oracle = oracles[token];
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
@@ -457,6 +505,12 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
     }
 
+    /**
+     * @notice Converts an amount to the vault's underlying asset value
+     * @param asset_ The address of the asset to convert from
+     * @param amount The amount to convert
+     * @return The equivalent amount in the vault's underlying asset
+     */
     function _getInUnderlyingAsset(address asset_, uint256 amount) internal view returns (uint256) {
         if (asset_ != asset()) {
             return (amount * _getPrice(asset_) / (10 ** IERC20Metadata(asset_).decimals())) * (10 ** decimals())

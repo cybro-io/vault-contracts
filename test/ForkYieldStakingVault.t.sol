@@ -6,7 +6,6 @@ import {Test, console} from "forge-std/Test.sol";
 import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "../src/vaults/YieldStakingVault.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IShares} from "../src/interfaces/IShares.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
 contract ForkYieldStakingTest is AbstractBaseVaultTest {

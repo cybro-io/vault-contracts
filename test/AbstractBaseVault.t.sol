@@ -9,9 +9,9 @@ import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
-import {VaultsDeploy} from "./VaultsDeployLib.sol";
+import {TestHelpers} from "./TestHelpers.sol";
 
-abstract contract AbstractBaseVaultTest is Test, VaultsDeploy {
+abstract contract AbstractBaseVaultTest is Test, TestHelpers {
     uint256 forkId;
     IVault vault;
     IERC20Metadata asset;
@@ -48,6 +48,11 @@ abstract contract AbstractBaseVaultTest is Test, VaultsDeploy {
         user2 = address(101);
         user5 = address(1001001);
         feeRecipient = address(102);
+        vm.label(admin, "Admin");
+        vm.label(user, "User");
+        vm.label(user2, "User2");
+        vm.label(user5, "User5");
+        vm.label(feeRecipient, "FeeRecipient");
         depositFee = 100;
         withdrawalFee = 200;
         performanceFee = 300;
@@ -69,6 +74,7 @@ abstract contract AbstractBaseVaultTest is Test, VaultsDeploy {
                 )
             )
         );
+        vm.label(address(feeProvider), "FeeProvider");
         vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
         address[] memory whitelistedContracts = new address[](1);
         whitelistedContracts[0] = vaultAddress;
@@ -116,6 +122,7 @@ abstract contract AbstractBaseVaultTest is Test, VaultsDeploy {
     }
 
     function _provideAndApprove(bool needToProvide) internal {
+        vm.label(address(vault), "Vault");
         _setAssetProvider();
         if (needToProvide) {
             vm.startPrank(assetProvider);

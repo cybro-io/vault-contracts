@@ -20,21 +20,15 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
     CErc20 usdbPool;
     CErc20 wbtcPool;
     CEth ethPool;
-    IERC20Metadata usdb;
-    IERC20Metadata wbtc;
-    IERC20Metadata weth;
     uint256 wbtcAmount;
     uint256 ethAmount;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
         usdbPool = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
         wbtcPool = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
         ethPool = CEth(address(0x0872b71EFC37CB8DdE22B2118De3d800427fdba0));
-        usdb = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        wbtc = IERC20Metadata(address(0xF7bc58b8D8f97ADC129cfC4c9f45Ce3C0E1D2692));
-        weth = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
         amount = 1e19;
         wbtcAmount = 1 * 1e6;
         ethAmount = 1e18;
@@ -42,12 +36,12 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        if (asset == weth) {
+        if (asset == wethBlast) {
             vault = CompoundVaultETH(
                 payable(
                     address(
                         new TransparentUpgradeableProxy(
-                            address(new CompoundVaultETH(weth, ethPool, IFeeProvider(feeProvider), feeRecipient)),
+                            address(new CompoundVaultETH(wethBlast, ethPool, IFeeProvider(feeProvider), feeRecipient)),
                             admin,
                             abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault", admin))
                         )
@@ -60,7 +54,7 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
                     new TransparentUpgradeableProxy(
                         address(
                             new CompoundVault(
-                                asset, asset == usdb ? usdbPool : wbtcPool, IFeeProvider(feeProvider), feeRecipient
+                                asset, asset == usdbBlast ? usdbPool : wbtcPool, IFeeProvider(feeProvider), feeRecipient
                             )
                         ),
                         admin,
@@ -77,18 +71,18 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public {
-        asset = usdb;
+        asset = usdbBlast;
         baseVaultTest(true);
     }
 
     function test_wbtc() public {
-        asset = wbtc;
+        asset = wbtcBlast;
         amount = wbtcAmount;
         baseVaultTest(true);
     }
 
-    function test_eth() public fork {
-        asset = weth;
+    function test_eth() public {
+        asset = wethBlast;
         amount = ethAmount;
         baseVaultTest(true);
     }

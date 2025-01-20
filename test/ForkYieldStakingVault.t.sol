@@ -10,20 +10,14 @@ import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
 contract ForkYieldStakingTest is AbstractBaseVaultTest {
     IYieldStaking staking;
-    IERC20Metadata weth;
-    IERC20Metadata usdb;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
         name = "Yield Staking Vault";
         symbol = "YVLT";
-        weth = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        usdb = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
         amount = 1e20;
         staking = IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
-        feeProvider = IFeeProvider(address(0));
-        feeRecipient = address(0);
     }
 
     function _initializeNewVault() internal override {
@@ -32,7 +26,7 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
             payable(
                 address(
                     new TransparentUpgradeableProxy(
-                        address(new YieldStakingVault(asset, staking, IFeeProvider(address(0)), address(0))),
+                        address(new YieldStakingVault(asset, staking, IFeeProvider(feeProvider), feeRecipient)),
                         admin,
                         abi.encodeCall(YieldStakingVault.initialize, (admin, name, symbol, admin))
                     )
@@ -43,7 +37,7 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
     }
 
     function _increaseVaultAssets() internal override returns (bool) {
-        if (asset == weth) {
+        if (asset == wethBlast) {
             vm.deal(address(asset), address(asset).balance * 101 / 100);
 
             vm.prank(address(0x4300000000000000000000000000000000000000));
@@ -56,13 +50,13 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
         return true;
     }
 
-    function test_usdb() public fork {
-        asset = usdb;
+    function test_usdb() public {
+        asset = usdbBlast;
         baseVaultTest(true);
     }
 
-    function test_weth() public fork {
-        asset = weth;
+    function test_weth() public {
+        asset = wethBlast;
         baseVaultTest(true);
     }
 }

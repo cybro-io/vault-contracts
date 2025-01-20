@@ -4,32 +4,28 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata, IFeeProvider} from "../src/vaults/AaveVault.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {AbstractBaseVaultTest, IVault} from "./AbstractBaseVault.t.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract AaveVaultTest is AbstractBaseVaultTest {
-    IAavePool aavePool;
-
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         amount = 1e20;
         super.setUp();
-        aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
-        feeProvider = IFeeProvider(address(0));
-        feeRecipient = address(0);
     }
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault = IVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new AaveVault(asset, aavePool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
+        vault = _deployAave(
+            VaultSetup(
+                asset,
+                address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8),
+                address(feeProvider),
+                feeRecipient,
+                "nameVault",
+                "symbolVault",
+                admin,
+                admin
             )
         );
         vm.stopPrank();

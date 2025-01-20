@@ -3,24 +3,15 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {JuiceVault} from "../src/vaults/JuiceVault.sol";
-import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
 import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
-import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
-import {YieldStakingVault} from "../src/vaults/YieldStakingVault.sol";
-import {IYieldStaking} from "../src/interfaces/blastup/IYieldStacking.sol";
-import {VaultsDeploy} from "./VaultsDeployLib.sol";
 import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
     address usdbPrank = address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e);
@@ -38,6 +29,8 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
     address[] fromSwap;
     address[] toSwap;
     IUniswapV3Pool[] swapPools;
+
+    address additionalVault;
 
     function setUp() public virtual override(AbstractBaseVaultTest) {
         super.setUp();
@@ -80,7 +73,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare2);
-            lendingShares.push(lendingShare2);
+            // lendingShares.push(lendingShare2);
 
             tokens.push(address(usdbBlast));
             oracles.push(oracle_USDB_BLAST);
@@ -92,7 +85,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vaults.push(
                 address(
                     _deployAave(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             usdbBlast,
                             address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8),
                             address(0),
@@ -108,7 +101,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vaults.push(
                 address(
                     _deployJuice(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             usdbBlast,
                             address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a),
                             address(0),
@@ -124,7 +117,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vaults.push(
                 address(
                     _deployYieldStaking(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             usdbBlast,
                             address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D),
                             address(0),
@@ -137,25 +130,22 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                     )
                 )
             );
-            vaults.push(
-                address(
-                    _deployBuffer(
-                        VaultsDeploy.VaultSetup(
-                            usdbBlast, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin
-                        )
-                    )
+            additionalVault = address(
+                _deployBuffer(
+                    VaultSetup(usdbBlast, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin)
                 )
             );
         } else if (block.chainid == 42161) {
             // arbitrum
             asset = usdtArbitrum;
+            amount = 1e9; // decimals = 6
             lendingShares.push(lendingShare);
             vaults.push(
                 address(
                     _deployStargate(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             usdtArbitrum,
-                            address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3),
+                            address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0),
                             address(0),
                             address(0),
                             "nameVault",
@@ -163,6 +153,14 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                             admin,
                             admin
                         )
+                    )
+                )
+            );
+
+            additionalVault = address(
+                _deployBuffer(
+                    VaultSetup(
+                        usdtArbitrum, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin
                     )
                 )
             );
@@ -185,7 +183,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vaults.push(
                 address(
                     _deployStargate(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             usdcBase,
                             address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26),
                             address(0),
@@ -201,7 +199,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vaults.push(
                 address(
                     _deployStargate(
-                        VaultsDeploy.VaultSetup(
+                        VaultSetup(
                             wethBase,
                             address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7),
                             address(0),
@@ -214,6 +212,12 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                     )
                 )
             );
+            additionalVault = address(
+                _deployBuffer(
+                    VaultSetup(usdcBase, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin)
+                )
+            );
+            vm.label(additionalVault, "AdditionalVault");
         }
         vault = IVault(
             address(
@@ -239,23 +243,29 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
         _setSwapPools();
     }
 
-    // function _middleInteractions() internal override {
-    //     vm.startPrank(admin);
-    //     address[] memory vaults_ = new address[](1);
-    //     vaults[0] = address(aaveVault);
-    //     uint256[] memory lendingShares_ = new uint256[](1);
-    //     lendingShares[0] = lendingShare2;
-    //     lending.setLendingShares(vaults, lendingShares);
-    //     lending.rebalance(address(juiceVault), address(aaveVault), juiceVault.balanceOf(address(lending)) / 4 - 1000);
-    //     vm.assertApproxEqAbs(juiceVault.balanceOf(address(lending)), aaveVault.balanceOf(address(lending)), 1e10);
+    function _middleInteractions() internal override {
+        vm.startPrank(admin);
+        uint256 totalLendingSharesBefore = lending.totalLendingShares();
+        uint256 balanceBefore = lending.getBalanceOfPool(vaults[0]);
+        address[] memory vaults_ = new address[](1);
+        vaults_[0] = additionalVault;
+        uint256[] memory lendingShares_ = new uint256[](1);
+        lendingShares_[0] = lendingShare2;
+        lending.addLendingPools(vaults_);
+        lending.setLendingShares(vaults_, lendingShares_);
+        lending.rebalanceAuto();
+        vm.assertEq(lending.totalLendingShares(), totalLendingSharesBefore + lendingShare2);
+        vm.assertLt(lending.getBalanceOfPool(vaults[0]), balanceBefore);
+        vm.assertGt(lending.getBalanceOfPool(additionalVault), 0);
 
-    //     vaults[0] = address(aaveVault);
-    //     lendingShares[0] = lendingShare;
-    //     lending.setLendingShares(vaults, lendingShares);
-    //     lending.rebalanceAuto();
-    //     vm.assertApproxEqAbs(juiceVault.balanceOf(address(lending)), aaveVault.balanceOf(address(lending)) * 2, 1e10);
-    //     vm.stopPrank();
-    // }
+        lendingShares_[0] = 0;
+        lending.setLendingShares(vaults_, lendingShares_);
+        lending.rebalanceAuto();
+        lending.removeLendingPools(vaults_);
+        vm.assertEq(totalLendingSharesBefore, lending.totalLendingShares());
+        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), 1e8);
+        vm.stopPrank();
+    }
 
     function _increaseVaultAssets() internal pure override returns (bool) {
         return false;
@@ -277,21 +287,21 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
 
 contract OneClickIndexBaseChainTest is OneClickIndexBaseTest {
     function setUp() public override(OneClickIndexBaseTest) {
-        forkId = vm.createSelectFork("base", 25292162);
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
         super.setUp();
     }
 }
 
-// contract OneClickIndexArbitrumTest is OneClickIndexBaseTest {
-//     function setUp() public override(OneClickIndexBaseTest) {
-//         vm.createSelectFork("arbitrum", 421613);
-//         super.setUp();
-//     }
-// }
+contract OneClickIndexArbitrumTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+    }
+}
 
 contract OneClickIndexBlastTest is OneClickIndexBaseTest {
     function setUp() public override(OneClickIndexBaseTest) {
-        vm.createSelectFork("blast", 14284818);
+        vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
     }
 }

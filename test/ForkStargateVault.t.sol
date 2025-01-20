@@ -11,7 +11,6 @@ import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Po
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 
-// StargateMultirewarder 0x146c8e409C113ED87C6183f4d25c50251DFfbb3a
 // STG Token 0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97
 
 abstract contract StargateVaultTest is AbstractBaseVaultTest {
@@ -20,10 +19,6 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
     IStargatePool wethPool;
 
     IStargateStaking staking;
-
-    StargateVault usdtVault;
-    StargateVault usdcVault;
-    StargateVault wethVault;
     IERC20Metadata stg;
 
     IUniswapV3Pool swapPool;
@@ -32,11 +27,8 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
     IUniswapV3Factory factory;
 
     IERC20Metadata usdt;
-    address usdtPrank;
     IERC20Metadata weth;
-    address wethPrank;
     IERC20Metadata usdc;
-    address usdcPrank;
 
     uint256 amountEth;
 
@@ -118,20 +110,17 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
 
 contract StargateVaultArbitrumTest is StargateVaultTest {
     function setUp() public override(StargateVaultTest) {
-        forkId = vm.createSelectFork("arbitrum", 296398139);
+        forkId = vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
-        usdt = IERC20Metadata(address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9));
-        weth = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));
-        usdc = IERC20Metadata(address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831));
-        usdtPrank = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
-        wethPrank = address(0x70d95587d40A2caf56bd97485aB3Eec10Bee6336);
-        usdcPrank = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
+        usdt = usdtArbitrum;
+        weth = wethArbitrum;
+        usdc = usdcArbitrum;
         usdtPool = IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
         wethPool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
         usdcPool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));
         staking = IStargateStaking(payable(address(0x3da4f8E456AC648c489c286B99Ca37B666be7C4C)));
         stg = IERC20Metadata(address(0x6694340fc020c5E6B96567843da2df01b2CE1eb6));
-        factory = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
+        factory = factory_UNI_ARB;
         swapPool = IUniswapV3Pool(factory.getPool(address(stg), address(weth), 3000));
         swapPoolUSDTWETH = IUniswapV3Pool(factory.getPool(address(usdt), address(weth), 500));
         swapPoolUSDCWETH = IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500));
@@ -144,21 +133,18 @@ contract StargateVaultArbitrumTest is StargateVaultTest {
 
 contract StargateVaultBaseTest is StargateVaultTest {
     function setUp() public override {
-        forkId = vm.createSelectFork("base", 21285741);
-        console.log(block.chainid);
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
         super.setUp();
         // base doesn't have usdt stargate pool
         amount = 1e8;
         amountEth = 1e13;
-        weth = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
-        usdc = IERC20Metadata(address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913));
-        wethPrank = address(0x6446021F4E396dA3df4235C62537431372195D38);
-        usdcPrank = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
+        weth = wethBase;
+        usdc = usdcBase;
         wethPool = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
         usdcPool = IStargatePool(payable(address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26)));
         staking = IStargateStaking(payable(address(0xDFc47DCeF7e8f9Ab19a1b8Af3eeCF000C7ea0B80)));
         stg = IERC20Metadata(address(0xE3B53AF74a4BF62Ae5511055290838050bf764Df));
-        factory = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
+        factory = factory_UNI_BASE;
         swapPool = IUniswapV3Pool(factory.getPool(address(stg), address(weth), 10000));
         swapPoolUSDCWETH = IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500));
         console.log(address(stg) < address(weth));

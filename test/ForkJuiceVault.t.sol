@@ -18,13 +18,11 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
     IJuicePool currentPool;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
         usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
         wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
         amount = 1e20;
-        feeProvider = IFeeProvider(address(0));
-        feeRecipient = address(0);
     }
 
     function _initializeNewVault() internal override {
@@ -32,7 +30,7 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
         vault = JuiceVault(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new JuiceVault(asset, currentPool, IFeeProvider(address(0)), address(0))),
+                    address(new JuiceVault(asset, currentPool, IFeeProvider(feeProvider), feeRecipient)),
                     admin,
                     abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
                 )

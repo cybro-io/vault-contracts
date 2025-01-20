@@ -15,7 +15,7 @@ import {IStargatePool} from "../src/interfaces/stargate/IStargatePool.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 
-contract VaultsDeploy {
+contract TestHelpers {
     struct StargateSetup {
         IERC20Metadata weth;
         IERC20Metadata stg;
@@ -74,6 +74,10 @@ contract VaultsDeploy {
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
+
+    uint256 lastCachedBlockid_BLAST = 14284818;
+    uint256 lastCachedBlockid_ARBITRUM = 297475175;
+    uint256 lastCachedBlockid_BASE = 25292162;
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(

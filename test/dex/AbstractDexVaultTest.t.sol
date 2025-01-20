@@ -15,9 +15,6 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     IERC20Metadata token0;
     IERC20Metadata token1;
 
-    address transferFromToken0;
-    address transferFromToken1;
-
     bool zeroOrOne;
 
     function setUp() public virtual override(AbstractBaseVaultTest) {

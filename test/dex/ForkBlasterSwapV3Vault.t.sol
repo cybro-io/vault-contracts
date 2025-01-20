@@ -26,7 +26,7 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
         transferFromToken1 = address(0x44f33bC796f7d3df55040cd3C631628B560715C2);
         vm.label(address(token0), "USDB");
         vm.label(address(token1), "WETH");
-        amountEth = 1e18;
+        amountEth = 1e17;
     }
 
     function _initializeNewVault() internal override {

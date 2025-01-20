@@ -19,7 +19,7 @@ contract InitVaultTest is AbstractBaseVaultTest {
     IInitLendingPool currentPool;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 9330000);
+        forkId = vm.createSelectFork("blast", 14284818);
         super.setUp();
         usdbPool = IInitLendingPool(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F));
         wethPool = IInitLendingPool(address(0xD20989EB39348994AA99F686bb4554090d0C09F3));
@@ -50,20 +50,20 @@ contract InitVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public fork {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
+        asset = usdbBlast;
         currentPool = usdbPool;
-        baseVaultTest(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e), true);
+        baseVaultTest(true);
     }
 
     function test_blast() public fork {
-        asset = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
+        asset = blastBlast;
         currentPool = blastPool;
-        baseVaultTest(address(0xCB4A7EeE965CB1A0f28931a125Ef360d058892DE), true);
+        baseVaultTest(true);
     }
 
     function test_weth() public fork {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
+        asset = wethBlast;
         currentPool = wethPool;
-        baseVaultTest(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1), true);
+        baseVaultTest(true);
     }
 }

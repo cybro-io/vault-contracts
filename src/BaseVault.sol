@@ -210,22 +210,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        uint256 withdrawalFee;
-        uint256 tvlBefore = totalAssets();
-        uint256 totalSupplyBefore = totalSupply();
-        assets = _redeem(shares);
-        if (address(feeProvider) != address(0)) {
-            (assets,) = _applyPerformanceFee(assets, shares, owner);
-            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
-        }
-
+        assets = _redeemBaseVault(shares, receiver, owner);
         require(assets >= minAssets, "CYBRO: minAssets");
-
-        _burn(owner, shares);
-        _asset.safeTransfer(receiver, assets);
-
-        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /**
@@ -266,21 +252,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
             address account = accounts[i];
             uint256 balance = balanceOf(account);
             if (balance > 0) {
-                uint256 withdrawalFee;
-                uint256 tvlBefore = totalAssets();
-                uint256 totalSupplyBefore = totalSupply();
-                uint256 assets = _redeem(balance);
-                if (address(feeProvider) != address(0)) {
-                    (assets,) = _applyPerformanceFee(assets, balance, account);
-                    (assets, withdrawalFee) = _applyWithdrawalFee(assets, account);
-                }
-
-                _burn(account, balance);
-                _asset.safeTransfer(account, assets);
-
-                emit Withdraw(
-                    _msgSender(), account, account, balance, assets, withdrawalFee, totalSupplyBefore, tvlBefore
-                );
+                _redeemBaseVault(balance, account, account);
             }
         }
     }
@@ -442,6 +414,29 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal virtual returns (uint256 assets);
+
+    /**
+     * @notice Internal function to redeem shares
+     * @param shares The amount of shares to redeem
+     * @param receiver The address to receive the assets
+     * @param owner The owner of the shares
+     * @return assets The amount of assets redeemed
+     */
+    function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
+        uint256 withdrawalFee;
+        uint256 tvlBefore = totalAssets();
+        uint256 totalSupplyBefore = totalSupply();
+        assets = _redeem(shares);
+        if (address(feeProvider) != address(0)) {
+            (assets,) = _applyPerformanceFee(assets, shares, owner);
+            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
+        }
+
+        _burn(owner, shares);
+        _asset.safeTransfer(receiver, assets);
+
+        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
+    }
 
     /**
      * @notice Internal function to get the precise total assets

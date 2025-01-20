@@ -13,7 +13,7 @@ contract AaveVaultTest is AbstractBaseVaultTest {
     IAavePool aavePool;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 8149175);
+        forkId = vm.createSelectFork("blast", 14284818);
         amount = 1e20;
         super.setUp();
         aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
@@ -40,13 +40,13 @@ contract AaveVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        baseVaultTest(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e), true);
+        asset = usdbBlast;
+        baseVaultTest(true);
     }
 
     function test_weth_deposit() public {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        baseVaultTest(address(0x44f33bC796f7d3df55040cd3C631628B560715C2), true);
+        asset = wethBlast;
+        baseVaultTest(true);
     }
 
     function test_otherTokens_deposit() public {
@@ -54,6 +54,6 @@ contract AaveVaultTest is AbstractBaseVaultTest {
         deal(address(asset), user, amount);
         deal(address(asset), user2, amount);
         deal(address(asset), admin, amount);
-        baseVaultTest(address(0), false);
+        baseVaultTest(false);
     }
 }

@@ -49,6 +49,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     /// @notice Maximum number of lending pools for auto rebalance
     uint256 public constant maxPools = 1000;
 
+    /// @notice Precision for slippage
     uint32 public constant slippagePrecision = 10000;
 
     /* ========== STATE VARIABLES ========== */
@@ -62,10 +63,14 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     /// @notice Total lending shares across all pools
     uint256 public totalLendingShares;
 
+    /// @notice Mapping of token pairs to Uniswap V3 pools for swapping
     mapping(address from => mapping(address to => IUniswapV3Pool pool)) public swapPools;
+
+    /// @notice Mapping of tokens to their oracles
     mapping(address token => IChainlinkOracle oracle) public oracles;
 
-    uint32 public slippage;
+    /// @notice Maximum slippage tolerance
+    uint32 public maxSlippage;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -159,10 +164,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     /**
      * @notice Sets the current slippage tolerance
-     * @param _slippage Slippage value
+     * @param _maxSlippage Slippage value
      */
-    function setSlippage(uint32 _slippage) external onlyRole(MANAGER_ROLE) {
-        slippage = _slippage;
+    function setMaxSlippage(uint32 _maxSlippage) external onlyRole(MANAGER_ROLE) {
+        maxSlippage = _maxSlippage;
     }
 
     /**
@@ -171,13 +176,18 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param to Array of target tokens
      * @param _swapPools Array of Uniswap V3 pools for swapping
      */
-    function setSwapPools(address[] memory from, address[] memory to, IUniswapV3Pool[] memory _swapPools)
+    function setSwapPools(address[] calldata from, address[] calldata to, IUniswapV3Pool[] calldata _swapPools)
         external
         onlyRole(MANAGER_ROLE)
     {
         for (uint256 i = 0; i < _swapPools.length; i++) {
-            swapPools[from[i]][to[i]] = _swapPools[i];
-            IERC20Metadata(from[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
+            if (from[i] < to[i]) {
+                swapPools[from[i]][to[i]] = _swapPools[i];
+                IERC20Metadata(from[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
+            } else {
+                swapPools[to[i]][from[i]] = _swapPools[i];
+                IERC20Metadata(to[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
+            }
         }
     }
 
@@ -188,8 +198,13 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      */
     function removeSwapPools(address[] memory from, address[] memory to) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < from.length; i++) {
-            IERC20Metadata(from[i]).forceApprove(address(swapPools[from[i]][to[i]]), 0);
-            swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
+            if (from[i] < to[i]) {
+                IERC20Metadata(from[i]).forceApprove(address(swapPools[from[i]][to[i]]), 0);
+                swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
+            } else {
+                IERC20Metadata(to[i]).forceApprove(address(swapPools[to[i]][from[i]]), 0);
+                swapPools[to[i]][from[i]] = IUniswapV3Pool(address(0));
+            }
         }
     }
 
@@ -456,8 +471,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _swap(address from, address to, uint256 amountIn) internal returns (uint256 amountOut) {
         // If the tokens are the same, return the input amount
         if (from == to) return amountIn;
-        IUniswapV3Pool pool = swapPools[from][to];
         bool zeroForOne = from < to;
+        IUniswapV3Pool pool = zeroForOne ? swapPools[from][to] : swapPools[to][from];
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
             zeroForOne,
@@ -482,9 +497,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         uint256 priceFrom = _getPrice(from);
         uint256 priceTo = _getPrice(to);
         uint256 amountInUsd = amountIn * priceFrom / (10 ** IERC20Metadata(from).decimals());
-        uint256 amountOutUsd = (amountOut * priceTo / (10 ** IERC20Metadata(to).decimals()));
+        uint256 amountOutUsd = amountOut * priceTo / (10 ** IERC20Metadata(to).decimals());
         require(
-            slippagePrecision - amountOutUsd * slippagePrecision / amountInUsd < slippage, "OneClickIndex: Slippage"
+            amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
+            "OneClickIndex: Slippage"
         );
     }
 
@@ -534,14 +550,13 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         require(amount0Delta > 0 || amount1Delta > 0);
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
-        require(
-            address(swapPools[tokenIn][tokenOut]) == msg.sender || address(swapPools[tokenOut][tokenIn]) == msg.sender,
-            "OneClickIndex: invalid swap callback caller"
-        );
+        require(address(swapPools[tokenIn][tokenOut]) == msg.sender, "OneClickIndex: invalid swap callback caller");
 
         // Transfer the required amount back to the pool
-        IERC20Metadata(tokenIn).safeTransfer(
-            msg.sender, amount0Delta > 0 ? uint256(amount0Delta) : uint256(amount1Delta)
-        );
+        if (amount0Delta > 0) {
+            IERC20Metadata(tokenIn).safeTransfer(msg.sender, uint256(amount0Delta));
+        } else {
+            IERC20Metadata(tokenOut).safeTransfer(msg.sender, uint256(amount1Delta));
+        }
     }
 }

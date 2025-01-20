@@ -8,11 +8,15 @@ import {BaseVault} from "../src/BaseVault.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
+import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
+import {VaultsDeploy} from "./VaultsDeployLib.sol";
 
-abstract contract AbstractBaseVaultTest is Test {
+abstract contract AbstractBaseVaultTest is Test, VaultsDeploy {
     uint256 forkId;
     IVault vault;
     IERC20Metadata asset;
+    ERC20Mock testToken;
+    uint256 testTokenAmount;
     address user;
     address user2;
     address user5;
@@ -35,6 +39,8 @@ abstract contract AbstractBaseVaultTest is Test {
     string name;
     string symbol;
 
+    address assetProvider;
+
     function setUp() public virtual {
         adminPrivateKey = 0xba132ce;
         admin = vm.addr(adminPrivateKey);
@@ -50,6 +56,8 @@ abstract contract AbstractBaseVaultTest is Test {
         name = "nameVault";
         symbol = "symbolVault";
         vm.startPrank(admin);
+        testToken = new ERC20Mock("Test Token", "TEST", 18);
+        testTokenAmount = 5e18;
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
@@ -79,7 +87,36 @@ abstract contract AbstractBaseVaultTest is Test {
 
     function _increaseVaultAssets() internal virtual returns (bool);
 
-    function _provideAndApprove(address assetProvider, bool needToProvide) internal {
+    function _setAssetProvider() internal {
+        if (block.chainid == 81457) {
+            if (asset == usdbBlast) {
+                assetProvider = assetProvider_USDB_BLAST;
+            } else if (asset == wethBlast) {
+                assetProvider = assetProvider_WETH_BLAST;
+            } else if (asset == blastBlast) {
+                assetProvider = assetProvider_BLAST_BLAST;
+            } else {
+                assetProvider = assetProvider_WBTC_BLAST;
+            }
+        } else if (block.chainid == 42161) {
+            if (asset == usdtArbitrum) {
+                assetProvider = assetProvider_USDT_ARB;
+            } else if (asset == usdcArbitrum) {
+                assetProvider = assetProvider_USDC_ARB;
+            } else if (asset == wethArbitrum) {
+                assetProvider = assetProvider_WETH_ARB;
+            }
+        } else if (block.chainid == 8453) {
+            if (asset == usdcBase) {
+                assetProvider = assetProvider_USDC_BASE;
+            } else if (asset == wethBase) {
+                assetProvider = assetProvider_WETH_BASE;
+            }
+        }
+    }
+
+    function _provideAndApprove(bool needToProvide) internal {
+        _setAssetProvider();
         if (needToProvide) {
             vm.startPrank(assetProvider);
             asset.transfer(user, amount);
@@ -208,9 +245,58 @@ abstract contract AbstractBaseVaultTest is Test {
         assets = _redeem(_userWithAllowance, _owner, _receiver, _shares);
     }
 
-    function baseVaultTest(address assetProvider, bool needToProvide) public fork {
-        _provideAndApprove(assetProvider, needToProvide);
+    function _checkEmergencyWithdraw(address _user) internal {
+        address[] memory accounts = new address[](2);
+        accounts[0] = _user;
+        accounts[1] = user5;
+        uint256 balanceOfUserBefore = asset.balanceOf(_user);
+
+        vm.startPrank(user5);
+        vm.expectRevert();
+        vault.emergencyWithdraw(accounts);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        vault.emergencyWithdraw(accounts);
+        vm.assertEq(vault.balanceOf(_user), 0);
+        vm.assertEq(vault.balanceOf(user5), 0);
+        vm.assertGt(asset.balanceOf(_user), balanceOfUserBefore);
+        vm.stopPrank();
+    }
+
+    function _checkValidateTokenToRecover() internal virtual returns (address tokenToValidate, bool isValidated) {
+        return (address(0), false);
+    }
+
+    function _checkWithdrawFunds() internal {
+        vm.deal(address(vault), 1e18);
+        vm.startPrank(user);
+        vm.expectRevert();
+        vault.withdrawFunds(address(0));
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        (address tokenToValidate, bool isValidated) = _checkValidateTokenToRecover();
+        if (isValidated) {
+            vm.expectRevert();
+            vault.withdrawFunds(tokenToValidate);
+        }
+        vault.withdrawFunds(address(0));
+        vm.assertEq(address(vault).balance, 0);
+
+        testToken.mint(address(vault), testTokenAmount);
+        vm.assertEq(testToken.balanceOf(address(vault)), testTokenAmount);
+        vault.withdrawFunds(address(testToken));
+        vm.assertEq(testToken.balanceOf(address(vault)), 0);
+        vm.assertEq(testToken.balanceOf(address(admin)), testTokenAmount);
+        vm.stopPrank();
+    }
+
+    function _middleInteractions() internal virtual {}
+
+    function baseVaultTest(bool needToProvide) public fork {
         _initializeNewVault();
+        _provideAndApprove(needToProvide);
         _checkGetters();
         _checkPause();
 
@@ -218,6 +304,8 @@ abstract contract AbstractBaseVaultTest is Test {
         console.log("shares user", shares1);
         uint256 shares2 = _deposit(user2, amount);
         console.log("shares user2", shares2);
+
+        _middleInteractions();
 
         uint256 sharePriceBefore = vault.sharePrice();
         if (_increaseVaultAssets()) vm.assertGt(vault.sharePrice(), sharePriceBefore);
@@ -230,9 +318,10 @@ abstract contract AbstractBaseVaultTest is Test {
         uint256 assets2 = _approveAndRedeem(user2, user, user2, shares2);
         console.log("assets2", assets2);
 
+        _deposit(admin, amount);
+        _increaseVaultAssets();
+
         if (feeProvider != IFeeProvider(address(0))) {
-            _deposit(admin, amount);
-            _increaseVaultAssets();
             vm.startPrank(admin);
             uint256 depositedBalanceBefore = vault.getWaterline(admin);
             address[] memory users = new address[](2);
@@ -244,5 +333,7 @@ abstract contract AbstractBaseVaultTest is Test {
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);
             vm.stopPrank();
         }
+        _checkEmergencyWithdraw(admin);
+        _checkWithdrawFunds();
     }
 }

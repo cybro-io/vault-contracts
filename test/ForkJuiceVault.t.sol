@@ -18,7 +18,7 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
     IJuicePool currentPool;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 8149175);
+        forkId = vm.createSelectFork("blast", 14284818);
         super.setUp();
         usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
         wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
@@ -46,14 +46,14 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public fork {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
+        asset = usdbBlast;
         currentPool = usdbPool;
-        baseVaultTest(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e), true);
+        baseVaultTest(true);
     }
 
     function test_weth_deposit() public fork {
-        asset = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
+        asset = wethBlast;
         currentPool = wethPool;
-        baseVaultTest(address(0x44f33bC796f7d3df55040cd3C631628B560715C2), true);
+        baseVaultTest(true);
     }
 }

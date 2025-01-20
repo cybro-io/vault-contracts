@@ -27,7 +27,7 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
     uint256 ethAmount;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 8149175);
+        forkId = vm.createSelectFork("blast", 14284818);
         super.setUp();
         usdbPool = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
         wbtcPool = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
@@ -78,18 +78,18 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
 
     function test_usdb() public {
         asset = usdb;
-        baseVaultTest(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e), true);
+        baseVaultTest(true);
     }
 
     function test_wbtc() public {
         asset = wbtc;
         amount = wbtcAmount;
-        baseVaultTest(address(0xecb1c17a51D782aC2757e2AB568d159854b9B4BD), true);
+        baseVaultTest(true);
     }
 
     function test_eth() public fork {
         asset = weth;
         amount = ethAmount;
-        baseVaultTest(address(0xecb1c17a51D782aC2757e2AB568d159854b9B4BD), true);
+        baseVaultTest(true);
     }
 }

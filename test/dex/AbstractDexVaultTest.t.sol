@@ -21,7 +21,7 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     bool zeroOrOne;
 
     function setUp() public virtual override(AbstractBaseVaultTest) {
-        forkId = vm.createSelectFork("blast", 8245770);
+        forkId = vm.createSelectFork("blast", 14284818);
         super.setUp();
         amount = 3e21;
         amountEth = 5e18;
@@ -39,12 +39,12 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
 
     function test_vault() public fork {
         asset = token0;
-        baseVaultTest(transferFromToken0, true);
+        baseVaultTest(true);
     }
 
     function test_vault2() public fork {
         asset = token1;
         amount = amountEth;
-        baseVaultTest(transferFromToken1, true);
+        baseVaultTest(true);
     }
 }

@@ -14,7 +14,7 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
     IERC20Metadata usdb;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("blast", 8149175);
+        forkId = vm.createSelectFork("blast", 14284818);
         super.setUp();
         name = "Yield Staking Vault";
         symbol = "YVLT";
@@ -58,11 +58,11 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
 
     function test_usdb() public fork {
         asset = usdb;
-        baseVaultTest(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c), true);
+        baseVaultTest(true);
     }
 
     function test_weth() public fork {
         asset = weth;
-        baseVaultTest(address(0x44f33bC796f7d3df55040cd3C631628B560715C2), true);
+        baseVaultTest(true);
     }
 }

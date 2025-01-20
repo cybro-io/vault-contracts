@@ -94,7 +94,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         asset = usdt;
         currentPool = usdtPool;
         currentSwapPool = swapPoolUSDTWETH;
-        baseVaultTest(usdtPrank, true);
+        baseVaultTest(true);
         _checkStargateGetters();
     }
 
@@ -103,7 +103,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         asset = weth;
         currentPool = wethPool;
         currentSwapPool = IUniswapV3Pool(address(0));
-        baseVaultTest(wethPrank, true);
+        baseVaultTest(true);
         _checkStargateGetters();
     }
 
@@ -111,7 +111,7 @@ abstract contract StargateVaultTest is AbstractBaseVaultTest {
         asset = usdc;
         currentPool = usdcPool;
         currentSwapPool = swapPoolUSDCWETH;
-        baseVaultTest(usdcPrank, true);
+        baseVaultTest(true);
         _checkStargateGetters();
     }
 }
@@ -145,6 +145,7 @@ contract StargateVaultArbitrumTest is StargateVaultTest {
 contract StargateVaultBaseTest is StargateVaultTest {
     function setUp() public override {
         forkId = vm.createSelectFork("base", 21285741);
+        console.log(block.chainid);
         super.setUp();
         // base doesn't have usdt stargate pool
         amount = 1e8;

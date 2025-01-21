@@ -22,22 +22,14 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault = YieldStakingVault(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(new YieldStakingVault(asset, staking, IFeeProvider(feeProvider), feeRecipient)),
-                        admin,
-                        abi.encodeCall(YieldStakingVault.initialize, (admin, name, symbol, admin))
-                    )
-                )
-            )
+        vault = _deployYieldStaking(
+            VaultSetup(asset, address(staking), address(feeProvider), feeRecipient, name, symbol, admin, admin)
         );
         vm.stopPrank();
     }
 
     function _increaseVaultAssets() internal override returns (bool) {
-        if (asset == wethBlast) {
+        if (asset == weth_BLAST) {
             vm.deal(address(asset), address(asset).balance * 101 / 100);
 
             vm.prank(address(0x4300000000000000000000000000000000000000));
@@ -51,12 +43,12 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public {
-        asset = usdbBlast;
+        asset = usdb_BLAST;
         baseVaultTest(true);
     }
 
     function test_weth() public {
-        asset = wethBlast;
+        asset = weth_BLAST;
         baseVaultTest(true);
     }
 }

@@ -13,11 +13,7 @@ import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 contract ForkFenixVaultTest is AbstractAlgebraVaultTest {
     function setUp() public virtual override(AbstractAlgebraVaultTest) {
         super.setUp();
-        token0 = usdbBlast;
-        token1 = wethBlast;
         factory = IAlgebraFactory(address(0x7a44CD060afC1B6F4c80A2B9b37f4473E74E25Df));
         positionManager = INonfungiblePositionManager(payable(address(0x8881b3Fb762d1D50e6172f621F107E24299AA1Cd)));
-        vm.label(address(token0), "USDB");
-        vm.label(address(token1), "WETH");
     }
 }

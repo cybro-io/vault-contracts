@@ -18,14 +18,7 @@ contract AaveVaultTest is AbstractBaseVaultTest {
         vm.startPrank(admin);
         vault = _deployAave(
             VaultSetup(
-                asset,
-                address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8),
-                address(feeProvider),
-                feeRecipient,
-                "nameVault",
-                "symbolVault",
-                admin,
-                admin
+                asset, address(aave_usdbPool_BLAST), address(feeProvider), feeRecipient, name, symbol, admin, admin
             )
         );
         vm.stopPrank();
@@ -36,12 +29,12 @@ contract AaveVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public {
-        asset = usdbBlast;
+        asset = usdb_BLAST;
         baseVaultTest(true);
     }
 
     function test_weth_deposit() public {
-        asset = wethBlast;
+        asset = weth_BLAST;
         baseVaultTest(true);
     }
 

@@ -13,29 +13,22 @@ import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
 // 0x44f33bC796f7d3df55040cd3C631628B560715C2 Juice weth lending pool
 
 contract JuiceVaultTest is AbstractBaseVaultTest {
-    IJuicePool usdbPool;
-    IJuicePool wethPool;
-    IJuicePool currentPool;
+    address usdbPool;
+    address wethPool;
+    address currentPool;
 
     function setUp() public override {
         forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
-        usdbPool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
-        wethPool = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+        usdbPool = address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a);
+        wethPool = address(0x44f33bC796f7d3df55040cd3C631628B560715C2);
         amount = 1e20;
     }
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault = JuiceVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new JuiceVault(asset, currentPool, IFeeProvider(feeProvider), feeRecipient)),
-                    admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
+        vault =
+            _deployJuice(VaultSetup(asset, currentPool, address(feeProvider), feeRecipient, name, symbol, admin, admin));
         vm.stopPrank();
     }
 
@@ -44,13 +37,13 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public fork {
-        asset = usdbBlast;
+        asset = usdb_BLAST;
         currentPool = usdbPool;
         baseVaultTest(true);
     }
 
     function test_weth_deposit() public fork {
-        asset = wethBlast;
+        asset = weth_BLAST;
         currentPool = wethPool;
         baseVaultTest(true);
     }

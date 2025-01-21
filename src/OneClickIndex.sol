@@ -183,10 +183,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         for (uint256 i = 0; i < _swapPools.length; i++) {
             if (from[i] < to[i]) {
                 swapPools[from[i]][to[i]] = _swapPools[i];
-                IERC20Metadata(from[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
             } else {
                 swapPools[to[i]][from[i]] = _swapPools[i];
-                IERC20Metadata(to[i]).forceApprove(address(_swapPools[i]), type(uint256).max);
             }
         }
     }
@@ -199,10 +197,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function removeSwapPools(address[] memory from, address[] memory to) external onlyRole(MANAGER_ROLE) {
         for (uint256 i = 0; i < from.length; i++) {
             if (from[i] < to[i]) {
-                IERC20Metadata(from[i]).forceApprove(address(swapPools[from[i]][to[i]]), 0);
                 swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
             } else {
-                IERC20Metadata(to[i]).forceApprove(address(swapPools[to[i]][from[i]]), 0);
                 swapPools[to[i]][from[i]] = IUniswapV3Pool(address(0));
             }
         }

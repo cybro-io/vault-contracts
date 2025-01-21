@@ -42,8 +42,8 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
     address assetProvider;
 
     function setUp() public virtual {
-        adminPrivateKey = 0xba132ce;
-        admin = vm.addr(adminPrivateKey);
+        adminPrivateKey = baseAdminPrivateKey;
+        admin = vm.addr(baseAdminPrivateKey);
         user = address(100);
         user2 = address(101);
         user5 = address(1001001);
@@ -95,27 +95,27 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
 
     function _setAssetProvider() internal {
         if (block.chainid == 81457) {
-            if (asset == usdbBlast) {
+            if (asset == usdb_BLAST) {
                 assetProvider = assetProvider_USDB_BLAST;
-            } else if (asset == wethBlast) {
+            } else if (asset == weth_BLAST) {
                 assetProvider = assetProvider_WETH_BLAST;
-            } else if (asset == blastBlast) {
+            } else if (asset == blast_BLAST) {
                 assetProvider = assetProvider_BLAST_BLAST;
             } else {
                 assetProvider = assetProvider_WBTC_BLAST;
             }
         } else if (block.chainid == 42161) {
-            if (asset == usdtArbitrum) {
-                assetProvider = assetProvider_USDT_ARB;
-            } else if (asset == usdcArbitrum) {
-                assetProvider = assetProvider_USDC_ARB;
-            } else if (asset == wethArbitrum) {
-                assetProvider = assetProvider_WETH_ARB;
+            if (asset == usdt_ARBITRUM) {
+                assetProvider = assetProvider_USDT_ARBITRUM;
+            } else if (asset == usdc_ARBITRUM) {
+                assetProvider = assetProvider_USDC_ARBITRUM;
+            } else if (asset == weth_ARBITRUM) {
+                assetProvider = assetProvider_WETH_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
-            if (asset == usdcBase) {
+            if (asset == usdc_BASE) {
                 assetProvider = assetProvider_USDC_BASE;
-            } else if (asset == wethBase) {
+            } else if (asset == weth_BASE) {
                 assetProvider = assetProvider_WETH_BASE;
             }
         }

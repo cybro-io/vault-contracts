@@ -17,11 +17,7 @@ import {AbstractAlgebraVaultTest} from "./AbstractAlgebraVaultTest.t.sol";
 contract ForkBladeSwapVaultTest is AbstractAlgebraVaultTest {
     function setUp() public virtual override(AbstractAlgebraVaultTest) {
         super.setUp();
-        token0 = usdbBlast;
-        token1 = wethBlast;
         factory = IAlgebraFactory(address(0xA87DbF5082Af26c9A6Ab2B854E378f704638CCa5));
         positionManager = INonfungiblePositionManager(payable(address(0x7553b306773EFa59E6f9676aFE049D2D2AbdfDd6)));
-        vm.label(address(token0), "USDB");
-        vm.label(address(token1), "WETH");
     }
 }

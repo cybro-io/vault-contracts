@@ -13,12 +13,8 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
 
     function setUp() public virtual override(AbstractDexVaultTest) {
         super.setUp();
-        token0 = usdbBlast;
-        token1 = wethBlast;
         factory = IBlasterswapV2Factory(address(0x9CC1599D4378Ea41d444642D18AA9Be44f709ffD));
         router = IBlasterswapV2Router02(payable(address(0xc972FaE6b524E8A6e0af21875675bF58a3133e60)));
-        vm.label(address(token0), "USDB");
-        vm.label(address(token1), "WETH");
         amount = 1e18;
         amountEth = 1e16;
     }

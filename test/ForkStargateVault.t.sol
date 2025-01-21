@@ -112,10 +112,12 @@ contract StargateVaultArbitrumTest is StargateVaultTest {
     function setUp() public override(StargateVaultTest) {
         forkId = vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
-        usdt = usdtArbitrum;
-        weth = wethArbitrum;
-        usdc = usdcArbitrum;
-        usdtPool = IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
+        usdt = usdt_ARBITRUM;
+        weth = weth_ARBITRUM;
+        usdc = usdc_ARBITRUM;
+        usdtPool = stargate_usdtPool_ARBITRUM;
+        wethPool = stargate_wethPool_ARBITRUM;
+        usdcPool = stargate_usdcPool_ARBITRUM;
         wethPool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
         usdcPool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));
         staking = IStargateStaking(payable(address(0x3da4f8E456AC648c489c286B99Ca37B666be7C4C)));
@@ -138,10 +140,10 @@ contract StargateVaultBaseTest is StargateVaultTest {
         // base doesn't have usdt stargate pool
         amount = 1e8;
         amountEth = 1e13;
-        weth = wethBase;
-        usdc = usdcBase;
-        wethPool = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
-        usdcPool = IStargatePool(payable(address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26)));
+        weth = weth_BASE;
+        usdc = usdc_BASE;
+        wethPool = stargate_wethPool_BASE;
+        usdcPool = stargate_usdcPool_BASE;
         staking = IStargateStaking(payable(address(0xDFc47DCeF7e8f9Ab19a1b8Af3eeCF000C7ea0B80)));
         stg = IERC20Metadata(address(0xE3B53AF74a4BF62Ae5511055290838050bf764Df));
         factory = factory_UNI_BASE;

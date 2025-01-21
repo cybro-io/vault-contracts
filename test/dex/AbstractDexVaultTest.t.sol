@@ -22,6 +22,10 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
         super.setUp();
         amount = 3e21;
         amountEth = 5e18;
+        token0 = usdb_BLAST;
+        token1 = weth_BLAST;
+        vm.label(address(token0), "USDB");
+        vm.label(address(token1), "WETH");
     }
 
     function _increaseVaultAssets() internal pure virtual override returns (bool) {

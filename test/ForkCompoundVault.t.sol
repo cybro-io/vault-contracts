@@ -36,14 +36,14 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        if (asset == wethBlast) {
+        if (asset == weth_BLAST) {
             vault = CompoundVaultETH(
                 payable(
                     address(
                         new TransparentUpgradeableProxy(
-                            address(new CompoundVaultETH(wethBlast, ethPool, IFeeProvider(feeProvider), feeRecipient)),
+                            address(new CompoundVaultETH(weth_BLAST, ethPool, IFeeProvider(feeProvider), feeRecipient)),
                             admin,
-                            abi.encodeCall(CompoundVaultETH.initialize, (admin, "nameVault", "symbolVault", admin))
+                            abi.encodeCall(CompoundVaultETH.initialize, (admin, name, symbol, admin))
                         )
                     )
                 )
@@ -54,11 +54,14 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
                     new TransparentUpgradeableProxy(
                         address(
                             new CompoundVault(
-                                asset, asset == usdbBlast ? usdbPool : wbtcPool, IFeeProvider(feeProvider), feeRecipient
+                                asset,
+                                asset == usdb_BLAST ? usdbPool : wbtcPool,
+                                IFeeProvider(feeProvider),
+                                feeRecipient
                             )
                         ),
                         admin,
-                        abi.encodeCall(CompoundVault.initialize, (admin, "nameVault", "symbolVault", admin))
+                        abi.encodeCall(CompoundVault.initialize, (admin, name, symbol, admin))
                     )
                 )
             );
@@ -71,18 +74,18 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
     }
 
     function test_usdb() public {
-        asset = usdbBlast;
+        asset = usdb_BLAST;
         baseVaultTest(true);
     }
 
     function test_wbtc() public {
-        asset = wbtcBlast;
+        asset = wbtc_BLAST;
         amount = wbtcAmount;
         baseVaultTest(true);
     }
 
     function test_eth() public {
-        asset = wethBlast;
+        asset = weth_BLAST;
         amount = ethAmount;
         baseVaultTest(true);
     }

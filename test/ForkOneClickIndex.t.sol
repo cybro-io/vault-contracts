@@ -69,31 +69,24 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
         vm.startPrank(admin);
         if (block.chainid == 81457) {
             // blast
-            asset = usdbBlast;
+            asset = usdb_BLAST;
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare2);
             // lendingShares.push(lendingShare2);
 
-            tokens.push(address(usdbBlast));
+            tokens.push(address(usdb_BLAST));
             oracles.push(oracle_USDB_BLAST);
-            tokens.push(address(wethBlast));
+            tokens.push(address(weth_BLAST));
             oracles.push(oracle_ETH_BLAST);
-            tokens.push(address(wbtcBlast));
+            tokens.push(address(wbtc_BLAST));
             oracles.push(oracle_BTC_BLAST);
 
             vaults.push(
                 address(
                     _deployAave(
                         VaultSetup(
-                            usdbBlast,
-                            address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8),
-                            address(0),
-                            address(0),
-                            "nameVault",
-                            "symbolVault",
-                            admin,
-                            admin
+                            usdb_BLAST, address(aave_usdbPool_BLAST), address(0), address(0), name, symbol, admin, admin
                         )
                     )
                 )
@@ -102,12 +95,12 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 address(
                     _deployJuice(
                         VaultSetup(
-                            usdbBlast,
+                            usdb_BLAST,
                             address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a),
                             address(0),
                             address(0),
-                            "nameVault",
-                            "symbolVault",
+                            name,
+                            symbol,
                             admin,
                             admin
                         )
@@ -118,12 +111,12 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 address(
                     _deployYieldStaking(
                         VaultSetup(
-                            usdbBlast,
+                            usdb_BLAST,
                             address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D),
                             address(0),
                             address(0),
-                            "nameVault",
-                            "symbolVault",
+                            name,
+                            symbol,
                             admin,
                             admin
                         )
@@ -131,25 +124,23 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 )
             );
             additionalVault = address(
-                _deployBuffer(
-                    VaultSetup(usdbBlast, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin)
-                )
+                _deployBuffer(VaultSetup(usdb_BLAST, address(0), address(0), address(0), name, symbol, admin, admin))
             );
         } else if (block.chainid == 42161) {
             // arbitrum
-            asset = usdtArbitrum;
+            asset = usdt_ARBITRUM;
             amount = 1e9; // decimals = 6
             lendingShares.push(lendingShare);
             vaults.push(
                 address(
                     _deployStargate(
                         VaultSetup(
-                            usdtArbitrum,
-                            address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0),
+                            usdt_ARBITRUM,
+                            address(stargate_usdtPool_ARBITRUM),
                             address(0),
                             address(0),
-                            "nameVault",
-                            "symbolVault",
+                            name,
+                            symbol,
                             admin,
                             admin
                         )
@@ -158,38 +149,34 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             );
 
             additionalVault = address(
-                _deployBuffer(
-                    VaultSetup(
-                        usdtArbitrum, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin
-                    )
-                )
+                _deployBuffer(VaultSetup(usdt_ARBITRUM, address(0), address(0), address(0), name, symbol, admin, admin))
             );
         } else if (block.chainid == 8453) {
             // base
-            asset = usdcBase;
+            asset = usdc_BASE;
             amount = 1e9; // decimals = 6
-            fromSwap.push(address(usdcBase));
-            toSwap.push(address(wethBase));
+            fromSwap.push(address(usdc_BASE));
+            toSwap.push(address(weth_BASE));
             swapPools.push(pool_USDC_WETH_BASE);
 
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare2);
 
-            tokens.push(address(usdcBase));
+            tokens.push(address(usdc_BASE));
             oracles.push(oracle_USDC_BASE);
-            tokens.push(address(wethBase));
+            tokens.push(address(weth_BASE));
             oracles.push(oracle_ETH_BASE);
 
             vaults.push(
                 address(
                     _deployStargate(
                         VaultSetup(
-                            usdcBase,
-                            address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26),
+                            usdc_BASE,
+                            address(stargate_usdcPool_BASE),
                             address(0),
                             address(0),
-                            "nameVault",
-                            "symbolVault",
+                            name,
+                            symbol,
                             admin,
                             admin
                         )
@@ -200,12 +187,12 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 address(
                     _deployStargate(
                         VaultSetup(
-                            wethBase,
-                            address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7),
+                            weth_BASE,
+                            address(stargate_wethPool_BASE),
                             address(0),
                             address(0),
-                            "nameVault",
-                            "symbolVault",
+                            name,
+                            symbol,
                             admin,
                             admin
                         )
@@ -213,9 +200,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 )
             );
             additionalVault = address(
-                _deployBuffer(
-                    VaultSetup(usdcBase, address(0), address(0), address(0), "nameVault", "symbolVault", admin, admin)
-                )
+                _deployBuffer(VaultSetup(usdc_BASE, address(0), address(0), address(0), name, symbol, admin, admin))
             );
             vm.label(additionalVault, "AdditionalVault");
         }
@@ -224,7 +209,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 new TransparentUpgradeableProxy(
                     address(new OneClickIndex(asset, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
+                    abi.encodeCall(OneClickIndex.initialize, (admin, name, symbol, admin, admin))
                 )
             )
         );

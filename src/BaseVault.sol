@@ -80,10 +80,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     event PerformanceFeeCollected(address indexed owner, uint256 fee);
 
     /**
-     * @notice Emitted when administration fee is collected
+     * @notice Emitted when management fee is collected
      * @param shares The amount of shares minted
      */
-    event AdministrationFeeCollected(uint256 shares);
+    event ManagementFeeCollected(uint256 shares);
 
     /* ========== CONSTANTS ========== */
 
@@ -233,18 +233,18 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Collects administration fee for the contract
+     * @notice Collects management fee for the contract
      *
-     * For example, if the administrationFee is 10% and the total supply is 1000,
-     * then the administration fee will be 111 and the new total supply will be 1111.
+     * For example, if the managementFee is 10% and the total supply is 1000,
+     * then the management fee will be 111 and the new total supply will be 1111.
      * And if the total assets is 1000, then all users shares
      * will be equal to 900 after the fee collection.
      */
-    function collectAdministrationFee() external onlyRole(MANAGER_ROLE) {
-        uint32 administrationFee = feeProvider.getAdministrationFee();
-        uint256 shares = totalSupply() * administrationFee / (feePrecision - administrationFee);
+    function collectManagementFee() external onlyRole(MANAGER_ROLE) {
+        uint32 managementFee = feeProvider.getManagementFee();
+        uint256 shares = totalSupply() * managementFee / (feePrecision - managementFee);
         _mint(feeRecipient, shares);
-        emit AdministrationFeeCollected(shares);
+        emit ManagementFeeCollected(shares);
     }
 
     function emergencyWithdraw(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -393,11 +393,11 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Returns the administration fee
-     * @return The administration fee
+     * @notice Returns the management fee
+     * @return The management fee
      */
-    function getAdministrationFee() external view returns (uint32) {
-        return feeProvider.getAdministrationFee();
+    function getManagementFee() external view returns (uint32) {
+        return feeProvider.getManagementFee();
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

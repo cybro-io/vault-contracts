@@ -30,7 +30,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
     uint32 depositFee;
     uint32 withdrawalFee;
     uint32 performanceFee;
-    uint32 administrationFee;
+    uint32 managementFee;
     uint32 feePrecision;
 
     address vaultAddress;
@@ -56,7 +56,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
         depositFee = 100;
         withdrawalFee = 200;
         performanceFee = 300;
-        administrationFee = 100;
+        managementFee = 100;
         feePrecision = 1e5;
         name = "nameVault";
         symbol = "symbolVault";
@@ -69,7 +69,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
                     address(new FeeProvider(feePrecision)),
                     admin,
                     abi.encodeCall(
-                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)
+                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, managementFee)
                     )
                 )
             )
@@ -153,7 +153,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
             vm.assertEq(vault.getDepositFee(user), depositFee);
             vm.assertEq(vault.getWithdrawalFee(user), withdrawalFee);
             vm.assertEq(vault.getPerformanceFee(user), performanceFee);
-            vm.assertEq(vault.getAdministrationFee(), administrationFee);
+            vm.assertEq(vault.getManagementFee(), managementFee);
             vm.assertEq(vault.feePrecision(), feePrecision);
         }
     }
@@ -336,7 +336,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
             vault.collectPerformanceFee(users);
             assert(vault.getWaterline(admin) >= depositedBalanceBefore);
             uint256 totalSupplyBefore = vault.totalSupply();
-            vault.collectAdministrationFee();
+            vault.collectManagementFee();
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);
             vm.stopPrank();
         }

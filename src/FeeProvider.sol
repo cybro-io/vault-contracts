@@ -22,7 +22,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     event GlobalDepositFeeUpdated(uint32 newDepositFee);
     event GlobalWithdrawalFeeUpdated(uint32 newWithdrawalFee);
     event GlobalPerformanceFeeUpdated(uint32 newPerformanceFee);
-    event AdministrationFeeUpdated(uint32 newAdministrationFee);
+    event ManagementFeeUpdated(uint32 newManagementFee);
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
@@ -41,7 +41,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     /// @notice Mapping of contracts that are allowed to update user fees
     mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
 
-    uint32 private _administrationFee;
+    uint32 private _managementFee;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -57,13 +57,13 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32 depositFee,
         uint32 withdrawalFee,
         uint32 performanceFee,
-        uint32 administrationFee
+        uint32 managementFee
     ) public initializer {
         __Ownable_init(admin);
         _depositFee = depositFee;
         _withdrawalFee = withdrawalFee;
         _performanceFee = performanceFee;
-        _administrationFee = administrationFee;
+        _managementFee = managementFee;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -80,12 +80,12 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     }
 
     /**
-     * @notice Sets the administration fee
-     * @param administrationFee The administration fee
+     * @notice Sets the management fee
+     * @param managementFee The management fee
      */
-    function setAdministrationFee(uint32 administrationFee) external onlyOwner {
-        _administrationFee = administrationFee;
-        emit AdministrationFeeUpdated(administrationFee);
+    function setmanagementFee(uint32 managementFee) external onlyOwner {
+        _managementFee = managementFee;
+        emit ManagementFeeUpdated(managementFee);
     }
 
     /**
@@ -197,10 +197,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     }
 
     /**
-     * @notice Returns the administration fee.
-     * @return The administration fee.
+     * @notice Returns the management fee.
+     * @return The management fee.
      */
-    function getAdministrationFee() external view returns (uint32) {
-        return _administrationFee;
+    function getManagementFee() external view returns (uint32) {
+        return _managementFee;
     }
 }

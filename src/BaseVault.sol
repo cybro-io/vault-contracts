@@ -80,10 +80,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     event PerformanceFeeCollected(address indexed owner, uint256 fee);
 
     /**
-     * @notice Emitted when administration fee is collected
+     * @notice Emitted when management fee is collected
      * @param shares The amount of shares minted
      */
-    event AdministrationFeeCollected(uint256 shares);
+    event ManagementFeeCollected(uint256 shares);
 
     /* ========== CONSTANTS ========== */
 
@@ -210,22 +210,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        uint256 withdrawalFee;
-        uint256 tvlBefore = totalAssets();
-        uint256 totalSupplyBefore = totalSupply();
-        assets = _redeem(shares);
-        if (address(feeProvider) != address(0)) {
-            (assets,) = _applyPerformanceFee(assets, shares, owner);
-            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
-        }
-
+        assets = _redeemBaseVault(shares, receiver, owner);
         require(assets >= minAssets, "CYBRO: minAssets");
-
-        _burn(owner, shares);
-        _asset.safeTransfer(receiver, assets);
-
-        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /**
@@ -247,18 +233,28 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Collects administration fee for the contract
+     * @notice Collects management fee for the contract
      *
-     * For example, if the administrationFee is 10% and the total supply is 1000,
-     * then the administration fee will be 111 and the new total supply will be 1111.
+     * For example, if the managementFee is 10% and the total supply is 1000,
+     * then the management fee will be 111 and the new total supply will be 1111.
      * And if the total assets is 1000, then all users shares
      * will be equal to 900 after the fee collection.
      */
-    function collectAdministrationFee() external onlyRole(MANAGER_ROLE) {
-        uint32 administrationFee = feeProvider.getAdministrationFee();
-        uint256 shares = totalSupply() * administrationFee / (feePrecision - administrationFee);
+    function collectManagementFee() external onlyRole(MANAGER_ROLE) {
+        uint32 managementFee = feeProvider.getManagementFee();
+        uint256 shares = totalSupply() * managementFee / (feePrecision - managementFee);
         _mint(feeRecipient, shares);
-        emit AdministrationFeeCollected(shares);
+        emit ManagementFeeCollected(shares);
+    }
+
+    function emergencyWithdraw(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            uint256 balance = balanceOf(account);
+            if (balance > 0) {
+                _redeemBaseVault(balance, account, account);
+            }
+        }
     }
 
     /**
@@ -374,7 +370,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The deposit fee
      */
-    function getDepositFee(address account) external view returns (uint256) {
+    function getDepositFee(address account) external view returns (uint32) {
         return feeProvider.getDepositFee(account);
     }
 
@@ -383,7 +379,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The withdrawal fee
      */
-    function getWithdrawalFee(address account) external view returns (uint256) {
+    function getWithdrawalFee(address account) external view returns (uint32) {
         return feeProvider.getWithdrawalFee(account);
     }
 
@@ -392,16 +388,16 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The performance fee
      */
-    function getPerformanceFee(address account) external view returns (uint256) {
+    function getPerformanceFee(address account) external view returns (uint32) {
         return feeProvider.getPerformanceFee(account);
     }
 
     /**
-     * @notice Returns the administration fee
-     * @return The administration fee
+     * @notice Returns the management fee
+     * @return The management fee
      */
-    function getAdministrationFee() external view returns (uint256) {
-        return feeProvider.getAdministrationFee();
+    function getManagementFee() external view returns (uint32) {
+        return feeProvider.getManagementFee();
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -418,6 +414,29 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal virtual returns (uint256 assets);
+
+    /**
+     * @notice Internal function to redeem shares
+     * @param shares The amount of shares to redeem
+     * @param receiver The address to receive the assets
+     * @param owner The owner of the shares
+     * @return assets The amount of assets redeemed
+     */
+    function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
+        uint256 withdrawalFee;
+        uint256 tvlBefore = totalAssets();
+        uint256 totalSupplyBefore = totalSupply();
+        assets = _redeem(shares);
+        if (address(feeProvider) != address(0)) {
+            (assets,) = _applyPerformanceFee(assets, shares, owner);
+            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
+        }
+
+        _burn(owner, shares);
+        _asset.safeTransfer(receiver, assets);
+
+        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
+    }
 
     /**
      * @notice Internal function to get the precise total assets

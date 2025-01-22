@@ -30,6 +30,7 @@ import {
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
+import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 
 contract UpdatedDeployScript is Script, StdCheats {
     struct DeployVault {
@@ -80,7 +81,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         uint32 depositFee,
         uint32 withdrawalFee,
         uint32 performanceFee,
-        uint32 administrationFee
+        uint32 managementFee
     ) internal returns (FeeProvider feeProvider) {
         feeProvider = FeeProvider(
             address(
@@ -88,7 +89,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                     address(new FeeProvider(feePrecision)),
                     admin,
                     abi.encodeCall(
-                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, administrationFee)
+                        FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee, managementFee)
                     )
                 )
             )

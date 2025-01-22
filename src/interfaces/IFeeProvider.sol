@@ -5,7 +5,7 @@ interface IFeeProvider {
     function getDepositFee(address) external view returns (uint32);
     function getWithdrawalFee(address) external view returns (uint32);
     function getPerformanceFee(address) external view returns (uint32);
-    function getAdministrationFee() external view returns (uint32);
+    function getManagementFee() external view returns (uint32);
     function getFeePrecision() external view returns (uint32);
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external;
     function getUpdateUserFees(address user)

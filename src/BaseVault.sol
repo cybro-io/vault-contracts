@@ -20,6 +20,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @custom:storage-location erc7201:cybro.storage.BaseVault
     struct BaseVaultStorage {
         mapping(address account => uint256) waterline;
+        uint256 lastTimeManagementFeeCollected;
     }
 
     function _getBaseVaultStorage() private pure returns (BaseVaultStorage storage $) {
@@ -138,6 +139,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -233,16 +236,25 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
-     * @notice Collects management fee for the contract
+     * @notice Collects annual management fee, pro-rated based on time passed since last collection
      *
-     * For example, if the managementFee is 10% and the total supply is 1000,
-     * then the management fee will be 111 and the new total supply will be 1111.
-     * And if the total assets is 1000, then all users shares
-     * will be equal to 900 after the fee collection.
+     * For example, if:
+     * - Annual managementFee is 10% (100 in feePrecision units)
+     * - Total supply is 1000
+     * - 6 months (182.5 days) passed since last collection
+     * Then:
+     * shares = 1000 * 100 * (182.5 days) / 365 days / (1000 - 100)
+     * ≈ 1000 * 100 * 0.5 / 900 ≈ 55.56
+     *
+     * The fee is calculated proportionally to the exact time passed since last collection,
+     * using 365 days as the base period for the annual rate.
      */
     function collectManagementFee() external onlyRole(MANAGER_ROLE) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
         uint32 managementFee = feeProvider.getManagementFee();
-        uint256 shares = totalSupply() * managementFee / (feePrecision - managementFee);
+        uint256 shares = totalSupply() * managementFee * (block.timestamp - $.lastTimeManagementFeeCollected) / 365 days
+            / (feePrecision - managementFee);
+        $.lastTimeManagementFeeCollected = block.timestamp;
         _mint(feeRecipient, shares);
         emit ManagementFeeCollected(shares);
     }
@@ -398,6 +410,11 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     function getManagementFee() external view returns (uint32) {
         return feeProvider.getManagementFee();
+    }
+
+    function getLastTimeManagementFeeCollected() external view returns (uint256) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        return $.lastTimeManagementFeeCollected;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

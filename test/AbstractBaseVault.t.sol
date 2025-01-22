@@ -56,7 +56,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
         depositFee = 100;
         withdrawalFee = 200;
         performanceFee = 300;
-        managementFee = 100;
+        managementFee = 1000;
         feePrecision = 1e5;
         name = "nameVault";
         symbol = "symbolVault";
@@ -252,7 +252,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
         assets = _redeem(_userWithAllowance, _owner, _receiver, _shares);
     }
 
-    function _checkEmergencyWithdraw(address _user) internal {
+    function _checkEmergencyWithdraw(address _user) internal virtual {
         address[] memory accounts = new address[](2);
         accounts[0] = _user;
         accounts[1] = user5;
@@ -335,6 +335,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
             users[0] = admin;
             vault.collectPerformanceFee(users);
             assert(vault.getWaterline(admin) >= depositedBalanceBefore);
+            vm.warp(block.timestamp + 30 days);
             uint256 totalSupplyBefore = vault.totalSupply();
             vault.collectManagementFee();
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);

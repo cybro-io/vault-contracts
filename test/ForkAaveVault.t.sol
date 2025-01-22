@@ -28,6 +28,17 @@ contract AaveVaultTest is AbstractBaseVaultTest {
         return false;
     }
 
+    function _checkEmergencyWithdraw(address _user) internal override {
+        address[] memory accounts = new address[](2);
+        accounts[0] = _user;
+        accounts[1] = user5;
+
+        vm.startPrank(user5);
+        vm.expectRevert();
+        vault.emergencyWithdraw(accounts);
+        vm.stopPrank();
+    }
+
     function test_usdb() public {
         asset = usdb_BLAST;
         baseVaultTest(true);

@@ -61,6 +61,10 @@ contract UpdatedDeployScript is Script, StdCheats {
 
     uint32 public constant feePrecision = 10000;
     address public constant feeRecipient = address(0x66E424337c0f888DCCbCf2e0730A00A526D716f6);
+    address public constant cybroWallet = address(0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6);
+    address public constant cybroManager = address(0xD06Fd4465CdEdD4D8e01ec7ebd5F835cbb22cF01);
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address[] vaults;
     uint256[] lendingShares;
@@ -72,8 +76,8 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.assertEq(vault.feeRecipient(), vaultData.feeRecipient);
         vm.assertEq(vault.name(), vaultData.name);
         vm.assertEq(vault.symbol(), vaultData.symbol);
-        vm.assertTrue(vault.hasRole(vault.MANAGER_ROLE(), vaultData.manager));
-        vm.assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), vaultData.admin));
+        vm.assertTrue(vault.hasRole(MANAGER_ROLE, vaultData.manager));
+        vm.assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, vaultData.admin));
     }
 
     function _deployFeeProvider(
@@ -285,8 +289,8 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.assertEq(address(vault.weth()), address(vaultData.weth));
         vm.assertEq(address(vault.stgWethPool()), address(vaultData.swapPool));
         vm.assertEq(address(vault.assetWethPool()), address(vaultData.assetWethPool));
-        vm.assertTrue(vault.hasRole(vault.MANAGER_ROLE(), vaultData.manager));
-        vm.assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), vaultData.admin));
+        vm.assertTrue(vault.hasRole(MANAGER_ROLE, vaultData.manager));
+        vm.assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, vaultData.admin));
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(asset), asset);
     }
@@ -324,7 +328,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.label(address(usdb), "USDB");
 
         // Zerolend USDB
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         address pool = address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8);
         vaults.push(
             address(
@@ -336,7 +340,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         feeRecipient: feeRecipient,
                         name: "Zerolend USDB",
                         symbol: "cyzlUSDB",
-                        manager: admin,
+                        manager: cybroManager,
                         admin: admin
                     })
                 )
@@ -344,7 +348,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Pac USDB
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         pool = address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8);
         vaults.push(
             address(
@@ -356,7 +360,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         feeRecipient: feeRecipient,
                         name: "Pac USDB",
                         symbol: "cypcUSDB",
-                        manager: admin,
+                        manager: cybroManager,
                         admin: admin
                     })
                 )
@@ -364,7 +368,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Juice USDB
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         pool = address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a);
         vaults.push(
             address(
@@ -376,7 +380,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         feeRecipient: feeRecipient,
                         name: "Juice USDB",
                         symbol: "cyjceUSDB",
-                        manager: admin,
+                        manager: cybroManager,
                         admin: admin
                     })
                 )
@@ -384,7 +388,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // OneClick Lending Fund
-        feeProvider = _deployFeeProvider(admin, 0, 30, 500, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 30, 500, 0);
         OneClickIndex fundLending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
@@ -399,8 +403,8 @@ contract UpdatedDeployScript is Script, StdCheats {
         lendingShares.push(2000);
         fundLending.addLendingPools(vaults);
         fundLending.setLendingShares(vaults, lendingShares);
-        vm.assertTrue(fundLending.hasRole(fundLending.MANAGER_ROLE(), admin));
-        vm.assertTrue(fundLending.hasRole(fundLending.DEFAULT_ADMIN_ROLE(), admin));
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, admin));
         vm.assertTrue(fundLending.hasRole(fundLending.STRATEGIST_ROLE(), admin));
 
         vm.stopBroadcast();
@@ -410,6 +414,14 @@ contract UpdatedDeployScript is Script, StdCheats {
         _testVaultWorks(BaseVault(vaults[1]), 1e19, false);
         _testVaultWorks(BaseVault(vaults[2]), 1e19, false);
         _testVaultWorks(BaseVault(address(fundLending)), 1e19, true);
+
+        vm.startBroadcast();
+        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLending.revokeRole(MANAGER_ROLE, admin);
+        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
     }
 
     function deployStargate_Arbitrum() public {
@@ -431,7 +443,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdt), address(weth), 500)));
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500)));
 
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         IStargatePool pool = IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
         vaults.push(
             address(
@@ -448,7 +460,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         admin: admin,
                         name: "Stargate USDT",
                         symbol: "stgUSDT",
-                        manager: admin
+                        manager: cybroManager
                     }),
                     address(usdt)
                 )
@@ -456,7 +468,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate USDC
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));
         vaults.push(
             address(
@@ -473,7 +485,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         admin: admin,
                         name: "Stargate USDC",
                         symbol: "stgUSDC",
-                        manager: admin
+                        manager: cybroManager
                     }),
                     address(usdc)
                 )
@@ -481,7 +493,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate WETH
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
         vaults.push(
             address(
@@ -498,7 +510,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         admin: admin,
                         name: "Stargate WETH",
                         symbol: "stgWETH",
-                        manager: admin
+                        manager: cybroManager
                     }),
                     address(weth)
                 )
@@ -508,6 +520,9 @@ contract UpdatedDeployScript is Script, StdCheats {
         _testVaultWorks(BaseVault(address(vaults[0])), 1e18, false);
         _testVaultWorks(BaseVault(address(vaults[1])), 1e18, false);
         _testVaultWorks(BaseVault(address(vaults[2])), 1e18, false);
+        vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
     }
 
     function deployStargate_Base() public {
@@ -525,7 +540,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         swapPools.push(IUniswapV3Pool(factory.getPool(address(stg), address(weth), 10000)));
         swapPools.push(IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500)));
 
-        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        FeeProvider feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         IStargatePool pool = IStargatePool(payable(address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26)));
         vaults.push(
             address(
@@ -542,7 +557,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         admin: admin,
                         name: "Stargate USDC",
                         symbol: "stgUSDC",
-                        manager: admin
+                        manager: cybroManager
                     }),
                     address(usdc)
                 )
@@ -550,7 +565,7 @@ contract UpdatedDeployScript is Script, StdCheats {
         );
 
         // Stargate WETH
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        feeProvider = _deployFeeProvider(cybroWallet, 0, 0, 0, 0);
         pool = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
         vaults.push(
             address(
@@ -567,7 +582,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         admin: admin,
                         name: "Stargate WETH",
                         symbol: "stgWETH",
-                        manager: admin
+                        manager: cybroManager
                     }),
                     address(weth)
                 )
@@ -576,16 +591,22 @@ contract UpdatedDeployScript is Script, StdCheats {
         vm.stopBroadcast();
         _testVaultWorks(BaseVault(address(vaults[0])), 1e18, false);
         _testVaultWorks(BaseVault(address(vaults[1])), 1e18, false);
+        vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
     }
 
     function _testVaultWorks(BaseVault vault, uint256 amount, bool isOneClick) internal {
         IERC20Metadata token = IERC20Metadata(vault.asset());
         address user = address(100);
         if (
-            vault.asset() == address(0x4300000000000000000000000000000000000003)
-                || vault.asset() == address(0x4300000000000000000000000000000000000004)
+            vault.asset() == address(0x4300000000000000000000000000000000000003) 
         ) {
-            vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
+            vm.startPrank(address(0x4BeD2A922654cAcC2Be974689619768FaBF24855));
+            token.transfer(user, amount);
+            vm.stopPrank();
+        } else if (vault.asset() == address(0x4300000000000000000000000000000000000004)) {
+            vm.startPrank(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
             token.transfer(user, amount);
             vm.stopPrank();
         } else {
@@ -610,5 +631,17 @@ contract UpdatedDeployScript is Script, StdCheats {
         console.log("Shares after deposit", shares);
         console.log("Redeemed assets", assets);
         vm.stopPrank();
+    }
+
+    function _grantAndRevokeRoles(address admin_) internal {
+        for (uint256 i = 0; i < vaults.length; i++) {
+            BaseVault vault_ = BaseVault(vaults[i]);
+            vault_.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+            vault_.revokeRole(MANAGER_ROLE, admin_);
+            vault_.revokeRole(DEFAULT_ADMIN_ROLE, admin_);
+            vm.assertTrue(vault_.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+            vm.assertFalse(vault_.hasRole(DEFAULT_ADMIN_ROLE, admin_));
+            vm.assertFalse(vault_.hasRole(MANAGER_ROLE, admin_));
+        }
     }
 }

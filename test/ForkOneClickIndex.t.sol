@@ -86,7 +86,14 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 address(
                     _deployAave(
                         VaultSetup(
-                            usdb_BLAST, address(aave_usdbPool_BLAST), address(0), address(0), name, symbol, admin, admin
+                            usdb_BLAST,
+                            address(aave_zerolendPool_BLAST),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
                         )
                     )
                 )

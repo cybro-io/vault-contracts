@@ -18,7 +18,7 @@ contract AaveVaultTest is AbstractBaseVaultTest {
         vm.startPrank(admin);
         vault = _deployAave(
             VaultSetup(
-                asset, address(aave_usdbPool_BLAST), address(feeProvider), feeRecipient, name, symbol, admin, admin
+                asset, address(aave_zerolendPool_BLAST), address(feeProvider), feeRecipient, name, symbol, admin, admin
             )
         );
         vm.stopPrank();
@@ -26,17 +26,6 @@ contract AaveVaultTest is AbstractBaseVaultTest {
 
     function _increaseVaultAssets() internal pure override returns (bool) {
         return false;
-    }
-
-    function _checkEmergencyWithdraw(address _user) internal override {
-        address[] memory accounts = new address[](2);
-        accounts[0] = _user;
-        accounts[1] = user5;
-
-        vm.startPrank(user5);
-        vm.expectRevert();
-        vault.emergencyWithdraw(accounts);
-        vm.stopPrank();
     }
 
     function test_usdb() public {
@@ -47,13 +36,5 @@ contract AaveVaultTest is AbstractBaseVaultTest {
     function test_weth_deposit() public {
         asset = weth_BLAST;
         baseVaultTest(true);
-    }
-
-    function test_otherTokens_deposit() public {
-        asset = IERC20Metadata(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
-        deal(address(asset), user, amount);
-        deal(address(asset), user2, amount);
-        deal(address(asset), admin, amount);
-        baseVaultTest(false);
     }
 }

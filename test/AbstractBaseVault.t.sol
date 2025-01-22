@@ -335,10 +335,13 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
             users[0] = admin;
             vault.collectPerformanceFee(users);
             assert(vault.getWaterline(admin) >= depositedBalanceBefore);
-            vm.warp(block.timestamp + 30 days);
+            vm.warp(block.timestamp + 120 days);
             uint256 totalSupplyBefore = vault.totalSupply();
             vault.collectManagementFee();
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);
+            totalSupplyBefore = vault.totalSupply();
+            vault.collectManagementFee();
+            vm.assertEq(vault.totalSupply(), totalSupplyBefore);
             vm.stopPrank();
         }
         _checkEmergencyWithdraw(admin);

@@ -97,6 +97,7 @@ contract TestHelpers {
     IStargatePool stargate_wethPool_BASE = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
 
     IAavePool aave_usdbPool_BLAST = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
+    IAavePool aave_zerolendPool_BLAST = IAavePool(address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(

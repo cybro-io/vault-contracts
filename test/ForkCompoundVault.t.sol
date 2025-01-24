@@ -90,3 +90,36 @@ contract CompoundVaultTest is AbstractBaseVaultTest {
         baseVaultTest(true);
     }
 }
+
+contract CompoundVaultBaseChainTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
+        super.setUp();
+        amount = 1e10;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = CompoundVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new CompoundVault(asset, compound_moonwellUSDC_BASE, IFeeProvider(feeProvider), feeRecipient)
+                    ),
+                    admin,
+                    abi.encodeCall(CompoundVault.initialize, (admin, name, symbol, admin))
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdc() public {
+        asset = usdc_BASE;
+        baseVaultTest(true);
+    }
+}

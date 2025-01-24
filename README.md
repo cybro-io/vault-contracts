@@ -27,3 +27,13 @@ To deploy the other vaults, run the following command:
 ```bash
 forge script UpdatedDeployScript --sig "deployMainnet()" --private-key <your_private_key> --rpc-url <your_rpc_url>
 ```
+
+To deploy one click index with all the vaults, ont the base chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployOneClickBase()" --private-key <your_private_key> --rpc-url <your_base_rpc_url>
+```
+
+To deploy one click index with all the vaults, on the arbitrum chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployOneClickArbitrum()" --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
+```

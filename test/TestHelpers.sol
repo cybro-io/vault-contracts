@@ -18,6 +18,7 @@ import {InitVault} from "../src/vaults/InitVault.sol";
 import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
+import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 
 contract TestHelpers {
     struct StargateSetup {
@@ -69,6 +70,7 @@ contract TestHelpers {
     IUniswapV3Factory factory_UNI_ARB = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_BASE = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
     IUniswapV3Pool pool_USDC_WETH_BASE = IUniswapV3Pool(address(0xd0b53D9277642d899DF5C87A3966A349A798F224));
+    IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
 
     address assetProvider_USDB_BLAST = address(0x4BeD2A922654cAcC2Be974689619768FaBF24855);
     address assetProvider_WETH_BLAST = address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1);
@@ -98,6 +100,10 @@ contract TestHelpers {
 
     IAavePool aave_usdbPool_BLAST = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
     IAavePool aave_zerolendPool_BLAST = IAavePool(address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8));
+    IAavePool aave_pool_ARBITRUM = IAavePool(address(0x794a61358D6845594F94dc1DB02A252b5b4814aD));
+    IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));
+
+    CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(

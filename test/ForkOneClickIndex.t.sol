@@ -238,6 +238,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
     function _middleInteractions() internal override {
         vm.startPrank(admin);
         uint256 totalLendingSharesBefore = lending.totalLendingShares();
+        uint256 totalAssetBefore = lending.totalAssets();
         uint256 balanceBefore = lending.getBalanceOfPool(vaults[0]);
         address[] memory vaults_ = new address[](1);
         vaults_[0] = additionalVault;
@@ -255,7 +256,9 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
         lending.rebalanceAuto();
         lending.removeLendingPools(vaults_);
         vm.assertEq(totalLendingSharesBefore, lending.totalLendingShares());
-        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), 1e8);
+        vm.assertEq(IERC20Metadata(lending.asset()).balanceOf(address(lending)), 0);
+        vm.assertApproxEqAbs(lending.totalAssets(), totalAssetBefore, totalAssetBefore / 1e3);
+        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), balanceBefore / 1e3);
         vm.stopPrank();
     }
 

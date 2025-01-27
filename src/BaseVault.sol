@@ -441,7 +441,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
         uint256 withdrawalFee;
-        uint256 tvlBefore = totalAssets();
+        uint256 tvlBefore = _totalAssetsPrecise();
         uint256 totalSupplyBefore = totalSupply();
         assets = _redeem(shares);
         if (address(feeProvider) != address(0)) {

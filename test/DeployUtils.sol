@@ -20,7 +20,7 @@ import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 
-contract TestHelpers {
+contract DeployUtils {
     struct StargateSetup {
         IERC20Metadata weth;
         IERC20Metadata stg;

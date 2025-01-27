@@ -32,7 +32,7 @@ contract InitVaultTest is AbstractBaseVaultTest {
     }
 
     function _increaseVaultAssets() internal override returns (bool) {
-        vm.warp(block.timestamp + 100);
+        vm.warp(block.timestamp + 10000);
         IInitLendingPool(currentPool).accrueInterest();
         return true;
     }

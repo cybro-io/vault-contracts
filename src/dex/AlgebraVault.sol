@@ -3,39 +3,81 @@
 pragma solidity 0.8.26;
 
 import {BaseDexVault, BaseDexUniformVault, TickMath} from "./BaseDexVault.sol";
-import {IAlgebraFactory} from "./interfaces/algebra/IAlgebraFactory.sol";
-import {IAlgebraPool} from "./interfaces/algebra/IAlgebraPool.sol";
-import {IAlgebraSwapCallback} from "./interfaces/algebra/IAlgebraSwapCallback.sol";
-import {INonfungiblePositionManager} from "./interfaces/algebra/INonfungiblePositionManager.sol";
+import {IAlgebraFactory} from "../interfaces/algebra/IAlgebraFactory.sol";
+import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPool.sol";
+import {IAlgebraSwapCallback} from "../interfaces/algebra/IAlgebraSwapCallback.sol";
+import {INonfungiblePositionManager} from "../interfaces/algebra/INonfungiblePositionManager.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {BaseVault} from "../BaseVault.sol";
 
-/// @title AlgebraVault - A vault that interacts with Algebra-based V1 pools for managing liquidity positions
-/// @notice This contract extends BaseDexVault to manage liquidity positions specifically for Algebra pools
+/**
+ * @title AlgebraVault
+ * @notice This contract extends BaseDexVault to manage liquidity positions specifically for Algebra pools
+ */
 contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     using SafeERC20 for IERC20Metadata;
 
+    /* ========== IMMUTABLE VARIABLES ========== */
+
     IAlgebraPool public immutable pool;
+
+    /* ========== STORAGE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
 
     /// @notice Address of the position manager contract
     INonfungiblePositionManager public immutable positionManager;
 
-    constructor(address payable _positionManager, address _token0, address _token1) BaseDexVault(_token0, _token1) {
+    /* ========== CONSTRUCTOR ========== */
+
+    constructor(
+        address payable _positionManager,
+        address _token0,
+        address _token1,
+        IERC20Metadata _asset,
+        IFeeProvider _feeProvider,
+        address _feeRecipient
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
         positionManager = INonfungiblePositionManager(_positionManager);
         pool = IAlgebraPool(IAlgebraFactory(positionManager.factory()).poolByPair(_token0, _token1));
         _disableInitializers();
     }
 
-    /// @notice Initializes the vault
-    /// @param admin The address of the admin to be set as the owner
-    /// @param name The name of the ERC20 token representing vault shares
-    /// @param symbol The symbol of the ERC20 token representing vault shares
-    function initialize(address admin, string memory name, string memory symbol) public initializer {
+    /* ========== INITIALIZER ========== */
+
+    /**
+     * @notice Initializes the vault
+     * @param admin The address of the admin to be set as the owner
+     * @param manager The address of the manager
+     * @param name The name of the ERC20 token representing vault shares
+     * @param symbol The symbol of the ERC20 token representing vault shares
+     */
+    function initialize(address admin, address manager, string memory name, string memory symbol) public initializer {
         IERC20Metadata(token0).forceApprove(address(positionManager), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(positionManager), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseDexVault_init(admin);
+        __BaseDexVault_init(admin, manager);
     }
+
+    /// @inheritdoc BaseDexUniformVault
+    function getCurrentSqrtPrice() public view override returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
+    }
+
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view override returns (uint256) {
+        uint256 sqrtPrice = getCurrentSqrtPrice();
+        return isToken0
+            ? IERC20Metadata(token0).balanceOf(address(pool))
+                + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice)
+            : IERC20Metadata(token1).balanceOf(address(pool))
+                + Math.mulDiv(IERC20Metadata(token0).balanceOf(address(pool)), sqrtPrice, 2 ** 192);
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {
@@ -43,14 +85,14 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /// @inheritdoc BaseDexVault
-    function _getTokensOwed() internal view virtual override returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,, amount0, amount1) = positionManager.positions(positionTokenId);
-    }
-
-    /// @inheritdoc BaseDexUniformVault
-    function getCurrentSqrtPrice() public view override returns (uint160) {
-        (uint160 sqrtPriceX96,,,,,) = pool.globalState();
-        return sqrtPriceX96;
+    function _getTokensOwed(uint256 tokenId)
+        internal
+        view
+        virtual
+        override
+        returns (uint128 amount0, uint128 amount1)
+    {
+        (,,,,,,,,, amount0, amount1) = positionManager.positions(tokenId);
     }
 
     /// @inheritdoc BaseDexVault
@@ -77,9 +119,9 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function _mintPosition(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 tokenId, uint256 amount0Used, uint256 amount1Used)
     {
-        (tokenId, liquidity, amount0Used, amount1Used) = positionManager.mint(
+        (tokenId,, amount0Used, amount1Used) = positionManager.mint(
             INonfungiblePositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -99,9 +141,9 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     function _increaseLiquidity(uint256 amount0, uint256 amount1)
         internal
         override
-        returns (uint128 liquidity, uint256 amount0Used, uint256 amount1Used)
+        returns (uint256 amount0Used, uint256 amount1Used)
     {
-        (liquidity, amount0Used, amount1Used) = positionManager.increaseLiquidity(
+        (, amount0Used, amount1Used) = positionManager.increaseLiquidity(
             INonfungiblePositionManager.IncreaseLiquidityParams({
                 tokenId: positionTokenId,
                 amount0Desired: amount0,
@@ -142,10 +184,14 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         );
     }
 
-    /// @notice Callback function for swaps
-    /// @param amount0Delta The change in token0 amount
-    /// @param amount1Delta The change in token1 amount
-    /// @param data Additional data needed to process the callback
+    /* ========== CALLBACK FUNCTIONS ========== */
+
+    /**
+     * @notice Callback function for swaps
+     * @param amount0Delta The change in token0 amount
+     * @param amount1Delta The change in token1 amount
+     * @param data Additional data needed to process the callback
+     */
     function algebraSwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         // Validate that the swap callback was called by the correct pool
         require(amount0Delta > 0 || amount1Delta > 0);

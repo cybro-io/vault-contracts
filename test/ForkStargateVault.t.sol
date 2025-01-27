@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {StargateVault, IERC20Metadata, IStargatePool} from "../src/StargateVault.sol";
+import {StargateVault, IERC20Metadata, IStargatePool} from "../src/vaults/StargateVault.sol";
 import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -123,13 +123,13 @@ abstract contract StargateVaultTest is Test {
     function _deposit(StargateVault vault, uint256 _amount) internal returns (uint256 shares) {
         vm.startPrank(user);
         token.approve(address(vault), _amount);
-        shares = vault.deposit(_amount, user);
+        shares = vault.deposit(_amount, user, 0);
         vm.stopPrank();
     }
 
     function _redeem(uint256 shares, StargateVault vault) internal returns (uint256 assets) {
         vm.startPrank(user);
-        assets = vault.redeem(shares, user, user);
+        assets = vault.redeem(shares, user, user, 0);
         vm.stopPrank();
     }
 
@@ -162,7 +162,7 @@ abstract contract StargateVaultTest is Test {
         vm.startPrank(user);
         token.approve(address(usdtVault), amount);
         vm.expectRevert();
-        usdtVault.deposit(amount, user);
+        usdtVault.deposit(amount, user, 0);
         vm.stopPrank();
         vm.prank(admin);
         usdtVault.unpause();
@@ -179,11 +179,11 @@ abstract contract StargateVaultTest is Test {
         assert(usdtVault.sharePrice() >= sharePriceBefore);
 
         vm.startPrank(admin);
-        uint256 depositedBalanceBefore = usdtVault.getDepositedBalance(user);
+        uint256 depositedBalanceBefore = usdtVault.getWaterline(user);
         address[] memory users = new address[](2);
         users[0] = user;
         usdtVault.collectPerformanceFee(users);
-        assert(usdtVault.getDepositedBalance(user) >= depositedBalanceBefore);
+        assert(usdtVault.getWaterline(user) >= depositedBalanceBefore);
         vm.stopPrank();
 
         uint256 assets = _redeem(shares, usdtVault);
@@ -240,7 +240,7 @@ abstract contract StargateVaultTest is Test {
         vm.startPrank(user);
         token.approve(address(usdcVault), amount);
         vm.expectRevert();
-        usdcVault.deposit(amount, user);
+        usdcVault.deposit(amount, user, 0);
         vm.stopPrank();
         vm.prank(admin);
         usdcVault.unpause();

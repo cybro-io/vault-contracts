@@ -2,16 +2,18 @@
 
 pragma solidity 0.8.26;
 
-import {IYieldStaking} from "./interfaces/blastup/IYieldStacking.sol";
-import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
+import {IYieldStaking} from "../interfaces/blastup/IYieldStacking.sol";
+import {BaseVault, IERC20Metadata} from "../BaseVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
+/// @title YieldStakingVault
 contract YieldStakingVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
+    /// @notice The Yield Staking contract
     IYieldStaking public immutable staking;
 
     /* ========== STORAGE VARIABLES =========== */
@@ -31,15 +33,23 @@ contract YieldStakingVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(asset(), address(this));
         return balance + rewards;
     }
 
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return staking.totalSupply(asset());
+    }
+
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         staking.stake(asset(), assets);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(asset(), address(this));
         assets = shares * (balance + rewards) / totalSupply();
@@ -51,6 +61,7 @@ contract YieldStakingVault is BaseVault {
         }
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address) internal virtual override returns (bool) {
         return true;
     }

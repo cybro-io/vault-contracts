@@ -4,8 +4,10 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {BlasterSwapV3Vault, IUniswapV3Factory, INonfungiblePositionManager} from "../../src/BlasterSwapV3Vault.sol";
-import {AbstractDexVaultTest, IDexVault} from "./AbstractDexVaultTest.t.sol";
+import {
+    BlasterSwapV3Vault, IUniswapV3Factory, INonfungiblePositionManager
+} from "../../src/dex/BlasterSwapV3Vault.sol";
+import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
@@ -27,19 +29,30 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
         amountEth = 1e18;
     }
 
-    function _initializeNewVault() internal override {
+    function _initializeNewVault(IERC20Metadata _asset) internal override {
         vm.startPrank(admin);
-        vault = IDexVault(
+        vault = IVault(
             address(
                 new TransparentUpgradeableProxy(
                     address(
-                        new BlasterSwapV3Vault(payable(address(positionManager)), address(token0), address(token1), fee)
+                        new BlasterSwapV3Vault(
+                            payable(address(positionManager)),
+                            address(token0),
+                            address(token1),
+                            fee,
+                            _asset,
+                            feeProvider,
+                            feeRecipient
+                        )
                     ),
                     admin,
-                    abi.encodeCall(BlasterSwapV3Vault.initialize, (admin, "nameVault", "symbolVault"))
+                    abi.encodeCall(BlasterSwapV3Vault.initialize, (admin, admin, "nameVault", "symbolVault"))
                 )
             )
         );
         vm.stopPrank();
+        console.log(
+            BlasterSwapV3Vault(address(vault)).sqrtPriceLower(), BlasterSwapV3Vault(address(vault)).sqrtPriceUpper()
+        );
     }
 }

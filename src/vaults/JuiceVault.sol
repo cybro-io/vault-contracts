@@ -2,12 +2,10 @@
 
 pragma solidity 0.8.26;
 
-import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "./BaseVault.sol";
-import {IJuicePool} from "./interfaces/juice/IJuicePool.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {BaseVault, IERC20Metadata} from "../BaseVault.sol";
+import {IJuicePool} from "../interfaces/juice/IJuicePool.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 
 contract JuiceVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
@@ -33,19 +31,28 @@ contract JuiceVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return pool.getDepositAmount(address(this));
     }
 
+    /// @inheritdoc BaseVault
+    function underlyingTVL() external view override returns (uint256) {
+        return pool.getTotalSupply();
+    }
+
+    /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         pool.deposit(assets);
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         assets = shares * pool.getDepositAmount(address(this)) / totalSupply();
         pool.withdraw(assets);
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(pool);
     }

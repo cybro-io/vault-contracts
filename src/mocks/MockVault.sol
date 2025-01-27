@@ -29,6 +29,10 @@ contract MockVault is BaseVault {
         return liquidityTokenBalance;
     }
 
+    function underlyingTVL() external view virtual override returns (uint256) {
+        return liquidityTokenBalance;
+    }
+
     modifier _balanceIncrease() {
         uint256 increaseAmount = liquidityTokenBalance / 365 days * (block.timestamp - lastTimestamp);
         liquidityTokenBalance += increaseAmount;

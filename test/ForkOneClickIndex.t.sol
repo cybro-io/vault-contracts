@@ -4,21 +4,21 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata} from "../src/AaveVault.sol";
+import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
 import {IWETH} from "../src/interfaces/IWETH.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {
     TransparentUpgradeableProxy,
     ProxyAdmin
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {JuiceVault} from "../src/JuiceVault.sol";
+import {JuiceVault} from "../src/vaults/JuiceVault.sol";
 import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
-import {OneClickLending} from "../src/OneClickLending.sol";
+import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
-contract OneClickLendingTest is Test {
+contract OneClickIndexTest is Test {
     IAavePool aavePool;
     IJuicePool usdbJuicePool;
     JuiceVault juiceVault;
@@ -31,7 +31,7 @@ contract OneClickLendingTest is Test {
     address user;
     address user2;
 
-    OneClickLending lending;
+    OneClickIndex lending;
     uint256 lendingShare;
     uint256 lendingShare2;
     uint8 precision;
@@ -75,12 +75,12 @@ contract OneClickLendingTest is Test {
                 )
             )
         );
-        lending = OneClickLending(
+        lending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
-                    address(new OneClickLending(usdb, feeProvider, feeRecipient)),
+                    address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
                     admin,
-                    abi.encodeCall(OneClickLending.initialize, (admin, "nameVault", "symbolVault", admin, admin))
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
                 )
             )
         );
@@ -158,7 +158,7 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
@@ -170,14 +170,14 @@ contract OneClickLendingTest is Test {
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
         vm.expectRevert();
-        lending.deposit(amount2);
+        lending.deposit(amount2, user2, 0);
         vm.stopPrank();
 
         vm.prank(admin);
         lending.unpause();
 
         vm.startPrank(user2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -199,8 +199,8 @@ contract OneClickLendingTest is Test {
         vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
         vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
         vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
-        vm.assertEq(lending.getDepositedBalance(user), amountWithDepositFee);
-        vm.assertEq(lending.getDepositedBalance(user2), amount2WithDepositFee);
+        vm.assertApproxEqAbs(lending.getWaterline(user), amountWithDepositFee, 1e5);
+        vm.assertApproxEqAbs(lending.getWaterline(user2), amount2WithDepositFee, 1e5);
         vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
     }
 
@@ -218,13 +218,13 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -254,11 +254,11 @@ contract OneClickLendingTest is Test {
         vm.stopPrank();
         // redeem
         vm.startPrank(user);
-        lending.redeem(userShares / 2, user);
+        lending.redeem(userShares / 2, user, user, 0);
         vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, amountWithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.startPrank(user2);
-        lending.redeem(user2Shares / 2, user2);
+        lending.redeem(user2Shares / 2, user2, user2, 0);
         vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
         vm.stopPrank();
         vm.assertGt(usdb.balanceOf(feeRecipient), 0);
@@ -276,13 +276,13 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(user);
         usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount);
+        uint256 userShares = lending.deposit(amount, user, 0);
         console.log("user shares", userShares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2);
+        uint256 user2Shares = lending.deposit(amount2, user2, 0);
         console.log("user2 shares", user2Shares);
         vm.stopPrank();
 
@@ -299,14 +299,14 @@ contract OneClickLendingTest is Test {
 
         vm.startPrank(admin);
         usdb.transfer(address(bufferVault), usdb.balanceOf(admin));
-        uint256 depositedBalanceBefore = lending.getDepositedBalance(user);
-        uint256 depositedBalance2Before = lending.getDepositedBalance(user2);
+        uint256 depositedBalanceBefore = lending.getWaterline(user);
+        uint256 depositedBalance2Before = lending.getWaterline(user2);
         address[] memory users = new address[](2);
         users[0] = user;
         users[1] = user2;
         lending.collectPerformanceFee(users);
-        vm.assertGt(lending.getDepositedBalance(user), depositedBalanceBefore);
-        vm.assertGt(lending.getDepositedBalance(user2), depositedBalance2Before);
+        vm.assertGt(lending.getWaterline(user), depositedBalanceBefore);
+        vm.assertGt(lending.getWaterline(user2), depositedBalance2Before);
         vm.stopPrank();
     }
 }

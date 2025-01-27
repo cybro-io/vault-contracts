@@ -9,9 +9,9 @@ import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
-import {TestHelpers} from "./TestHelpers.sol";
+import {DeployUtils} from "./DeployUtils.sol";
 
-abstract contract AbstractBaseVaultTest is Test, TestHelpers {
+abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     uint256 forkId;
     IVault vault;
     IERC20Metadata asset;
@@ -214,6 +214,7 @@ abstract contract AbstractBaseVaultTest is Test, TestHelpers {
             vm.stopPrank();
         }
         _additionalChecksAfterDeposit(_user, amount_, shares);
+        vm.warp(block.timestamp + 10000);
     }
 
     function _redeem(address _caller, address _owner, address _receiver, uint256 _shares)

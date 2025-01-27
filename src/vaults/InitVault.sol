@@ -9,6 +9,7 @@ import {IInitCore} from "../interfaces/init/IInitCore.sol";
 import {IERC20RebasingWrapper} from "../interfaces/init/IERC20RebasingWrapper.sol";
 import {IInitLendingPool} from "../interfaces/init/IInitLendingPool.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title InitVault
@@ -82,6 +83,16 @@ contract InitVault is BaseVault {
             return pool.toAmt(pool.totalSupply());
         } else {
             return underlying.toAmt(pool.toAmt(pool.totalSupply()));
+        }
+    }
+
+    /// @inheritdoc BaseVault
+    function _totalAssetsPrecise() internal override returns (uint256) {
+        // toAmtCurrent calls accrueInterest function at the pool
+        if (asset() == address(underlying)) {
+            return pool.toAmtCurrent(pool.balanceOf(address(this)));
+        } else {
+            return underlying.toAmt(pool.toAmtCurrent(pool.balanceOf(address(this))));
         }
     }
 

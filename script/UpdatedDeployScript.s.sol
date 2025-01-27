@@ -31,9 +31,9 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
-import {TestHelpers} from "../test/TestHelpers.sol";
+import {DeployUtils} from "../test/DeployUtils.sol";
 
-contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
+contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     struct DeployVault {
         IERC20Metadata asset;
         address pool;
@@ -127,16 +127,16 @@ contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
         vault = AaveVault(
             address(
                 _deployAave(
-                    VaultSetup(
-                        vaultData.asset,
-                        vaultData.pool,
-                        address(vaultData.feeProvider),
-                        vaultData.feeRecipient,
-                        vaultData.name,
-                        vaultData.symbol,
-                        vaultData.admin,
-                        vaultData.manager
-                    )
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
                 )
             )
         );
@@ -150,16 +150,16 @@ contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
         vault = JuiceVault(
             address(
                 _deployJuice(
-                    VaultSetup(
-                        vaultData.asset,
-                        vaultData.pool,
-                        address(vaultData.feeProvider),
-                        vaultData.feeRecipient,
-                        vaultData.name,
-                        vaultData.symbol,
-                        vaultData.admin,
-                        vaultData.manager
-                    )
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
                 )
             )
         );
@@ -174,16 +174,16 @@ contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
         vault = YieldStakingVault(
             address(
                 _deployYieldStaking(
-                    VaultSetup(
-                        vaultData.asset,
-                        vaultData.pool,
-                        address(vaultData.feeProvider),
-                        vaultData.feeRecipient,
-                        vaultData.name,
-                        vaultData.symbol,
-                        vaultData.admin,
-                        vaultData.manager
-                    )
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
                 )
             )
         );
@@ -245,16 +245,16 @@ contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
         vault = InitVault(
             address(
                 _deployInit(
-                    VaultSetup(
-                        vaultData.asset,
-                        vaultData.pool,
-                        address(vaultData.feeProvider),
-                        vaultData.feeRecipient,
-                        vaultData.name,
-                        vaultData.symbol,
-                        vaultData.admin,
-                        vaultData.manager
-                    )
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
                 )
             )
         );
@@ -270,16 +270,16 @@ contract UpdatedDeployScript is Script, StdCheats, TestHelpers {
             payable(
                 address(
                     _deployStargate(
-                        VaultSetup(
-                            vaultData.asset,
-                            vaultData.pool,
-                            address(vaultData.feeProvider),
-                            vaultData.feeRecipient,
-                            vaultData.name,
-                            vaultData.symbol,
-                            vaultData.admin,
-                            vaultData.manager
-                        )
+                        VaultSetup({
+                            asset: vaultData.asset,
+                            pool: vaultData.pool,
+                            feeProvider: address(vaultData.feeProvider),
+                            feeRecipient: vaultData.feeRecipient,
+                            name: vaultData.name,
+                            symbol: vaultData.symbol,
+                            admin: vaultData.admin,
+                            manager: vaultData.manager
+                        })
                     )
                 )
             )

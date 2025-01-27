@@ -3,310 +3,297 @@
 pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {JuiceVault} from "../src/vaults/JuiceVault.sol";
-import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
-import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {AbstractBaseVaultTest} from "./AbstractBaseVault.t.sol";
+import {IVault} from "../src/interfaces/IVault.sol";
+import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract OneClickIndexTest is Test {
-    IAavePool aavePool;
-    IJuicePool usdbJuicePool;
-    JuiceVault juiceVault;
-    AaveVault aaveVault;
-    BufferVaultMock bufferVault;
-    IERC20Metadata usdb = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-    uint256 amount;
+abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
+    address usdbPrank = address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e);
     uint256 amount2;
-    uint256 forkId;
-    address user;
-    address user2;
 
     OneClickIndex lending;
     uint256 lendingShare;
     uint256 lendingShare2;
     uint8 precision;
+    address[] vaults;
+    uint256[] lendingShares;
+    address[] tokens;
+    IChainlinkOracle[] oracles;
 
-    address feeRecipient;
-    IFeeProvider feeProvider;
+    address[] fromSwap;
+    address[] toSwap;
+    IUniswapV3Pool[] swapPools;
 
-    address internal admin;
-    uint256 internal adminPrivateKey;
+    address additionalVault;
 
-    uint32 depositFee;
-    uint32 withdrawalFee;
-    uint32 performanceFee;
-    uint32 feePrecision;
-
-    function setUp() public {
-        adminPrivateKey = 0xba132ce;
-        admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast", 8149175);
-        aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
-        usdbJuicePool = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
+    function setUp() public virtual override(AbstractBaseVaultTest) {
+        super.setUp();
         amount = 1e20;
         amount2 = 2e21;
         precision = 20;
         lendingShare = 25 * 10 ** (precision - 2);
         lendingShare2 = 50 * 10 ** (precision - 2);
-        user = address(100);
-        user2 = address(101);
-        feeRecipient = address(102);
-        depositFee = 100;
-        withdrawalFee = 200;
-        performanceFee = 300;
-        feePrecision = 1e5;
-        vm.startPrank(admin);
-        feeProvider = FeeProvider(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new FeeProvider(feePrecision)),
-                    admin,
-                    abi.encodeCall(FeeProvider.initialize, (admin, depositFee, withdrawalFee, performanceFee))
-                )
-            )
-        );
-        lending = OneClickIndex(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new OneClickIndex(usdb, feeProvider, feeRecipient)),
-                    admin,
-                    abi.encodeCall(OneClickIndex.initialize, (admin, "nameVault", "symbolVault", admin, admin))
-                )
-            )
-        );
-        vm.stopPrank();
     }
 
-    modifier fork() {
-        vm.selectFork(forkId);
-        _;
-    }
-
-    function _initializeUSDBVaults() internal {
-        aaveVault = AaveVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new AaveVault(usdb, aavePool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
-
-        juiceVault = JuiceVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new JuiceVault(usdb, usdbJuicePool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(JuiceVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
-        vm.startPrank(admin);
-        address[] memory vaults = new address[](2);
-        vaults[0] = address(aaveVault);
-        vaults[1] = address(juiceVault);
-        uint256[] memory lendingShares = new uint256[](2);
-        lendingShares[0] = lendingShare;
-        lendingShares[1] = lendingShare2;
-        lending.addLendingPools(vaults);
-        lending.setLendingShares(vaults, lendingShares);
-        vm.stopPrank();
-    }
-
-    function _ininitializeBufferVault() internal {
-        vm.startPrank(admin);
-        bufferVault = BufferVaultMock(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new BufferVaultMock(usdb, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(BufferVaultMock.initialize_mock, (admin, "nameVault", "symbolVault", admin))
-                )
-            )
-        );
-        address[] memory vaults = new address[](1);
-        vaults[0] = address(bufferVault);
-        uint256[] memory lendingShares = new uint256[](1);
-        lendingShares[0] = lendingShare;
-        lending.addLendingPools(vaults);
-        lending.setLendingShares(vaults, lendingShares);
-        vm.stopPrank();
-    }
-
-    function test_getters() public {
-        _initializeUSDBVaults();
-        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
-        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
-        vm.assertEq(lending.getLendingPoolCount(), 2);
-        vm.assertEq(lending.totalLendingShares(), lendingShare + lendingShare2);
-
-        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
-        usdb.transfer(user, amount);
-        usdb.transfer(user2, amount2);
-        vm.stopPrank();
-
-        vm.startPrank(user);
-        usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount, user, 0);
-        console.log("user shares", userShares);
-        vm.stopPrank();
-
-        // test pause
-
-        vm.prank(admin);
-        lending.pause();
-
-        vm.startPrank(user2);
-        usdb.approve(address(lending), amount2);
+    function _setOracles() internal {
+        if (tokens.length == 0) return;
+        vm.startPrank(user5);
         vm.expectRevert();
-        lending.deposit(amount2, user2, 0);
+        lending.setOracles(tokens, oracles);
         vm.stopPrank();
 
-        vm.prank(admin);
-        lending.unpause();
+        vm.startPrank(admin);
+        lending.setOracles(tokens, oracles);
+        vm.stopPrank();
+    }
 
-        vm.startPrank(user2);
-        uint256 user2Shares = lending.deposit(amount2, user2, 0);
-        console.log("user2 shares", user2Shares);
+    function _setSwapPools() internal {
+        if (fromSwap.length == 0) return;
+        vm.startPrank(user5);
+        vm.expectRevert();
+        lending.setSwapPools(fromSwap, toSwap, swapPools);
         vm.stopPrank();
 
-        vm.assertApproxEqAbs(lending.totalAssets(), amountWithDepositFee + amount2WithDepositFee, 1e10);
-        vm.assertEq(lending.getDepositFee(user), depositFee);
-        vm.assertEq(lending.getWithdrawalFee(user), withdrawalFee);
-        vm.assertEq(lending.getPerformanceFee(user), performanceFee);
-        vm.assertEq(lending.feePrecision(), feePrecision);
-        vm.assertApproxEqAbs(
-            lending.getBalanceOfPool(address(aaveVault)),
-            (amountWithDepositFee + amount2WithDepositFee) * lendingShare / (lendingShare + lendingShare2),
-            1e5
+        vm.startPrank(admin);
+        lending.setSwapPools(fromSwap, toSwap, swapPools);
+        vm.stopPrank();
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        if (block.chainid == 81457) {
+            // blast
+            asset = usdb_BLAST;
+            lendingShares.push(lendingShare);
+            lendingShares.push(lendingShare);
+            lendingShares.push(lendingShare2);
+            // lendingShares.push(lendingShare2);
+
+            tokens.push(address(usdb_BLAST));
+            oracles.push(oracle_USDB_BLAST);
+            tokens.push(address(weth_BLAST));
+            oracles.push(oracle_ETH_BLAST);
+            tokens.push(address(wbtc_BLAST));
+            oracles.push(oracle_BTC_BLAST);
+
+            vaults.push(
+                address(
+                    _deployAave(
+                        VaultSetup(
+                            usdb_BLAST,
+                            address(aave_zerolendPool_BLAST),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+            vaults.push(
+                address(
+                    _deployJuice(
+                        VaultSetup(
+                            usdb_BLAST,
+                            address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+            vaults.push(
+                address(
+                    _deployYieldStaking(
+                        VaultSetup(
+                            usdb_BLAST,
+                            address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+            additionalVault = address(
+                _deployBuffer(VaultSetup(usdb_BLAST, address(0), address(0), address(0), name, symbol, admin, admin))
+            );
+        } else if (block.chainid == 42161) {
+            // arbitrum
+            asset = usdt_ARBITRUM;
+            amount = 1e9; // decimals = 6
+            lendingShares.push(lendingShare);
+            vaults.push(
+                address(
+                    _deployStargate(
+                        VaultSetup(
+                            usdt_ARBITRUM,
+                            address(stargate_usdtPool_ARBITRUM),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+
+            additionalVault = address(
+                _deployBuffer(VaultSetup(usdt_ARBITRUM, address(0), address(0), address(0), name, symbol, admin, admin))
+            );
+        } else if (block.chainid == 8453) {
+            // base
+            asset = usdc_BASE;
+            amount = 1e9; // decimals = 6
+            fromSwap.push(address(usdc_BASE));
+            toSwap.push(address(weth_BASE));
+            swapPools.push(pool_USDC_WETH_BASE);
+
+            lendingShares.push(lendingShare);
+            lendingShares.push(lendingShare2);
+
+            tokens.push(address(usdc_BASE));
+            oracles.push(oracle_USDC_BASE);
+            tokens.push(address(weth_BASE));
+            oracles.push(oracle_ETH_BASE);
+
+            vaults.push(
+                address(
+                    _deployStargate(
+                        VaultSetup(
+                            usdc_BASE,
+                            address(stargate_usdcPool_BASE),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+            vaults.push(
+                address(
+                    _deployStargate(
+                        VaultSetup(
+                            weth_BASE,
+                            address(stargate_wethPool_BASE),
+                            address(0),
+                            address(0),
+                            name,
+                            symbol,
+                            admin,
+                            admin
+                        )
+                    )
+                )
+            );
+            additionalVault = address(
+                _deployBuffer(VaultSetup(usdc_BASE, address(0), address(0), address(0), name, symbol, admin, admin))
+            );
+            vm.label(additionalVault, "AdditionalVault");
+        }
+        vault = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(asset, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(OneClickIndex.initialize, (admin, name, symbol, admin, admin))
+                )
+            )
         );
-        vm.assertApproxEqAbs(
-            lending.getBalanceOfPool(address(juiceVault)),
-            (amountWithDepositFee + amount2WithDepositFee) * lendingShare2 / (lendingShare + lendingShare2),
-            1e5
-        );
-        vm.assertApproxEqAbs(lending.getBalanceInUnderlying(user), amountWithDepositFee, 1e5);
-        vm.assertEq(lending.getSharePriceOfPool(address(aaveVault)), aaveVault.sharePrice());
-        vm.assertEq(lending.getSharePriceOfPool(address(juiceVault)), juiceVault.sharePrice());
-        vm.assertApproxEqAbs(lending.getWaterline(user), amountWithDepositFee, 1e5);
-        vm.assertApproxEqAbs(lending.getWaterline(user2), amount2WithDepositFee, 1e5);
-        vm.assertApproxEqAbs(lending.quoteWithdrawalFee(user), amountWithDepositFee * withdrawalFee / feePrecision, 1e5);
+        vaultAddress = address(vault);
+        address[] memory whitelistedContracts = new address[](1);
+        whitelistedContracts[0] = vaultAddress;
+        bool[] memory isWhitelisted = new bool[](1);
+        isWhitelisted[0] = true;
+        feeProvider.setWhitelistedContracts(whitelistedContracts, isWhitelisted);
+        lending = OneClickIndex(address(vault));
+        lending.addLendingPools(vaults);
+        lending.setLendingShares(vaults, lendingShares);
+        lending.setMaxSlippage(100);
+        vm.stopPrank();
+        _setOracles();
+        _setSwapPools();
+    }
+
+    function _middleInteractions() internal override {
+        vm.startPrank(admin);
+        uint256 totalLendingSharesBefore = lending.totalLendingShares();
+        uint256 balanceBefore = lending.getBalanceOfPool(vaults[0]);
+        address[] memory vaults_ = new address[](1);
+        vaults_[0] = additionalVault;
+        uint256[] memory lendingShares_ = new uint256[](1);
+        lendingShares_[0] = lendingShare2;
+        lending.addLendingPools(vaults_);
+        lending.setLendingShares(vaults_, lendingShares_);
+        lending.rebalanceAuto();
+        vm.assertEq(lending.totalLendingShares(), totalLendingSharesBefore + lendingShare2);
+        vm.assertLt(lending.getBalanceOfPool(vaults[0]), balanceBefore);
+        vm.assertGt(lending.getBalanceOfPool(additionalVault), 0);
+
+        lendingShares_[0] = 0;
+        lending.setLendingShares(vaults_, lendingShares_);
+        lending.rebalanceAuto();
+        lending.removeLendingPools(vaults_);
+        vm.assertEq(totalLendingSharesBefore, lending.totalLendingShares());
+        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), 1e8);
+        vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function _checkOneClickGetters() internal view {
+        vm.assertEq(lending.getLendingPoolCount(), vaults.length);
+        for (uint256 i = 0; i < vaults.length; i++) {
+            vm.assertEq(lending.getSharePriceOfPool(vaults[i]), IVault(vaults[i]).sharePrice());
+        }
+        vm.assertEq(lending.getPools().length, vaults.length);
     }
 
     function test() public {
-        _initializeUSDBVaults();
-        uint256 amountWithDepositFee = amount * (feePrecision - depositFee) / feePrecision;
-        uint256 amountWithWithdrawalFee = (amountWithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
-        uint256 amount2WithDepositFee = amount2 * (feePrecision - depositFee) / feePrecision;
-        uint256 amount2WithWithdrawalFee = (amount2WithDepositFee / 2) * (feePrecision - withdrawalFee) / feePrecision;
-
-        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
-        usdb.transfer(user, amount);
-        usdb.transfer(user2, amount2);
-        vm.stopPrank();
-
-        vm.startPrank(user);
-        usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount, user, 0);
-        console.log("user shares", userShares);
-        vm.stopPrank();
-
-        vm.startPrank(user2);
-        usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2, user2, 0);
-        console.log("user2 shares", user2Shares);
-        vm.stopPrank();
-
-        // update lending share
-        vm.startPrank(admin);
-        address[] memory vaults = new address[](1);
-        vaults[0] = address(aaveVault);
-        uint256[] memory lendingShares = new uint256[](1);
-        lendingShares[0] = lendingShare2;
-        lending.setLendingShares(vaults, lendingShares);
-        lending.rebalance(address(juiceVault), address(aaveVault), juiceVault.balanceOf(address(lending)) / 4 - 1000);
-        vm.assertApproxEqAbs(
-            juiceVault.balanceOf(address(lending)),
-            aaveVault.balanceOf(address(lending)),
-            amountWithDepositFee * 2 / 1e10
-        );
-
-        vaults[0] = address(aaveVault);
-        lendingShares[0] = lendingShare;
-        lending.setLendingShares(vaults, lendingShares);
-        lending.rebalanceAuto();
-        vm.assertApproxEqAbs(
-            juiceVault.balanceOf(address(lending)),
-            aaveVault.balanceOf(address(lending)) * 2,
-            amountWithDepositFee * 2 / 1e10
-        );
-        vm.stopPrank();
-        // redeem
-        vm.startPrank(user);
-        lending.redeem(userShares / 2, user, user, 0);
-        vm.assertApproxEqAbs(usdb.balanceOf(user), amountWithWithdrawalFee, amountWithWithdrawalFee / 1e5);
-        vm.stopPrank();
-        vm.startPrank(user2);
-        lending.redeem(user2Shares / 2, user2, user2, 0);
-        vm.assertApproxEqAbs(usdb.balanceOf(user2), amount2WithWithdrawalFee, amount2WithWithdrawalFee / 1e5);
-        vm.stopPrank();
-        vm.assertGt(usdb.balanceOf(feeRecipient), 0);
+        baseVaultTest(true);
+        _checkOneClickGetters();
     }
+}
 
-    function test_buffer() public {
-        _initializeUSDBVaults();
-        _ininitializeBufferVault();
+contract OneClickIndexBaseChainTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
+        super.setUp();
+    }
+}
 
-        vm.startPrank(address(0x236F233dBf78341d25fB0F1bD14cb2bA4b8a777c));
-        usdb.transfer(user, amount);
-        usdb.transfer(user2, amount2);
-        usdb.transfer(admin, amount2);
-        vm.stopPrank();
+contract OneClickIndexArbitrumTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+    }
+}
 
-        vm.startPrank(user);
-        usdb.approve(address(lending), amount);
-        uint256 userShares = lending.deposit(amount, user, 0);
-        console.log("user shares", userShares);
-        vm.stopPrank();
-
-        vm.startPrank(user2);
-        usdb.approve(address(lending), amount2);
-        uint256 user2Shares = lending.deposit(amount2, user2, 0);
-        console.log("user2 shares", user2Shares);
-        vm.stopPrank();
-
-        uint256 balanceBefore = lending.getBalanceOfPool(address(bufferVault));
-        uint256 userBalanceBefore = lending.getBalanceInUnderlying(user);
-
-        vm.startPrank(admin);
-        bufferVault.reduceAssets(lending.getBalanceOfPool(address(bufferVault)) / 2);
-        vm.stopPrank();
-
-        vm.assertGt(balanceBefore, lending.getBalanceOfPool(address(bufferVault)));
-        vm.assertEq(lending.getProfit(user), 0);
-        vm.assertGt(userBalanceBefore, lending.getBalanceInUnderlying(user));
-
-        vm.startPrank(admin);
-        usdb.transfer(address(bufferVault), usdb.balanceOf(admin));
-        uint256 depositedBalanceBefore = lending.getWaterline(user);
-        uint256 depositedBalance2Before = lending.getWaterline(user2);
-        address[] memory users = new address[](2);
-        users[0] = user;
-        users[1] = user2;
-        lending.collectPerformanceFee(users);
-        vm.assertGt(lending.getWaterline(user), depositedBalanceBefore);
-        vm.assertGt(lending.getWaterline(user2), depositedBalance2Before);
-        vm.stopPrank();
+contract OneClickIndexBlastTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        vm.createSelectFork("blast", lastCachedBlockid_BLAST);
+        super.setUp();
     }
 }

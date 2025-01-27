@@ -17,30 +17,53 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32 performanceFee;
     }
 
+    /* ========== EVENTS ========== */
+
+    event GlobalDepositFeeUpdated(uint32 newDepositFee);
+    event GlobalWithdrawalFeeUpdated(uint32 newWithdrawalFee);
+    event GlobalPerformanceFeeUpdated(uint32 newPerformanceFee);
+    event ManagementFeeUpdated(uint32 newManagementFee);
+
+    /* ========== IMMUTABLE VARIABLES ========== */
+
     uint32 private immutable _feePrecision;
+
+    /* ========== STATE VARIABLES =========== */
+    // Always add to the bottom! Contract is upgradeable
 
     uint32 private _depositFee;
     uint32 private _withdrawalFee;
     uint32 private _performanceFee;
 
+    /// @notice The mapping of users and their fees
     mapping(address user => UserFees fees) private _users;
 
     /// @notice Mapping of contracts that are allowed to update user fees
     mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
+
+    uint32 private _managementFee;
+
+    /* ========== CONSTRUCTOR ========== */
 
     constructor(uint32 feePrecision) {
         _feePrecision = feePrecision;
         _disableInitializers();
     }
 
-    function initialize(address admin, uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
-        public
-        initializer
-    {
+    /* ========== INITIALIZER ========== */
+
+    function initialize(
+        address admin,
+        uint32 depositFee,
+        uint32 withdrawalFee,
+        uint32 performanceFee,
+        uint32 managementFee
+    ) public initializer {
         __Ownable_init(admin);
         _depositFee = depositFee;
         _withdrawalFee = withdrawalFee;
         _performanceFee = performanceFee;
+        _managementFee = managementFee;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -57,12 +80,24 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     }
 
     /**
+     * @notice Sets the management fee
+     * @param managementFee The management fee
+     */
+    function setmanagementFee(uint32 managementFee) external onlyOwner {
+        _managementFee = managementFee;
+        emit ManagementFeeUpdated(managementFee);
+    }
+
+    /**
      * @notice Sets the global fees
      * @param depositFee The deposit fee
      * @param withdrawalFee The withdrawal fee
      * @param performanceFee The performance fee
      */
     function setFees(uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee) external onlyOwner {
+        if (_depositFee != depositFee) emit GlobalDepositFeeUpdated(depositFee);
+        if (_withdrawalFee != withdrawalFee) emit GlobalWithdrawalFeeUpdated(withdrawalFee);
+        if (_performanceFee != performanceFee) emit GlobalPerformanceFeeUpdated(performanceFee);
         _depositFee = depositFee;
         _withdrawalFee = withdrawalFee;
         _performanceFee = performanceFee;
@@ -83,18 +118,12 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     ) external onlyOwner {
         for (uint256 i = 0; i < users.length; i++) {
             UserFees storage userFees = _users[users[i]];
-            if (userFees.initialized) {
-                require(depositFees[i] <= userFees.depositFee, "FeeProvider: invalid deposit fee");
-                require(withdrawalFees[i] <= userFees.withdrawalFee, "FeeProvider: invalid withdrawal fee");
-                require(performanceFees[i] <= userFees.performanceFee, "FeeProvider: invalid performance fee");
-            } else {
-                userFees.initialized = true;
-            }
+            userFees.initialized = true;
             // we don't need to verify that global fees are lower than user fees
             // because it will be automatically checked in getUpdateUserFees
-            userFees.depositFee = depositFees[i];
-            userFees.withdrawalFee = withdrawalFees[i];
-            userFees.performanceFee = performanceFees[i];
+            userFees.depositFee = uint32(Math.min(depositFees[i], userFees.depositFee));
+            userFees.withdrawalFee = uint32(Math.min(withdrawalFees[i], userFees.withdrawalFee));
+            userFees.performanceFee = uint32(Math.min(performanceFees[i], userFees.performanceFee));
         }
     }
 
@@ -109,8 +138,8 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         external
         returns (uint32 depositFee, uint32 withdrawalFee, uint32 performanceFee)
     {
-        bool isWhitelistedContract = whitelistedContracts[msg.sender];
         UserFees storage userFees = _users[user];
+        bool isWhitelistedContract = whitelistedContracts[msg.sender];
         if (!userFees.initialized) {
             depositFee = _depositFee;
             withdrawalFee = _withdrawalFee;
@@ -165,5 +194,13 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     function getPerformanceFee(address user) external view returns (uint32) {
         return
             _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee;
+    }
+
+    /**
+     * @notice Returns the management fee.
+     * @return The management fee.
+     */
+    function getManagementFee() external view returns (uint32) {
+        return _managementFee;
     }
 }

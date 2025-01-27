@@ -17,6 +17,18 @@ import {IVault} from "./interfaces/IVault.sol";
 abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessControlUpgradeable, IVault {
     using SafeERC20 for IERC20Metadata;
 
+    /// @custom:storage-location erc7201:cybro.storage.BaseVault
+    struct BaseVaultStorage {
+        mapping(address account => uint256) waterline;
+        uint256 lastTimeManagementFeeCollected;
+    }
+
+    function _getBaseVaultStorage() private pure returns (BaseVaultStorage storage $) {
+        assembly {
+            $.slot := BASE_VAULT_STORAGE_LOCATION
+        }
+    }
+
     /* ========== EVENTS ========== */
 
     /**
@@ -68,7 +80,17 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     event PerformanceFeeCollected(address indexed owner, uint256 fee);
 
+    /**
+     * @notice Emitted when management fee is collected
+     * @param shares The amount of shares minted
+     */
+    event ManagementFeeCollected(uint256 shares);
+
     /* ========== CONSTANTS ========== */
+
+    // keccak256(abi.encode(uint256(keccak256("cybro.storage.BaseVault")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant BASE_VAULT_STORAGE_LOCATION =
+        0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00;
 
     /// @notice Role identifier for managers
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -86,12 +108,6 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
 
     /// @notice The precision used for fee calculations
     uint32 public immutable feePrecision;
-
-    /* ========== STATE VARIABLES =========== */
-    // Always add to the bottom! Contract is upgradeable
-
-    /// @notice Mapping of account addresses to their deposited balance of assets
-    mapping(address account => uint256) internal _waterline;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -123,6 +139,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -172,7 +190,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
 
         require(shares >= minShares, "minShares");
 
-        _waterline[receiver] += increase;
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.waterline[receiver] += increase;
         _mint(receiver, shares);
 
         emit Deposit(_msgSender(), receiver, increase, shares, depositFee, totalSupplyBefore, totalAssetsBefore);
@@ -194,22 +213,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        uint256 withdrawalFee;
-        uint256 tvlBefore = totalAssets();
-        uint256 totalSupplyBefore = totalSupply();
-        assets = _redeem(shares);
-        if (address(feeProvider) != address(0)) {
-            (assets,) = _applyPerformanceFee(assets, shares, owner);
-            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
-        }
-
+        assets = _redeemBaseVault(shares, receiver, owner);
         require(assets >= minAssets, "CYBRO: minAssets");
-
-        _burn(owner, shares);
-        _asset.safeTransfer(receiver, assets);
-
-        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
     }
 
     /**
@@ -217,14 +222,49 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param accounts The addresses of the accounts to collect fees for
      */
     function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
-            if (assets > _waterline[accounts[i]]) {
+            if (assets > $.waterline[accounts[i]]) {
                 uint256 fee =
-                    (assets - _waterline[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i]) / feePrecision;
-                _waterline[accounts[i]] = assets - fee;
+                    (assets - $.waterline[accounts[i]]) * feeProvider.getPerformanceFee(accounts[i]) / feePrecision;
+                $.waterline[accounts[i]] = assets - fee;
                 emit PerformanceFeeCollected(accounts[i], fee);
                 super._update(accounts[i], feeRecipient, fee * 10 ** _decimals / sharePrice());
+            }
+        }
+    }
+
+    /**
+     * @notice Collects annual management fee, pro-rated based on time passed since last collection
+     *
+     * For example, if:
+     * - Annual managementFee is 10% (100 in feePrecision units)
+     * - Total supply is 1000
+     * - 6 months (182.5 days) passed since last collection
+     * Then:
+     * shares = 1000 * 100 * (182.5 days) / 365 days / (1000 - 100)
+     * ≈ 1000 * 100 * 0.5 / 900 ≈ 55.56
+     *
+     * The fee is calculated proportionally to the exact time passed since last collection,
+     * using 365 days as the base period for the annual rate.
+     */
+    function collectManagementFee() external onlyRole(MANAGER_ROLE) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        uint32 managementFee = feeProvider.getManagementFee();
+        uint256 shares = totalSupply() * managementFee * (block.timestamp - $.lastTimeManagementFeeCollected) / 365 days
+            / (feePrecision - managementFee);
+        $.lastTimeManagementFeeCollected = block.timestamp;
+        _mint(feeRecipient, shares);
+        emit ManagementFeeCollected(shares);
+    }
+
+    function emergencyWithdraw(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            uint256 balance = balanceOf(account);
+            if (balance > 0) {
+                _redeemBaseVault(balance, account, account);
             }
         }
     }
@@ -289,8 +329,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (address(feeProvider) == address(0)) {
             return 0;
         }
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
         uint256 assets = getBalanceInUnderlying(account);
-        uint256 waterline = _waterline[account];
+        uint256 waterline = $.waterline[account];
         uint256 fee_;
         if (assets > waterline) {
             fee_ = (assets - waterline) * feeProvider.getPerformanceFee(account) / feePrecision;
@@ -305,7 +346,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The waterline
      */
     function getWaterline(address account) external view returns (uint256) {
-        return _waterline[account];
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        return $.waterline[account];
     }
 
     /**
@@ -323,8 +365,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The profit
      */
     function getProfit(address account) external view returns (uint256) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
         uint256 balance = getBalanceInUnderlying(account);
-        return balance > _waterline[account] ? balance - _waterline[account] : 0;
+        return balance > $.waterline[account] ? balance - $.waterline[account] : 0;
     }
 
     /**
@@ -339,7 +382,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The deposit fee
      */
-    function getDepositFee(address account) external view returns (uint256) {
+    function getDepositFee(address account) external view returns (uint32) {
         return feeProvider.getDepositFee(account);
     }
 
@@ -348,7 +391,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The withdrawal fee
      */
-    function getWithdrawalFee(address account) external view returns (uint256) {
+    function getWithdrawalFee(address account) external view returns (uint32) {
         return feeProvider.getWithdrawalFee(account);
     }
 
@@ -357,8 +400,21 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The performance fee
      */
-    function getPerformanceFee(address account) external view returns (uint256) {
+    function getPerformanceFee(address account) external view returns (uint32) {
         return feeProvider.getPerformanceFee(account);
+    }
+
+    /**
+     * @notice Returns the management fee
+     * @return The management fee
+     */
+    function getManagementFee() external view returns (uint32) {
+        return feeProvider.getManagementFee();
+    }
+
+    function getLastTimeManagementFeeCollected() external view returns (uint256) {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        return $.lastTimeManagementFeeCollected;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -375,6 +431,29 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal virtual returns (uint256 assets);
+
+    /**
+     * @notice Internal function to redeem shares
+     * @param shares The amount of shares to redeem
+     * @param receiver The address to receive the assets
+     * @param owner The owner of the shares
+     * @return assets The amount of assets redeemed
+     */
+    function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
+        uint256 withdrawalFee;
+        uint256 tvlBefore = totalAssets();
+        uint256 totalSupplyBefore = totalSupply();
+        assets = _redeem(shares);
+        if (address(feeProvider) != address(0)) {
+            (assets,) = _applyPerformanceFee(assets, shares, owner);
+            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
+        }
+
+        _burn(owner, shares);
+        _asset.safeTransfer(receiver, assets);
+
+        emit Withdraw(_msgSender(), receiver, owner, shares, assets, withdrawalFee, totalSupplyBefore, tvlBefore);
+    }
 
     /**
      * @notice Internal function to get the precise total assets
@@ -422,8 +501,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @return The amount of assets after fee and the fee amount
      */
     function _applyPerformanceFee(uint256 assets, uint256 shares, address owner) internal returns (uint256, uint256) {
-        uint256 balancePortion = _waterline[owner] * shares / balanceOf(owner);
-        _waterline[owner] -= balancePortion;
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        uint256 balancePortion = $.waterline[owner] * shares / balanceOf(owner);
+        $.waterline[owner] -= balancePortion;
         uint256 fee_;
         if (assets > balancePortion) {
             fee_ = (assets - balancePortion) * feeProvider.getPerformanceFee(owner) / feePrecision;

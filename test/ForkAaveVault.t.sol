@@ -4,109 +4,94 @@ pragma solidity 0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {IAavePool} from "../src/interfaces/aave/IPool.sol";
-import {AaveVault, IERC20Metadata, IFeeProvider} from "../src/vaults/AaveVault.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {
-    TransparentUpgradeableProxy,
-    ProxyAdmin
-} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {BaseVault} from "../src/BaseVault.sol";
+import {AbstractBaseVaultTest, IVault} from "./AbstractBaseVault.t.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract AaveVaultTest is Test {
-    IAavePool aavePool;
-    AaveVault vault;
-    IERC20Metadata token;
-    uint256 amount;
-    uint256 forkId;
-    address user;
-    address user2;
-
-    address internal admin;
-    uint256 internal adminPrivateKey;
-
-    function setUp() public {
-        adminPrivateKey = 0xba132ce;
-        admin = vm.addr(adminPrivateKey);
-        forkId = vm.createSelectFork("blast", 8149175);
-        aavePool = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
+contract AaveVaultTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
+        super.setUp();
         amount = 1e20;
-        user = address(100);
-        user2 = address(101);
     }
 
-    modifier fork() {
-        vm.selectFork(forkId);
-        _;
-    }
-
-    function _deposit() internal returns (uint256 shares) {
+    function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        address vaultAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 1);
-        token.approve(vaultAddress, amount);
-        vault = AaveVault(
-            address(
-                new TransparentUpgradeableProxy(
-                    address(new AaveVault(token, aavePool, IFeeProvider(address(0)), address(0))),
-                    admin,
-                    abi.encodeCall(AaveVault.initialize, (admin, "nameVault", "symbolVault", admin))
-                )
+        vault = _deployAave(
+            VaultSetup(
+                asset, address(aave_zerolendPool_BLAST), address(feeProvider), feeRecipient, name, symbol, admin, admin
             )
         );
         vm.stopPrank();
-        vm.startPrank(user);
-        token.approve(address(vault), amount);
-        vm.expectEmit(address(vault));
-        emit BaseVault.Deposit(user, user, amount, amount, 0, 0, 0);
-        shares = vault.deposit(amount, user, 0);
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdb() public {
+        asset = usdb_BLAST;
+        baseVaultTest(true);
+    }
+
+    function test_weth_deposit() public {
+        asset = weth_BLAST;
+        baseVaultTest(true);
+    }
+}
+
+contract AaveVaultBaseChainTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
+        super.setUp();
+        amount = 1e10;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = _deployAave(
+            VaultSetup(asset, address(aave_pool_BASE), address(feeProvider), feeRecipient, name, symbol, admin, admin)
+        );
         vm.stopPrank();
     }
 
-    function _redeem(uint256 shares) internal returns (uint256 assets) {
-        vm.startPrank(user);
-        assets = vault.redeem(shares, user, user, 0);
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdc() public {
+        asset = usdc_BASE;
+        baseVaultTest(true);
+    }
+}
+
+contract AaveVaultArbitrumTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+        amount = 1e10;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = _deployAave(
+            VaultSetup(
+                asset, address(aave_pool_ARBITRUM), address(feeProvider), feeRecipient, name, symbol, admin, admin
+            )
+        );
         vm.stopPrank();
     }
 
-    function test_usdb() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
-        vm.startPrank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        uint256 shares = _deposit();
-
-        vm.prank(address(0x3Ba925fdeAe6B46d0BB4d424D829982Cb2F7309e));
-        token.transfer(address(aavePool), amount * 100);
-        _redeem(shares);
-        console.log(token.balanceOf(user));
-        // vm.assertGt(assets, amount);
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
     }
 
-    function test_weth_deposit() public fork {
-        token = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
-        vm.startPrank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-        token.transfer(user, amount);
-        token.transfer(user, amount);
-        token.transfer(admin, amount);
-        vm.stopPrank();
-        uint256 shares = _deposit();
-
-        vm.prank(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-        token.transfer(address(aavePool), amount * 3);
-        _redeem(shares);
-        // vm.assertGt(assets, amount);
+    function test_usdc() public {
+        asset = usdc_ARBITRUM;
+        baseVaultTest(true);
     }
 
-    function test_otherTokens_deposit() public fork {
-        token = IERC20Metadata(address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1));
-        deal(address(token), user, amount);
-        deal(address(token), admin, amount);
-        uint256 shares = _deposit();
-
-        deal(address(token), address(aavePool), token.balanceOf(address(aavePool)) + amount * 3);
-        _redeem(shares);
-        // vm.assertGt(assets, amount);
+    function test_usdt() public {
+        asset = usdt_ARBITRUM;
+        baseVaultTest(true);
     }
 }

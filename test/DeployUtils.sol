@@ -19,6 +19,7 @@ import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
+import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/GammaAlgebraVault.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -85,7 +86,7 @@ contract DeployUtils {
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
 
     uint256 lastCachedBlockid_BLAST = 14284818;
-    uint256 lastCachedBlockid_ARBITRUM = 297475175;
+    uint256 lastCachedBlockid_ARBITRUM = 300132227;
     uint256 lastCachedBlockid_BASE = 25292162;
 
     IStargatePool stargate_usdtPool_ARBITRUM =
@@ -104,6 +105,9 @@ contract DeployUtils {
     IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
+
+    IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
+    IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -267,6 +271,36 @@ contract DeployUtils {
                             StargateVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployGammaAlgebraVault(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
+        address uniProxy_;
+        if (block.chainid == 42161) {
+            // arbitrum
+            uniProxy_ = address(uniProxy_gamma_ARBITRUM);
+        } else {
+            revert();
+        }
+        gammaVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new GammaAlgebraVault(
+                            vaultData.pool,
+                            uniProxy_,
+                            vaultData.asset,
+                            IFeeProvider(vaultData.feeProvider),
+                            vaultData.feeRecipient
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        GammaAlgebraVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                     )
                 )
             )

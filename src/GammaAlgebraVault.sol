@@ -11,10 +11,11 @@ import {IAlgebraPool} from "./interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
-import {FixedPoint96} from "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
-import {IClearingV2} from "./interfaces/gamma/IClearingV2.sol";
 
+/**
+ * @title GammaAlgebraVault
+ * @dev This contract interacts with Algebra Pool and Gamma Hypervisor to manage a vault with liquidity provision.
+ */
 contract GammaAlgebraVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
@@ -31,6 +32,14 @@ contract GammaAlgebraVault is BaseVault {
 
     /* ========== CONSTRUCTOR ========== */
 
+    /**
+     * @dev Sets the initial state of the Vault
+     * @param _hypervisor Address of the gamma hypervisor contract
+     * @param _uniProxy Address of the gamma UniProxy contract
+     * @param _asset Address of the asset token
+     * @param _feeProvider Address of the fee provider
+     * @param _feeRecipient Address to which the fees are sent
+     */
     constructor(
         address _hypervisor,
         address _uniProxy,
@@ -51,6 +60,13 @@ contract GammaAlgebraVault is BaseVault {
 
     /* ========== INITIALIZER ========== */
 
+    /**
+     * @notice Initializes the vault contract with necessary setup.
+     * @param admin The address of the admin
+     * @param name The name of the ERC20 token representing shares in the vault
+     * @param symbol The symbol of the ERC20 token representing shares in the vault
+     * @param manager The address of the manager
+     */
     function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
         IERC20Metadata(token0).forceApprove(address(hypervisor), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(hypervisor), type(uint256).max);
@@ -60,60 +76,46 @@ contract GammaAlgebraVault is BaseVault {
 
     /* ========== VIEW FUNCTIONS ========== */
 
+    /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         (uint256 amount0, uint256 amount1) = hypervisor.getTotalAmounts();
         return hypervisor.balanceOf(address(this)) * _calculateInBaseToken(amount0, amount1) / hypervisor.totalSupply();
     }
 
+    /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
         (uint256 amount0, uint256 amount1) = hypervisor.getTotalAmounts();
         return _calculateInBaseToken(amount0, amount1);
     }
 
-    function _getCurrentSqrtPrice() internal view returns (uint256) {
-        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
-        return uint256(sqrtPriceX96);
-    }
-
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override {
-        (uint256 amount0, uint256 amount1) = _getAmounts(amount);
-        uint256 unusedAnmountInAsset = amount - amount0 - amount1;
-        if (isToken0) {
-            amount1 = _swap(true, amount1);
-            (uint256 amountMinByUni, uint256 amountMaxByUni) =
-                uniProxy.getDepositAmount(address(hypervisor), asset(), amount0);
-            if (amountMaxByUni < amount1) {
-                uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
-                unusedAnmountInAsset += _swap(false, amount1 - newAmount);
-                amount1 = newAmount;
-            }
-        } else {
-            amount0 = _swap(false, amount0);
-            (uint256 amountMinByUni, uint256 amountMaxByUni) =
-                uniProxy.getDepositAmount(address(hypervisor), asset(), amount1);
-            if (amountMaxByUni < amount0) {
-                uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
-                unusedAnmountInAsset += _swap(true, amount0 - newAmount);
-                amount0 = newAmount;
-            }
-        }
+        (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
 
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
 
-        if (unusedAnmountInAsset > 0) {
-            IERC20Metadata(asset()).safeTransfer(msg.sender, unusedAnmountInAsset);
+        // Return unused tokens back to sender
+        if (unusedAmountToken0 > 0) {
+            IERC20Metadata(token0).safeTransfer(msg.sender, unusedAmountToken0);
+        }
+        if (unusedAmountToken1 > 0) {
+            IERC20Metadata(token1).safeTransfer(msg.sender, unusedAmountToken1);
         }
     }
 
+    /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        // Withdraw assets from the hypervisor proportional to shares
         (uint256 amount0, uint256 amount1) = hypervisor.withdraw(
             shares * hypervisor.balanceOf(address(this)) / totalSupply(),
             address(this),
             address(this),
             [uint256(0), 0, 0, 0]
         );
+
+        // Swap to return assets in terms of the base token
         if (isToken0) {
             assets = amount0 + _swap(false, amount1);
         } else {
@@ -121,6 +123,21 @@ contract GammaAlgebraVault is BaseVault {
         }
     }
 
+    /**
+     * @dev Returns the current square root price for the pool.
+     * @return The current square root price
+     */
+    function _getCurrentSqrtPrice() internal view returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
+    }
+
+    /**
+     * @dev Swaps tokens using the pool in the desired direction.
+     * @param zeroForOne If true, swap token0 for token1, else swap token1 for token0
+     * @param amount The amount to swap
+     * @return The amount received after swap
+     */
     function _swap(bool zeroForOne, uint256 amount) internal returns (uint256) {
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
@@ -132,20 +149,66 @@ contract GammaAlgebraVault is BaseVault {
         return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
-    function _getAmounts(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
+    /**
+     * @dev Calculates and returns the optimal amounts of token0 and token1 based on the supplied amount.
+     * @param amount The total amount in the asset of the vault
+     * @return amount0 The amount of token0 to use
+     * @return amount1 The amount of token1 to use
+     * @return unusedAmountToken0 Unused amount of token0
+     * @return unusedAmountToken1 Unused amount of token1
+     */
+    function _getAmounts(uint256 amount) internal returns (uint256, uint256, uint256, uint256) {
+        address token0_;
+        address token1_;
+        (uint256 amount0, uint256 amount1) = _getAmountsInAsset(amount);
+        (token0_, token1_, amount0, amount1) =
+            isToken0 ? (token0, token1, amount0, amount1) : (token1, token0, amount1, amount0);
+
+        uint256 unusedAmountToken0 = amount - amount0 - amount1;
+        uint256 unusedAmountToken1;
+        amount1 = _swap(isToken0, amount1);
+        (uint256 amountMinByUni, uint256 amountMaxByUni) =
+            uniProxy.getDepositAmount(address(hypervisor), token0_, amount0);
+        if (amountMaxByUni < amount1) {
+            uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
+            unusedAmountToken1 = amount1 - newAmount;
+            amount1 = newAmount;
+        } else if (amount1 < amountMinByUni) {
+            (amountMinByUni, amountMaxByUni) = uniProxy.getDepositAmount(address(hypervisor), token1_, amount1);
+            uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
+            unusedAmountToken0 += amount0 - newAmount;
+            amount0 = newAmount;
+        }
+        return isToken0
+            ? (amount0, amount1, unusedAmountToken0, unusedAmountToken1)
+            : (amount1, amount0, unusedAmountToken1, unusedAmountToken0);
+    }
+
+    /**
+     * @dev Calculates how much of each token to use in base assets.
+     * Splits the input amount into amounts for token0 and token1 based on current ratios.
+     * @param amount Total amount of the base token
+     * @return amountFor0 Amount used for token0
+     * @return amountFor1 Amount used for token1
+     */
+    function _getAmountsInAsset(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
         (uint256 totalamount0, uint256 totalamount1) = hypervisor.getTotalAmounts();
-        uint256 sqrtPriceX96 = _getCurrentSqrtPrice();
-        uint256 totalamount1in0 = FullMath.mulDiv(totalamount1, 2 ** 192, sqrtPriceX96 ** 2);
-        uint256 ratio = totalamount1in0 * PRECISION / totalamount0;
+        uint256 ratio = Math.mulDiv(totalamount1, 2 ** 192, _getCurrentSqrtPrice() ** 2) * PRECISION / totalamount0;
         if (isToken0) {
-            amountFor1 = FullMath.mulDiv(amount, ratio, ratio + PRECISION);
+            amountFor1 = Math.mulDiv(amount, ratio, ratio + PRECISION);
             amountFor0 = amount - amountFor1;
         } else {
-            amountFor0 = FullMath.mulDiv(amount, PRECISION, ratio + PRECISION);
+            amountFor0 = Math.mulDiv(amount, PRECISION, ratio + PRECISION);
             amountFor1 = amount - amountFor0;
         }
     }
 
+    /**
+     * @dev Converts amounts of token0 and token1 into equivalent amount in base asset.
+     * @param amount0 Amount of token0
+     * @param amount1 Amount of token1
+     * @return Equivalent amount in base token
+     */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
         uint256 sqrtPrice = _getCurrentSqrtPrice();
         return isToken0
@@ -153,6 +216,7 @@ contract GammaAlgebraVault is BaseVault {
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
     }
 
+    /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         return token != address(hypervisor);
     }

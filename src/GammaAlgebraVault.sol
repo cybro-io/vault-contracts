@@ -19,8 +19,6 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 contract GammaAlgebraVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
-    uint256 public constant PRECISION = 1e36;
-
     address public immutable token0;
     address public immutable token1;
     uint8 public immutable token0Decimals;
@@ -158,30 +156,27 @@ contract GammaAlgebraVault is BaseVault {
      * @return unusedAmountToken1 Unused amount of token1
      */
     function _getAmounts(uint256 amount) internal returns (uint256, uint256, uint256, uint256) {
-        address token0_;
-        address token1_;
-        (uint256 amount0, uint256 amount1) = _getAmountsInAsset(amount);
-        (token0_, token1_, amount0, amount1) =
-            isToken0 ? (token0, token1, amount0, amount1) : (token1, token0, amount1, amount0);
+        (uint256 amountFor0, uint256 amountFor1) = _getAmountsInAsset(amount);
 
-        uint256 unusedAmountToken0 = amount - amount0 - amount1;
-        uint256 unusedAmountToken1;
-        amount1 = _swap(isToken0, amount1);
-        (uint256 amountMinByUni, uint256 amountMaxByUni) =
-            uniProxy.getDepositAmount(address(hypervisor), token0_, amount0);
-        if (amountMaxByUni < amount1) {
-            uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
-            unusedAmountToken1 = amount1 - newAmount;
-            amount1 = newAmount;
-        } else if (amount1 < amountMinByUni) {
-            (amountMinByUni, amountMaxByUni) = uniProxy.getDepositAmount(address(hypervisor), token1_, amount1);
-            uint256 newAmount = amountMinByUni + (amountMaxByUni - amountMinByUni) / 2;
-            unusedAmountToken0 += amount0 - newAmount;
-            amount0 = newAmount;
+        uint256 amount0;
+        uint256 amount1;
+        if (isToken0) {
+            amount0 = amountFor0;
+            amount1 = _swap(true, amountFor1);
+        } else {
+            amount0 = _swap(false, amountFor0);
+            amount1 = amountFor1;
         }
-        return isToken0
-            ? (amount0, amount1, unusedAmountToken0, unusedAmountToken1)
-            : (amount1, amount0, unusedAmountToken1, unusedAmountToken0);
+
+        (uint256 min1, uint256 max1) = uniProxy.getDepositAmount(address(hypervisor), token0, amount0);
+        if (max1 < amount1) {
+            return (amount0, max1, 0, amount1 - max1);
+        } else if (amount1 < min1) {
+            (, uint256 max0) = uniProxy.getDepositAmount(address(hypervisor), token1, amount1);
+            return (max0, amount1, amount0 - max0, 0);
+        } else {
+            return (amount0, amount1, 0, 0);
+        }
     }
 
     /**
@@ -192,15 +187,11 @@ contract GammaAlgebraVault is BaseVault {
      * @return amountFor1 Amount used for token1
      */
     function _getAmountsInAsset(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
-        (uint256 totalamount0, uint256 totalamount1) = hypervisor.getTotalAmounts();
-        uint256 ratio = Math.mulDiv(totalamount1, 2 ** 192, _getCurrentSqrtPrice() ** 2) * PRECISION / totalamount0;
-        if (isToken0) {
-            amountFor1 = Math.mulDiv(amount, ratio, ratio + PRECISION);
-            amountFor0 = amount - amountFor1;
-        } else {
-            amountFor0 = Math.mulDiv(amount, PRECISION, ratio + PRECISION);
-            amountFor1 = amount - amountFor0;
-        }
+        (uint256 totalAmount0, uint256 totalAmount1) = hypervisor.getTotalAmounts();
+        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, _getCurrentSqrtPrice() ** 2);
+
+        amountFor0 = amount * totalAmount0 / (totalAmount0 + amount1in0);
+        amountFor1 = amount - amountFor0;
     }
 
     /**

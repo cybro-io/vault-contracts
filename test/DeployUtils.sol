@@ -19,7 +19,7 @@ import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
-import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/GammaAlgebraVault.sol";
+import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -277,7 +277,7 @@ contract DeployUtils {
         );
     }
 
-    function _deployGammaAlgebraVault(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
+    function _deployGammaAlgebra(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
         address uniProxy_;
         if (block.chainid == 42161) {
             // arbitrum

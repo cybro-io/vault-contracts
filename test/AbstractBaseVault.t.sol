@@ -93,53 +93,62 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
     function _increaseVaultAssets() internal virtual returns (bool);
 
-    function _setAssetProvider() internal {
+    function _getAssetProvider(IERC20Metadata asset_) internal view returns (address assetProvider_) {
         if (block.chainid == 81457) {
-            if (asset == usdb_BLAST) {
-                assetProvider = assetProvider_USDB_BLAST;
-            } else if (asset == weth_BLAST) {
-                assetProvider = assetProvider_WETH_BLAST;
-            } else if (asset == blast_BLAST) {
-                assetProvider = assetProvider_BLAST_BLAST;
+            if (asset_ == usdb_BLAST) {
+                assetProvider_ = assetProvider_USDB_BLAST;
+            } else if (asset_ == weth_BLAST) {
+                assetProvider_ = assetProvider_WETH_BLAST;
+            } else if (asset_ == blast_BLAST) {
+                assetProvider_ = assetProvider_BLAST_BLAST;
             } else {
-                assetProvider = assetProvider_WBTC_BLAST;
+                assetProvider_ = assetProvider_WBTC_BLAST;
             }
         } else if (block.chainid == 42161) {
-            if (asset == usdt_ARBITRUM) {
-                assetProvider = assetProvider_USDT_ARBITRUM;
-            } else if (asset == usdc_ARBITRUM) {
-                assetProvider = assetProvider_USDC_ARBITRUM;
-            } else if (asset == weth_ARBITRUM) {
-                assetProvider = assetProvider_WETH_ARBITRUM;
+            if (asset_ == usdt_ARBITRUM) {
+                assetProvider_ = assetProvider_USDT_ARBITRUM;
+            } else if (asset_ == usdc_ARBITRUM) {
+                assetProvider_ = assetProvider_USDC_ARBITRUM;
+            } else if (asset_ == weth_ARBITRUM) {
+                assetProvider_ = assetProvider_WETH_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
-            if (asset == usdc_BASE) {
-                assetProvider = assetProvider_USDC_BASE;
-            } else if (asset == weth_BASE) {
-                assetProvider = assetProvider_WETH_BASE;
+            if (asset_ == usdc_BASE) {
+                assetProvider_ = assetProvider_USDC_BASE;
+            } else if (asset_ == weth_BASE) {
+                assetProvider_ = assetProvider_WETH_BASE;
             }
         }
+    }
+
+    function _setAssetProvider() internal {
+        assetProvider = _getAssetProvider(asset);
+    }
+
+    function _provideAndApproveSpecific(bool needToProvide, IERC20Metadata asset_, uint256 amount_) internal {
+        if (needToProvide) {
+            address assetProvider_ = _getAssetProvider(asset_);
+            vm.startPrank(assetProvider_);
+            asset_.transfer(user, amount_);
+            asset_.transfer(user2, amount_);
+            asset_.transfer(admin, amount_);
+            vm.stopPrank();
+        }
+        vm.startPrank(user);
+        asset_.approve(vaultAddress, amount_);
+        vm.stopPrank();
+        vm.startPrank(user2);
+        asset_.approve(vaultAddress, amount_);
+        vm.stopPrank();
+        vm.startPrank(admin);
+        asset_.approve(vaultAddress, amount_);
+        vm.stopPrank();
     }
 
     function _provideAndApprove(bool needToProvide) internal {
         vm.label(address(vault), "Vault");
         _setAssetProvider();
-        if (needToProvide) {
-            vm.startPrank(assetProvider);
-            asset.transfer(user, amount);
-            asset.transfer(user2, amount);
-            asset.transfer(admin, amount);
-            vm.stopPrank();
-        }
-        vm.startPrank(user);
-        asset.approve(vaultAddress, amount);
-        vm.stopPrank();
-        vm.startPrank(user2);
-        asset.approve(vaultAddress, amount);
-        vm.stopPrank();
-        vm.startPrank(admin);
-        asset.approve(vaultAddress, amount);
-        vm.stopPrank();
+        _provideAndApproveSpecific(needToProvide, asset, amount);
     }
 
     function _checkGetters() internal view {

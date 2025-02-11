@@ -20,6 +20,7 @@ import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
+import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -300,6 +301,25 @@ contract DeployUtils {
                     vaultData.admin,
                     abi.encodeCall(
                         GammaAlgebraVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployBufferVaultMock(VaultSetup memory vaultData) internal returns (BufferVaultMock vault) {
+        vault = BufferVaultMock(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new BufferVaultMock(
+                            vaultData.asset, IFeeProvider(vaultData.feeProvider), vaultData.feeRecipient
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        BufferVaultMock.initialize_mock,
                         (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                     )
                 )

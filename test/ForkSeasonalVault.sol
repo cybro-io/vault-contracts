@@ -94,9 +94,14 @@ contract ForkSeasonalVaultTest is AbstractBaseVaultTest {
         vm.stopPrank();
     }
 
-    function _increaseVaultAssets() internal pure override returns (bool) {
+    function _increaseVaultAssets() internal override returns (bool) {
+        vm.startPrank(assetProvider);
+        asset.transfer(address(vault), 1e6);
+        vm.stopPrank();
         return false;
     }
+
+    function _middleInteractions() internal override {}
 
     function test() public fork {
         asset = usdb_BLAST;

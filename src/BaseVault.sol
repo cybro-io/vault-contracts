@@ -133,19 +133,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), shares);
         }
-
-        uint256 performanceFee;
-        uint256 withdrawalFee;
-        assets = _redeem(shares);
-        if (address(feeProvider) != address(0)) {
-            (assets, performanceFee) = _applyPerformanceFee(assets, shares, owner);
-            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
-        }
-
-        _burn(owner, shares);
-        _asset.safeTransfer(receiver, assets);
-
-        emit Withdraw(_msgSender(), receiver, owner, assets, shares, performanceFee + withdrawalFee);
+        assets = _redeemBaseVault(shares, receiver, owner);
     }
 
     /// @notice Collects performance fees for multiple accounts
@@ -159,6 +147,16 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
                 uint256 feeInShares = fee * 10 ** _decimals / sharePrice();
                 _depositedBalances[accounts[i]] = assets - fee;
                 super._update(accounts[i], feeRecipient, feeInShares);
+            }
+        }
+    }
+
+    function emergencyWithdraw(address[] memory accounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            uint256 balance = balanceOf(account);
+            if (balance > 0) {
+                _redeemBaseVault(balance, account, account);
             }
         }
     }
@@ -259,6 +257,21 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /// @param shares The amount of shares to redeem
     /// @return assets The amount of assets redeemed
     function _redeem(uint256 shares) internal virtual returns (uint256 assets);
+
+    function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
+        uint256 withdrawalFee;
+        uint256 perfomanceFee;
+        assets = _redeem(shares);
+        if (address(feeProvider) != address(0)) {
+            (assets, perfomanceFee) = _applyPerformanceFee(assets, shares, owner);
+            (assets, withdrawalFee) = _applyWithdrawalFee(assets, owner);
+        }
+
+        _burn(owner, shares);
+        _asset.safeTransfer(receiver, assets);
+
+        emit Withdraw(_msgSender(), receiver, owner, assets, shares, perfomanceFee + withdrawalFee);
+    }
 
     /// @notice Internal function to get the precise total assets
     function _totalAssetsPrecise() internal virtual returns (uint256) {

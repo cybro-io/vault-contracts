@@ -608,7 +608,7 @@ contract UpdatedDeployScript is Script, StdCheats {
                         stg: stg,
                         weth: weth,
                         swapPool: swapPools[0],
-                        assetWethPool: IUniswapV3Pool(address(0)),
+                        assetWethPool: swapPools[1],
                         admin: admin,
                         name: "Cybro Stargate USDC",
                         symbol: "cystgUSDC",

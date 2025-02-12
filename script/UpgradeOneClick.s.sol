@@ -17,9 +17,8 @@ contract EmergencyUpgrade is Script {
         ProxyAdmin proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
         address admin = proxyAdmin.owner();
 
-        IUniswapV3Factory factory = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
-        IERC20Metadata usdc = IERC20Metadata(address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913));
         IERC20Metadata weth = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
+        IUniswapV3Pool assetWethPool = IUniswapV3Pool(0xCf58eaC3C7D16796Aea617a7E2461c99CaCDFf1D);
 
         vm.startBroadcast(admin);
         StargateVault newImpl = new StargateVault(
@@ -30,15 +29,9 @@ contract EmergencyUpgrade is Script {
             vault.stg(),
             weth,
             vault.stgWethPool(),
-            IUniswapV3Pool(factory.getPool(address(usdc), address(weth), 500))
+            assetWethPool
         );
 
         proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), new bytes(0));
-
-        // vm.stopPrank();
-        // vm.startPrank(cybroAdmin);
-        // address[] memory accounts = new address[](1);
-        // accounts[0] = ;
-        // vault.emergencyWithdraw(accounts);
     }
 }

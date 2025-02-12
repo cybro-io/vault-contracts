@@ -106,8 +106,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function totalAssets() public view override returns (uint256 total) {
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        return _getInUnderlyingAsset(address(token0), total0 + token0.balanceOf(address(this)) + amount0)
-            + _getInUnderlyingAsset(address(token1), total1 + token1.balanceOf(address(this)) + amount1);
+        return _calculateTotalAssets(
+            total0, total1, amount0, amount1, token0.balanceOf(address(this)), token1.balanceOf(address(this))
+        );
     }
 
     /// @inheritdoc BaseVault
@@ -128,15 +129,16 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
         uint256 totalAssets_;
+        uint256 otherTokenBalance;
 
         if (isToken0) {
-            totalPart = _getInUnderlyingAsset(address(token0), (totalPart + amount0 + total0))
-                + _getInUnderlyingAsset(address(token1), total1);
-            totalAssets_ = totalPart + _getInUnderlyingAsset(address(token1), amount1 + token1.balanceOf(address(this)));
+            otherTokenBalance = token1.balanceOf(address(this));
+            totalAssets_ = _calculateTotalAssets(total0, total1, amount0, amount1, totalPart, otherTokenBalance);
+            totalPart = totalAssets_ - _getInUnderlyingAsset(address(token1), amount1 + otherTokenBalance);
         } else {
-            totalPart = _getInUnderlyingAsset(address(token1), (totalPart + amount1 + total1))
-                + _getInUnderlyingAsset(address(token0), total0);
-            totalAssets_ = totalPart + _getInUnderlyingAsset(address(token0), amount0 + token0.balanceOf(address(this)));
+            otherTokenBalance = token0.balanceOf(address(this));
+            totalAssets_ = _calculateTotalAssets(total0, total1, amount0, amount1, otherTokenBalance, totalPart);
+            totalPart = totalAssets_ - _getInUnderlyingAsset(address(token0), amount0 + otherTokenBalance);
         }
 
         return totalPart * PRECISION / totalAssets_;
@@ -286,12 +288,116 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        assets = shares * totalAssets() / totalSupply();
-        // uint256 balance = IERC20Metadata(asset()).balanceOf(address(this));
-        // if (balance < assets) {
-        //     (uint256 amountStable, uint256 amountCrypto) = _getAmountsForFarmings();
-        //     // withdraw from all of the stuff: free, farmings, lp positions
-        // }
+        (
+            uint256 amountForFarming0,
+            uint256 amountForFarming1,
+            uint256 amountForBalanceToken0,
+            uint256 amountForBalanceToken1,
+            uint256 percentForLp
+        ) = _getPercents(shares * totalAssets() / totalSupply());
+        (uint256 amount0FromLp, uint256 amount1FromLp) = _decreaseLiquidityForAll(percentForLp);
+        uint256 amount0 = amountForBalanceToken0
+            + token0Vault.redeem(
+                amountForFarming0 * (10 ** token0Decimals) / token0Vault.sharePrice(), address(this), address(this), 0
+            ) + amount0FromLp;
+        uint256 amount1 = amountForBalanceToken1
+            + token1Vault.redeem(
+                amountForFarming1 * (10 ** token1Decimals) / token1Vault.sharePrice(), address(this), address(this), 0
+            ) + amount1FromLp;
+
+        assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
+    }
+
+    function _decreaseLiquidityForAll(uint256 percent) internal returns (uint256 amount0, uint256 amount1) {
+        for (uint256 i = 0; i < _tokenIds.length(); i++) {
+            (uint256 removed0, uint256 removed1) = _removeLiquidity(_tokenIds.at(i), percent);
+            amount0 += removed0;
+            amount1 += removed1;
+        }
+    }
+
+    function _removeLiquidity(uint256 tokenId, uint256 percent) internal returns (uint256 amount0, uint256 amount1) {
+        uint256 totalLiquidity = _getTokenLiquidity(tokenId);
+        uint256 liquidity = totalLiquidity * percent / PRECISION;
+        (uint256 liq0, uint256 liq1) = _decreaseLiquidity(uint128(liquidity), tokenId);
+        (uint128 owed0, uint128 owed1) = _getTokensOwed(tokenId);
+
+        // everything besides just claimed liquidity are fees
+        uint256 fees0 = owed0 - liq0;
+        uint256 fees1 = owed1 - liq1;
+        (amount0, amount1) = _collect(
+            uint128(liquidity * fees0 / totalLiquidity + liq0),
+            uint128(liquidity * fees1 / totalLiquidity + liq1),
+            tokenId
+        );
+    }
+
+    function _decreaseLiquidity(uint128 liquidity, uint256 tokenId)
+        internal
+        returns (uint256 amount0, uint256 amount1)
+    {
+        // Decrease liquidity for the current position and return the received token amounts
+        (amount0, amount1) = positionManager.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
+    function _collect(uint128 amount0Max, uint128 amount1Max, uint256 tokenId)
+        internal
+        returns (uint256 amount0, uint256 amount1)
+    {
+        // Collect earned fees from the liquidity position
+        (amount0, amount1) = positionManager.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: amount0Max,
+                amount1Max: amount1Max
+            })
+        );
+    }
+
+    function _getPercents(uint256 neededAssets)
+        internal
+        view
+        returns (
+            uint256 amountForFarming0,
+            uint256 amountForFarming1,
+            uint256 amountForBalanceToken0,
+            uint256 amountForBalanceToken1,
+            uint256 percentForLp
+        )
+    {
+        (uint256 total0, uint256 total1) = getPositionAmounts();
+        (uint256 amountFarming0, uint256 amountFarming1) = _getAmountsForFarmings();
+        uint256 balanceToken0 = _getInUnderlyingAsset(address(token0), token0.balanceOf(address(this)));
+        uint256 balanceToken1 = _getInUnderlyingAsset(address(token1), token1.balanceOf(address(this)));
+        uint256 totalAssets_ =
+            _calculateTotalAssets(total0, total1, amountFarming0, amountFarming1, balanceToken0, balanceToken1);
+        neededAssets = neededAssets * PRECISION / totalAssets_; // just a percent
+        amountForFarming0 = amountFarming0 * neededAssets / PRECISION; // in token0
+        amountForFarming1 = amountFarming1 * neededAssets / PRECISION; // in token1
+        amountForBalanceToken0 = balanceToken0 * neededAssets / PRECISION; // in token0
+        amountForBalanceToken1 = balanceToken1 * neededAssets / PRECISION; // in token1
+        percentForLp = neededAssets;
+    }
+
+    function _calculateTotalAssets(
+        uint256 total0,
+        uint256 total1,
+        uint256 amount0,
+        uint256 amount1,
+        uint256 balanceToken0,
+        uint256 balanceToken1
+    ) internal view returns (uint256) {
+        return _getInUnderlyingAsset(address(token0), total0 + balanceToken0 + amount0)
+            + _getInUnderlyingAsset(address(token1), total1 + balanceToken1 + amount1);
     }
 
     function _swap(bool zeroForOne, uint256 amount) internal returns (uint256) {
@@ -367,7 +473,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
                         address(this),
                         0
                     );
-                // may raise error if amount > funds of the vault int he farming
+                // may raise error if amount > funds of the vault in the farming
             }
         } else {
             uint256 balance = token0.balanceOf(address(this));
@@ -379,7 +485,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
                         address(this),
                         0
                     );
-                // may raise error if amount > funds of the vault int he farming
+                // may raise error if amount > funds of the vault in the farming
             }
         }
 

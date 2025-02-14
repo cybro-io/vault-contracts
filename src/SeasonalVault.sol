@@ -349,14 +349,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function claimDEX() external onlyRole(MANAGER_ROLE) {
         // Collect earned fees from the liquidity position
         for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            positionManager.collect(
-                INonfungiblePositionManager.CollectParams({
-                    tokenId: _tokenIds.at(i),
-                    recipient: address(this),
-                    amount0Max: type(uint128).max,
-                    amount1Max: type(uint128).max
-                })
-            );
+            _collect(_tokenIds.at(i), type(uint128).max, type(uint128).max);
         }
     }
 
@@ -463,46 +456,29 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        (
-            uint256 amountForFarming0,
-            uint256 amountForFarming1,
-            uint256 amountForBalanceToken0,
-            uint256 amountForBalanceToken1,
-            uint256 percentForLp
-        ) = _getPercents(shares * totalAssets() / totalSupply());
-        (uint256 amount0FromLp, uint256 amount1FromLp) = _decreaseLiquidityForAll(percentForLp);
-        uint256 amount0 = amountForBalanceToken0
-            + (
-                amountForFarming0 == 0
-                    ? 0
-                    : token0Vault.redeem(
-                        amountForFarming0 * (10 ** token0Decimals) / token0Vault.sharePrice(), address(this), address(this), 0
-                    )
-            ) + amount0FromLp;
-        uint256 amount1 = amountForBalanceToken1
-            + (
-                amountForFarming1 == 0
-                    ? 0
-                    : token1Vault.redeem(
-                        amountForFarming1 * (10 ** token1Decimals) / token1Vault.sharePrice(), address(this), address(this), 0
-                    )
-            ) + amount1FromLp;
+        uint256 amount0 = IERC20Metadata(token0).balanceOf(address(this)) * shares / totalSupply();
+        uint256 amount1 = IERC20Metadata(token1).balanceOf(address(this)) * shares / totalSupply();
 
-        assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
-    }
+        uint256 farmingShares0 = IERC20Metadata(token0Vault).balanceOf(address(this)) * shares / totalSupply();
+        uint256 farmingShares1 = IERC20Metadata(token1Vault).balanceOf(address(this)) * shares / totalSupply();
 
-    /**
-     * @notice Function to decrease the liquidity of all existing Dex positions
-     * @param percent The percentage of liquidity to remove
-     * @return amount0 The amount of token0 received from decreasing liquidity
-     * @return amount1 The amount of token1 received from decreasing liquidity
-     */
-    function _decreaseLiquidityForAll(uint256 percent) internal returns (uint256 amount0, uint256 amount1) {
+        if (farmingShares0 > 0) {
+            amount0 += token0Vault.redeem(farmingShares0, address(this), address(this), 0);
+        }
+
+        if (farmingShares1 > 0) {
+            amount1 += token1Vault.redeem(farmingShares1, address(this), address(this), 0);
+        }
+
         for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            (uint256 removed0, uint256 removed1) = _removeLiquidity(_tokenIds.at(i), percent);
+            (uint256 removed0, uint256 removed1) =
+                _removeLiquidityAndRewardsPercent(_tokenIds.at(i), shares * PRECISION / totalSupply());
+
             amount0 += removed0;
             amount1 += removed1;
         }
+
+        assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
     }
 
     /**
@@ -512,30 +488,33 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return amount0 The amount of token0 received from removing liquidity
      * @return amount1 The amount of token1 received from removing liquidity
      */
-    function _removeLiquidity(uint256 tokenId, uint256 percent) internal returns (uint256 amount0, uint256 amount1) {
+    function _removeLiquidityAndRewardsPercent(uint256 tokenId, uint256 percent)
+        internal
+        returns (uint256 amount0, uint256 amount1)
+    {
         uint256 totalLiquidity = _getTokenLiquidity(tokenId);
         uint256 liquidity = totalLiquidity * percent / PRECISION;
-        (uint256 liq0, uint256 liq1) = _decreaseLiquidity(uint128(liquidity), tokenId);
+        (uint256 liq0, uint256 liq1) = _decreaseLiquidity(tokenId, uint128(liquidity));
         (uint128 owed0, uint128 owed1) = _getTokensOwed(tokenId);
 
         // everything besides just claimed liquidity are fees
         uint256 fees0 = owed0 - liq0;
         uint256 fees1 = owed1 - liq1;
         (amount0, amount1) = _collect(
+            tokenId,
             uint128(liquidity * fees0 / totalLiquidity + liq0),
-            uint128(liquidity * fees1 / totalLiquidity + liq1),
-            tokenId
+            uint128(liquidity * fees1 / totalLiquidity + liq1)
         );
     }
 
     /**
      * @notice Function to decrease the liquidity of an existing Dex position
-     * @param liquidity The amount of liquidity to remove from the position
      * @param tokenId The ID of the position to decrease liquidity for
+     * @param liquidity The amount of liquidity to remove from the position
      * @return amount0 The amount of token0 received from decreasing liquidity
      * @return amount1 The amount of token1 received from decreasing liquidity
      */
-    function _decreaseLiquidity(uint128 liquidity, uint256 tokenId)
+    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity)
         internal
         returns (uint256 amount0, uint256 amount1)
     {
@@ -553,13 +532,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     /**
      * @notice Function to collect fees earned by the Dex position
+     * @param tokenId The ID of the position to collect fees for
      * @param amount0Max The maximum amount of token0 to collect
      * @param amount1Max The maximum amount of token1 to collect
-     * @param tokenId The ID of the position to collect fees for
      * @return amount0 The amount of token0 collected
      * @return amount1 The amount of token1 collected
      */
-    function _collect(uint128 amount0Max, uint128 amount1Max, uint256 tokenId)
+    function _collect(uint256 tokenId, uint128 amount0Max, uint128 amount1Max)
         internal
         returns (uint256 amount0, uint256 amount1)
     {
@@ -600,43 +579,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             pools[fee] = pool;
             feeAmountTickSpacing[fee] = IUniswapV3Pool(pool).tickSpacing();
         }
-    }
-
-    /**
-     * @notice Calculates the portions of assets needed for redeem, expressed in token0 or token1.
-     * @dev This function calculates how assets should be allocated from farming positions, balances, and LP positions,
-     *      based on the needed assets percentage.
-     *
-     * @param neededAssets The amount of assets needed, expressed as a percentage of total assets.
-     * @return amountForFarming0 The portion of needed assets from farming in token0.
-     * @return amountForFarming1 The portion of needed assets from farming in token1.
-     * @return amountForBalanceToken0 The portion of needed assets from token0 balance.
-     * @return amountForBalanceToken1 The portion of needed assets from token1 balance.
-     * @return percentForLp The percentage of LP positions to unwind, applicable to all positions.
-     */
-    function _getPercents(uint256 neededAssets)
-        internal
-        view
-        returns (
-            uint256 amountForFarming0,
-            uint256 amountForFarming1,
-            uint256 amountForBalanceToken0,
-            uint256 amountForBalanceToken1,
-            uint256 percentForLp
-        )
-    {
-        (uint256 total0, uint256 total1) = getPositionAmounts();
-        (uint256 amountFarming0, uint256 amountFarming1) = _getAmountsForFarmings();
-        uint256 balanceToken0 = _getInUnderlyingAsset(address(token0), token0.balanceOf(address(this)));
-        uint256 balanceToken1 = _getInUnderlyingAsset(address(token1), token1.balanceOf(address(this)));
-        uint256 totalAssets_ =
-            _calculateTotalAssets(asset(), total0, total1, amountFarming0, amountFarming1, balanceToken0, balanceToken1);
-        neededAssets = neededAssets * PRECISION / totalAssets_;
-        amountForFarming0 = amountFarming0 * neededAssets / PRECISION;
-        amountForFarming1 = amountFarming1 * neededAssets / PRECISION;
-        amountForBalanceToken0 = balanceToken0 * neededAssets / PRECISION;
-        amountForBalanceToken1 = balanceToken1 * neededAssets / PRECISION;
-        percentForLp = neededAssets;
     }
 
     /**
@@ -834,8 +776,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         highestTick = TickMath.MIN_TICK;
         if (_tokenIds.length() == 0) return;
         for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            uint256 tokenId = _tokenIds.at(i);
-            Position memory position = positions[tokenId];
+            Position memory position = positions[_tokenIds.at(i)];
             if (position.tickUpper > highestTick) highestTick = position.tickUpper;
             if (position.tickLower < lowestTick) lowestTick = position.tickLower;
         }
@@ -847,24 +788,10 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function _closePosition(uint256 tokenId) internal {
         uint128 liquidity = _getTokenLiquidity(tokenId);
-        positionManager.decreaseLiquidity(
-            INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenId: tokenId,
-                liquidity: liquidity,
-                amount0Min: 0,
-                amount1Min: 0,
-                deadline: type(uint256).max
-            })
-        );
 
-        positionManager.collect(
-            INonfungiblePositionManager.CollectParams({
-                tokenId: tokenId,
-                recipient: address(this),
-                amount0Max: type(uint128).max,
-                amount1Max: type(uint128).max
-            })
-        );
+        _decreaseLiquidity(tokenId, liquidity);
+        _collect(tokenId, type(uint128).max, type(uint128).max);
+
         positionManager.burn(tokenId);
         _tokenIds.remove(tokenId);
         delete positions[tokenId];

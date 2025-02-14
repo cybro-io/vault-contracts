@@ -186,7 +186,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         uint256 totalAssetsAfter = _totalAssetsPrecise();
         uint256 increase = totalAssetsAfter - totalAssetsBefore;
 
-        shares = totalAssetsBefore == 0 ? increase : totalSupplyBefore * increase / totalAssetsBefore;
+        shares = (totalAssetsBefore == 0 || totalSupplyBefore == 0)
+            ? increase
+            : totalSupplyBefore * increase / totalAssetsBefore;
 
         require(shares >= minShares, "minShares");
 

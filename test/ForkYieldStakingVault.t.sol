@@ -17,7 +17,7 @@ contract ForkYieldStakingTest is AbstractBaseVaultTest {
         name = "Yield Staking Vault";
         symbol = "YVLT";
         amount = 1e20;
-        staking = IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
+        staking = blastupYieldStaking_BLAST;
     }
 
     function _initializeNewVault() internal override {

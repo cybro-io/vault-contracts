@@ -20,8 +20,8 @@ contract JuiceVaultTest is AbstractBaseVaultTest {
     function setUp() public override {
         forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
-        usdbPool = address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a);
-        wethPool = address(0x44f33bC796f7d3df55040cd3C631628B560715C2);
+        usdbPool = address(juice_usdbPool_BLAST);
+        wethPool = address(juice_wethPool_BLAST);
         amount = 1e20;
     }
 

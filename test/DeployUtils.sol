@@ -19,6 +19,10 @@ import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
+import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
+import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {CErc20} from "../src/interfaces/compound/IcERC.sol";
+import {CEth} from "../src/interfaces/compound/IcETH.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -43,34 +47,58 @@ contract DeployUtils {
     uint256 internal constant baseAdminPrivateKey = 0xba132ce;
     address internal constant baseAdmin = address(0x4EaC6e0b2bFdfc22cD15dF5A8BADA754FeE6Ad00);
 
+    /* ========== ASSETS ========== */
+
+    /* ARBITRUM */
     IERC20Metadata usdt_ARBITRUM = IERC20Metadata(address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9));
     IERC20Metadata weth_ARBITRUM = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));
     IERC20Metadata usdc_ARBITRUM = IERC20Metadata(address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831));
+    IERC20Metadata wbtc_ARBITRUM = IERC20Metadata(address(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f));
 
+    /* BASE */
     IERC20Metadata weth_BASE = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
     IERC20Metadata usdc_BASE = IERC20Metadata(address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913));
+    IERC20Metadata wbtc_BASE = IERC20Metadata(address(0x0555E30da8f98308EdB960aa94C0Db47230d2B9c));
+    // coinbase wrapped btc
+    IERC20Metadata cbwbtc_BASE = IERC20Metadata(address(0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf));
 
+    /* BLAST */
     IERC20Metadata usdb_BLAST = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
     IERC20Metadata weth_BLAST = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
     IERC20Metadata wbtc_BLAST = IERC20Metadata(address(0xF7bc58b8D8f97ADC129cfC4c9f45Ce3C0E1D2692));
     IERC20Metadata blast_BLAST = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
 
+    /* ========== CHAINLINK ORACLES ========== */
+
+    /* BLAST */
     IChainlinkOracle oracle_ETH_BLAST = IChainlinkOracle(address(0x0af23B08bcd8AD35D1e8e8f2D2B779024Bd8D24A));
     IChainlinkOracle oracle_USDB_BLAST = IChainlinkOracle(address(0x3A236F67Fce401D87D7215695235e201966576E4));
     IChainlinkOracle oracle_BTC_BLAST = IChainlinkOracle(address(0x7262c8C5872A4Aa0096A8817cF61f5fa3c537330));
 
+    /* BASE */
     IChainlinkOracle oracle_ETH_BASE = IChainlinkOracle(address(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70));
     IChainlinkOracle oracle_USDT_BASE = IChainlinkOracle(address(0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9));
     IChainlinkOracle oracle_USDC_BASE = IChainlinkOracle(address(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B));
 
+    /* ARBITRUM */
     IChainlinkOracle oracle_ETH_ARBITRUM = IChainlinkOracle(address(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612));
     IChainlinkOracle oracle_USDC_ARBITRUM = IChainlinkOracle(address(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3));
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
+
+    /* ========== DEXES ========== */
+
+    /* UNISWAP */
 
     IUniswapV3Factory factory_UNI_ARB = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_BASE = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
     IUniswapV3Pool pool_USDC_WETH_BASE = IUniswapV3Pool(address(0xd0b53D9277642d899DF5C87A3966A349A798F224));
     IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
+    INonfungiblePositionManager positionManager_UNI_BLAST =
+        INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
+
+    /* ALGEBRA */
+
+    /* ========== ASSET PROVIDERS ========== */
 
     address assetProvider_USDB_BLAST = address(0x4BeD2A922654cAcC2Be974689619768FaBF24855);
     address assetProvider_WETH_BLAST = address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1);
@@ -83,10 +111,15 @@ contract DeployUtils {
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
+    address assetProvider_CBWBTC_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb); // 2,459 WBTC
+
+    /* ========== CACHED BLOCKIDS ========== */
 
     uint256 lastCachedBlockid_BLAST = 14284818;
     uint256 lastCachedBlockid_ARBITRUM = 297475175;
     uint256 lastCachedBlockid_BASE = 25292162;
+
+    /* ========== POOLS ========== */
 
     IStargatePool stargate_usdtPool_ARBITRUM =
         IStargatePool(payable(address(0xcE8CcA271Ebc0533920C83d39F417ED6A0abB7D0)));
@@ -102,6 +135,8 @@ contract DeployUtils {
     IAavePool aave_zerolendPool_BLAST = IAavePool(address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8));
     IAavePool aave_pool_ARBITRUM = IAavePool(address(0x794a61358D6845594F94dc1DB02A252b5b4814aD));
     IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));
+
+    /* MOONWELL COMPOUND */
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
 

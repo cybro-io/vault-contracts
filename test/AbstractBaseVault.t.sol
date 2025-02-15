@@ -19,6 +19,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     uint256 testTokenAmount;
     address user;
     address user2;
+    address user3;
     address user5;
 
     address feeRecipient;
@@ -46,11 +47,13 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         admin = vm.addr(baseAdminPrivateKey);
         user = address(100);
         user2 = address(101);
+        user3 = address(1020202);
         user5 = address(1001001);
         feeRecipient = address(102);
         vm.label(admin, "Admin");
         vm.label(user, "User");
         vm.label(user2, "User2");
+        vm.label(user3, "User3");
         vm.label(user5, "User5");
         vm.label(feeRecipient, "FeeRecipient");
         depositFee = 100;
@@ -111,12 +114,16 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 assetProvider_ = assetProvider_USDC_ARBITRUM;
             } else if (asset_ == weth_ARBITRUM) {
                 assetProvider_ = assetProvider_WETH_ARBITRUM;
+            } else if (asset_ == wbtc_ARBITRUM) {
+                assetProvider_ = assetProvider_WBTC_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
             if (asset_ == usdc_BASE) {
                 assetProvider_ = assetProvider_USDC_BASE;
             } else if (asset_ == weth_BASE) {
                 assetProvider_ = assetProvider_WETH_BASE;
+            } else if (asset_ == cbwbtc_BASE) {
+                assetProvider_ = assetProvider_CBWBTC_BASE;
             }
         }
     }
@@ -131,6 +138,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             vm.startPrank(assetProvider_);
             asset_.transfer(user, amount_);
             asset_.transfer(user2, amount_);
+            asset_.transfer(user3, amount_);
             asset_.transfer(admin, amount_);
             vm.stopPrank();
         }
@@ -138,6 +146,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         asset_.approve(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user2);
+        asset_.approve(vaultAddress, amount_);
+        vm.stopPrank();
+        vm.startPrank(user3);
         asset_.approve(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(admin);

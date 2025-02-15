@@ -7,7 +7,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import {IVault} from "./interfaces/IVault.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -39,6 +38,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     uint256 public constant PRECISION = 1e24;
 
+    /// @notice Precision for slippage
+    uint32 public constant slippagePrecision = 10000;
+
     /* ========== IMMUTABLE VARIABLES ========== */
 
     IERC20Metadata public immutable token0;
@@ -49,6 +51,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     IVault public immutable token1Vault;
 
     INonfungiblePositionManager public immutable positionManager;
+
+    /// @notice Maximum slippage tolerance
+    uint32 public maxSlippage;
 
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
@@ -149,9 +154,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function totalAssets() public view override returns (uint256 total) {
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        return _calculateTotalAssets(
-            asset(), total0, total1, amount0, amount1, token0.balanceOf(address(this)), token1.balanceOf(address(this))
-        );
+        return _getInUnderlyingAsset(address(token0), total0 + token0.balanceOf(address(this)) + amount0)
+            + _getInUnderlyingAsset(address(token1), total1 + token1.balanceOf(address(this)) + amount1);
     }
 
     /// @inheritdoc BaseVault
@@ -207,13 +211,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
         if (isToken0) {
             otherTokenBalance = token1.balanceOf(address(this));
-            totalAssets_ =
-                _calculateTotalAssets(asset(), total0, total1, amount0, amount1, totalPart, otherTokenBalance);
+            totalAssets_ = _getInUnderlyingAsset(address(token1), amount1 + total1 + otherTokenBalance)
+                + _getInUnderlyingAsset(address(token0), amount0 + total0 + totalPart);
             totalPart = totalAssets_ - _getInUnderlyingAsset(address(token1), amount1 + otherTokenBalance);
         } else {
             otherTokenBalance = token0.balanceOf(address(this));
-            totalAssets_ =
-                _calculateTotalAssets(asset(), total0, total1, amount0, amount1, otherTokenBalance, totalPart);
+            totalAssets_ = _getInUnderlyingAsset(address(token0), amount0 + total0 + otherTokenBalance)
+                + _getInUnderlyingAsset(address(token1), amount1 + total1 + totalPart);
             totalPart = totalAssets_ - _getInUnderlyingAsset(address(token0), amount0 + otherTokenBalance);
         }
 
@@ -229,19 +233,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint256 totalPart = IERC20Metadata(inAsset).balanceOf(address(this));
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        uint256 totalAssets_;
-        uint256 otherTokenBalance;
+        uint256 totalAssets_ = _getInAsset(asset(), inAsset, totalAssets());
 
         if (inAsset == address(token0)) {
-            otherTokenBalance = token1.balanceOf(address(this));
-            totalAssets_ =
-                _calculateTotalAssets(inAsset, total0, total1, amount0, amount1, totalPart, otherTokenBalance);
-            totalPart = totalAssets_ - _getInAsset(address(token1), inAsset, amount1 + otherTokenBalance + total1);
+            totalPart =
+                totalAssets_ - _getInAsset(address(token1), inAsset, amount1 + token1.balanceOf(address(this)) + total1);
         } else {
-            otherTokenBalance = token0.balanceOf(address(this));
-            totalAssets_ =
-                _calculateTotalAssets(inAsset, total0, total1, amount0, amount1, otherTokenBalance, totalPart);
-            totalPart = totalAssets_ - _getInAsset(address(token0), inAsset, amount0 + otherTokenBalance + total0);
+            totalPart =
+                totalAssets_ - _getInAsset(address(token0), inAsset, amount0 + token0.balanceOf(address(this)) + total0);
         }
 
         return totalPart * PRECISION / totalAssets_;
@@ -255,11 +254,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The total value locked in the vault
      */
     function getNettoTVL(address inAsset) public view returns (uint256) {
-        (uint256 total0, uint256 total1) = getPositionAmounts();
-        (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        return _calculateTotalAssets(
-            inAsset, total0, total1, amount0, amount1, token0.balanceOf(address(this)), token1.balanceOf(address(this))
-        );
+        return _getInAsset(asset(), inAsset, totalAssets());
     }
 
     /**
@@ -282,6 +277,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
+
+    /**
+     * @notice Sets the current slippage tolerance
+     * @param _maxSlippage Slippage value
+     */
+    function setMaxSlippage(uint32 _maxSlippage) external onlyRole(MANAGER_ROLE) {
+        maxSlippage = _maxSlippage;
+    }
 
     /**
      * @notice Sets the difference between the current tick and the worst tick.
@@ -392,6 +395,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         }
 
         (int24 tickLower, int24 tickUpper) = _getGreatestTicks(price1, price2, feeAmountTickSpacing[fee]);
+        // recalculate ticks
         if (tickUpper > highestTick) highestTick = tickUpper;
         if (tickLower < lowestTick) lowestTick = tickLower;
 
@@ -446,7 +450,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         // we need to subtract incoming assets from the user
-        uint256 currentPercentage = getNettoPartForTokenOptimistic();
+        uint256 currentPercentage = getNettoPartForTokenReal(address(tokenTreasure));
         if (address(tokenTreasure) == asset()) {
             _swap(isToken0, assets * (PRECISION - currentPercentage) / PRECISION);
         } else {
@@ -561,9 +565,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function _calculateSqrtPriceX96(uint256 token0Rate, uint256 token1Rate) internal view returns (uint160 sqrtPrice) {
         sqrtPrice = uint160(
-            Math.sqrt(
-                Math.mulDiv(Math.mulDiv(10 ** token1Decimals, token0Rate, 10 ** token0Decimals), 1 << 192, token1Rate)
-            )
+            Math.sqrt(Math.mulDiv(token0Rate, 2 ** 96, token1Rate))
+                * Math.sqrt(Math.mulDiv(10 ** token1Decimals, 2 ** 96, 10 ** token0Decimals))
         );
     }
 
@@ -582,38 +585,12 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Calculates the total assets in the vault.
-     * @dev This includes the amounts derived from liquidity positions using the current pool price
-     *      and adds any tokens owed from the positions and the amounts of tokens in the farming positions.
-     * @param inAsset The address of the asset to calculate the total assets in
-     * @param total0 The total amount of token0
-     * @param total1 The total amount of token1
-     * @param amount0 The amount of token0 in the liquidity positions
-     * @param amount1 The amount of token1 in the liquidity positions
-     * @param balanceToken0 The amount of token0 in the farming positions
-     * @param balanceToken1 The amount of token1 in the farming positions
-     * @return The total assets in the vault
-     */
-    function _calculateTotalAssets(
-        address inAsset,
-        uint256 total0,
-        uint256 total1,
-        uint256 amount0,
-        uint256 amount1,
-        uint256 balanceToken0,
-        uint256 balanceToken1
-    ) internal view returns (uint256) {
-        return _getInAsset(address(token0), inAsset, total0 + balanceToken0 + amount0)
-            + _getInAsset(address(token1), inAsset, total1 + balanceToken1 + amount1);
-    }
-
-    /**
      * @notice Internal function to perform a token swap on the DEX
      * @param zeroForOne Whether to swap token0 for token1 (true) or token1 for token0 (false)
      * @param amount The amount of tokens to swap
-     * @return The amount of tokens received from the swap
+     * @return amountOut The amount of tokens received from the swap
      */
-    function _swap(bool zeroForOne, uint256 amount) internal returns (uint256) {
+    function _swap(bool zeroForOne, uint256 amount) internal returns (uint256 amountOut) {
         // Execute the swap and capture the output amount
         if (amount == 0) return 0;
         (int256 amount0, int256 amount1) = IUniswapV3Pool(_getOrUpdatePool(feeForSwaps)).swap(
@@ -625,7 +602,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         );
 
         // Return the output amount (convert from negative if needed)
-        return uint256(-(zeroForOne ? amount1 : amount0));
+        amountOut = uint256(-(zeroForOne ? amount1 : amount0));
+        _checkSlippage(zeroForOne, amount, amountOut);
     }
 
     /**
@@ -647,8 +625,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         tick1 = TickMath.getTickAtSqrtRatio(uint160(price1));
         tick2 = TickMath.getTickAtSqrtRatio(uint160(price2));
         if (isToken0) {
-            tick1 -= tick1 < 0 ? tickSpacing : 0 + tick1 % tickSpacing;
-            tick2 -= tick2 < 0 ? tickSpacing : 0 + tick2 % tickSpacing;
+            tick1 -= (tick1 < 0 ? tickSpacing : int24(0)) + tick1 % tickSpacing;
+            tick2 -= (tick2 < 0 ? tickSpacing : int24(0)) + tick2 % tickSpacing;
         } else {
             tick1 -= tick1 < 0 ? tick1 % tickSpacing : (tick1 % tickSpacing - tickSpacing);
             tick2 -= tick2 < 0 ? tick2 % tickSpacing : (tick2 % tickSpacing - tickSpacing);
@@ -669,7 +647,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         require(price > 0, "Chainlink price reporting 0");
 
         // returns price in the vault decimals
-        return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
+        return uint256(price) * (10 ** decimals()) / (10 ** oracle.decimals());
     }
 
     /**
@@ -885,6 +863,25 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function _getTokenLiquidity(uint256 tokenId) internal view virtual returns (uint128 liquidity) {
         (,,,,,,, liquidity,,,,) = positionManager.positions(tokenId);
+    }
+
+    /**
+     * @notice Checks if the swap was within the allowed slippage
+     * @param zeroForOne Whether the swap is zero for one or not
+     * @param amountIn The initial amount of tokens swapped
+     * @param amountOut The amount of tokens received
+     *
+     * Ensures that the price impact of the swap doesn't exceed the permitted slippage.
+     */
+    function _checkSlippage(bool zeroForOne, uint256 amountIn, uint256 amountOut) internal view {
+        (address from, address to) =
+            zeroForOne ? (address(token0), address(token1)) : (address(token1), address(token0));
+        uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
+        uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
+        require(
+            amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
+            "SeasonalVault: Slippage"
+        );
     }
 
     /// @inheritdoc BaseVault

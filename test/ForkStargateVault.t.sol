@@ -118,8 +118,6 @@ contract StargateVaultArbitrumTest is StargateVaultTest {
         usdtPool = stargate_usdtPool_ARBITRUM;
         wethPool = stargate_wethPool_ARBITRUM;
         usdcPool = stargate_usdcPool_ARBITRUM;
-        wethPool = IStargatePool(payable(address(0xA45B5130f36CDcA45667738e2a258AB09f4A5f7F)));
-        usdcPool = IStargatePool(payable(address(0xe8CDF27AcD73a434D661C84887215F7598e7d0d3)));
         staking = IStargateStaking(payable(address(0x3da4f8E456AC648c489c286B99Ca37B666be7C4C)));
         stg = IERC20Metadata(address(0x6694340fc020c5E6B96567843da2df01b2CE1eb6));
         factory = factory_UNI_ARB;

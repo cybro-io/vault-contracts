@@ -79,11 +79,13 @@ contract DeployUtils {
     IChainlinkOracle oracle_ETH_BASE = IChainlinkOracle(address(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70));
     IChainlinkOracle oracle_USDT_BASE = IChainlinkOracle(address(0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9));
     IChainlinkOracle oracle_USDC_BASE = IChainlinkOracle(address(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B));
+    IChainlinkOracle oracle_BTC_BASE = IChainlinkOracle(address(0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F));
 
     /* ARBITRUM */
     IChainlinkOracle oracle_ETH_ARBITRUM = IChainlinkOracle(address(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612));
     IChainlinkOracle oracle_USDC_ARBITRUM = IChainlinkOracle(address(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3));
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
+    IChainlinkOracle oracle_BTC_ARBITRUM = IChainlinkOracle(address(0x6ce185860a4963106506C203335A2910413708e9));
 
     /* ========== DEXES ========== */
 
@@ -95,6 +97,10 @@ contract DeployUtils {
     IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
+    INonfungiblePositionManager positionManager_UNI_ARB =
+        INonfungiblePositionManager(payable(address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88)));
+    INonfungiblePositionManager positionManager_UNI_BASE =
+        INonfungiblePositionManager(payable(address(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1)));
 
     /* ALGEBRA */
 
@@ -108,6 +114,7 @@ contract DeployUtils {
     address assetProvider_USDT_ARBITRUM = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
     address assetProvider_USDC_ARBITRUM = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
     address assetProvider_WETH_ARBITRUM = address(0x70d95587d40A2caf56bd97485aB3Eec10Bee6336);
+    address assetProvider_WBTC_ARBITRUM = address(0x078f358208685046a11C85e8ad32895DED33A249);
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
@@ -131,7 +138,7 @@ contract DeployUtils {
     IStargatePool stargate_usdcPool_BASE = IStargatePool(payable(address(0x27a16dc786820B16E5c9028b75B99F6f604b5d26)));
     IStargatePool stargate_wethPool_BASE = IStargatePool(payable(address(0xdc181Bd607330aeeBEF6ea62e03e5e1Fb4B6F7C7)));
 
-    IAavePool aave_usdbPool_BLAST = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
+    IAavePool aave_pool_BLAST = IAavePool(address(0xd2499b3c8611E36ca89A70Fda2A72C49eE19eAa8));
     IAavePool aave_zerolendPool_BLAST = IAavePool(address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8));
     IAavePool aave_pool_ARBITRUM = IAavePool(address(0x794a61358D6845594F94dc1DB02A252b5b4814aD));
     IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));

@@ -503,15 +503,15 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
 
         address pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), poolFee);
 
-        int256 currentPrice = int256(seasonalVault.getCurrentSqrtPrice(pool));
+        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
         uint256 nettoPartOptimistic = seasonalVault.getNettoPartForTokenOptimistic();
         console.log("nettoPartOptimistic", nettoPartOptimistic);
         bool isToken0 = seasonalVault.isToken0();
         if (nettoPartOptimistic < 9e23) {
             uint256 newNettoPart = nettoPartOptimistic + 5e22;
-            int256 price2;
-            int256 price3;
-            int256 delta;
+            int160 price2;
+            int160 price3;
+            int160 delta;
             if (isToken0) {
                 delta = 10;
                 price2 = currentPrice + currentPrice / 95;
@@ -522,10 +522,10 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                 price3 = price2 - currentPrice / 95 - delta;
             }
             uint256 totalAssetsBefore = seasonalVault.totalAssets();
-            seasonalVault.openPositionIfNeed(newNettoPart, uint256(currentPrice), uint256(price2), poolFee);
+            seasonalVault.openPositionIfNeed(newNettoPart, uint160(currentPrice), uint160(price2), poolFee);
             _checkOpenPosition(newNettoPart, totalAssetsBefore);
             totalAssetsBefore = seasonalVault.totalAssets();
-            seasonalVault.openPositionIfNeed(newNettoPart + 5e22, uint256(price2 + delta), uint256(price3), poolFee);
+            seasonalVault.openPositionIfNeed(newNettoPart + 5e22, uint160(price2 + delta), uint160(price3), poolFee);
             _checkOpenPosition(newNettoPart + 5e22, totalAssetsBefore);
 
             // deposit for check swaps
@@ -554,11 +554,11 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         if (seasonalVault.getNettoPartForTokenOptimistic() < 9e23) {
             if (isToken0) {
                 seasonalVault.openPositionIfNeed(
-                    9e23, uint256(currentPrice * 8 / 11), uint256(currentPrice * 8 / 12), poolFee
+                    9e23, uint160(currentPrice * 8 / 11), uint160(currentPrice * 8 / 12), poolFee
                 );
             } else {
                 seasonalVault.openPositionIfNeed(
-                    9e23, uint256(currentPrice * 11 / 8), uint256(currentPrice * 10 / 8), poolFee
+                    9e23, uint160(currentPrice * 11 / 8), uint160(currentPrice * 10 / 8), poolFee
                 );
             }
             seasonalVault.closePositionsBadMarket();

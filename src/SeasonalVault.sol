@@ -172,10 +172,20 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return amount1 The total amount of token1, including liquidity and owed tokens
      */
     function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
-        (uint128 owed0, uint128 owed1) = _getTokensOwedForAllPositions();
-        (amount0, amount1) = _getAmountsForLiquidityForAll();
-        amount0 += owed0;
-        amount1 += owed1;
+        (amount0, amount1) = _getTokensOwedForAllPositions();
+        for (uint256 i = 0; i < _tokenIds.length(); i++) {
+            uint256 tokenId = _tokenIds.at(i);
+            Position memory position = positions[tokenId];
+            uint128 liquidity = _getTokenLiquidity(tokenId);
+            (uint256 amount0_, uint256 amount1_) = LiquidityAmounts.getAmountsForLiquidity(
+                getCurrentSqrtPrice(pools[position.fee]),
+                TickMath.getSqrtRatioAtTick(position.tickLower),
+                TickMath.getSqrtRatioAtTick(position.tickUpper),
+                liquidity
+            );
+            amount0 += amount0_;
+            amount1 += amount1_;
+        }
     }
 
     /**
@@ -270,9 +280,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param pool The address of the Uniswap pool
      * @return sqrtPriceX96 The current square root price of the pool
      */
-    function getCurrentSqrtPrice(address pool) public view returns (uint256 sqrtPriceX96) {
+    function getCurrentSqrtPrice(address pool) public view returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-        return uint256(sqrtPriceX96);
+        return sqrtPriceX96;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -374,7 +384,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param price2 The higher bound of the range price.
      * @param fee The fee percentage (e.g., 0.05%, 0.3%, or 1%).
      */
-    function openPositionIfNeed(uint256 percentageTreasureDesired, uint256 price1, uint256 price2, uint24 fee)
+    function openPositionIfNeed(uint256 percentageTreasureDesired, uint160 price1, uint160 price2, uint24 fee)
         external
         onlyRole(MANAGER_ROLE)
     {
@@ -382,7 +392,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         if (percentageTreasureDesired <= currentPercentage) return;
 
         uint256 amountToAdd = totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION;
-        uint256 currentPrice = getCurrentSqrtPrice(_getOrUpdatePool(fee));
+        uint160 currentPrice = getCurrentSqrtPrice(_getOrUpdatePool(fee));
         if (price1 > price2) (price1, price2) = (price2, price1);
 
         if ((isToken0 && currentPrice < price2)) {
@@ -615,13 +625,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return tickLower The lower tick
      * @return tickUpper The upper tick
      */
-    function _adjustTicks(uint256 priceLower, uint256 priceUpper, int24 tickSpacing)
+    function _adjustTicks(uint160 priceLower, uint160 priceUpper, int24 tickSpacing)
         internal
         view
         returns (int24 tickLower, int24 tickUpper)
     {
-        tickLower = TickMath.getTickAtSqrtRatio(uint160(priceLower));
-        tickUpper = TickMath.getTickAtSqrtRatio(uint160(priceUpper));
+        tickLower = TickMath.getTickAtSqrtRatio(priceLower);
+        tickUpper = TickMath.getTickAtSqrtRatio(priceUpper);
         if (isToken0) {
             tickLower -= (tickLower < 0 ? tickSpacing : int24(0)) + tickLower % tickSpacing;
             tickUpper -= (tickUpper < 0 ? tickSpacing : int24(0)) + tickUpper % tickSpacing;
@@ -781,28 +791,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function _getAmountsForFarmings() internal view returns (uint256 amount0, uint256 amount1) {
         amount0 = token0Vault.getBalanceInUnderlying(address(this));
         amount1 = token1Vault.getBalanceInUnderlying(address(this));
-    }
-
-    /**
-     * @dev Calculates the amounts of tokens for liquidity in all positions by current price.
-     * @return amount0 The amount of token0 for liquidity in all positions.
-     * @return amount1 The amount of token1 for liquidity in all positions.
-     */
-    function _getAmountsForLiquidityForAll() internal view returns (uint256 amount0, uint256 amount1) {
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            uint256 tokenId = _tokenIds.at(i);
-            Position memory position = positions[tokenId];
-            uint160 sqrtRatioX96 = uint160(getCurrentSqrtPrice(pools[position.fee]));
-            uint128 liquidity = _getTokenLiquidity(tokenId);
-            (uint256 amount0_, uint256 amount1_) = LiquidityAmounts.getAmountsForLiquidity(
-                sqrtRatioX96,
-                TickMath.getSqrtRatioAtTick(position.tickLower),
-                TickMath.getSqrtRatioAtTick(position.tickUpper),
-                liquidity
-            );
-            amount0 += amount0_;
-            amount1 += amount1_;
-        }
     }
 
     /**

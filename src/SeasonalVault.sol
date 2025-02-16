@@ -184,14 +184,35 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @dev This includes the scenarios where the liquidity positions are entirely converted from one token
      *      to the other based on the full range tick boundaries.
      *      Additionally, it adds any tokens that are currently owed from the positions.
-     * @return amount0 The total potential amount of token0, assuming full range conversion and owed tokens
-     * @return amount1 The total potential amount of token1, assuming full range conversion and owed tokens
+     * @return amount The total potential amount of treasure token
      */
-    function getPositionAmountsForFullRange() public view returns (uint256 amount0, uint256 amount1) {
+    function getTreasureAmountForFullRange() public view returns (uint256 amount) {
         (uint128 owed0, uint128 owed1) = _getTokensOwedForAllPositions();
-        (amount0, amount1) = _getAmountsForLiquidityForFullRange();
-        amount0 += owed0;
-        amount1 += owed1;
+
+        if (isToken0) {
+            amount += owed0;
+        } else {
+            amount += owed1;
+        }
+
+        for (uint256 i = 0; i < _tokenIds.length(); i++) {
+            uint256 tokenId = _tokenIds.at(i);
+            Position memory position = positions[tokenId];
+            uint128 liquidity = _getTokenLiquidity(tokenId);
+            if (isToken0) {
+                amount += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtRatioAtTick(position.tickLower),
+                    TickMath.getSqrtRatioAtTick(position.tickUpper),
+                    liquidity
+                );
+            } else {
+                amount += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtRatioAtTick(position.tickLower),
+                    TickMath.getSqrtRatioAtTick(position.tickUpper),
+                    liquidity
+                );
+            }
+        }
     }
 
     /**
@@ -203,25 +224,10 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The percentage of the fund held as the treasure token.
      */
     function getNettoPartForTokenOptimistic() public view returns (uint256) {
-        uint256 totalPart = tokenTreasure.balanceOf(address(this));
-        (uint256 total0, uint256 total1) = getPositionAmountsForFullRange();
-        (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        uint256 totalAssets_;
-        uint256 otherTokenBalance;
+        uint256 totalTreasureAmount = getTreasureAmountForFullRange() + tokenTreasure.balanceOf(address(this))
+            + (isToken0 ? token0Vault : token1Vault).getBalanceInUnderlying(address(this));
 
-        if (isToken0) {
-            otherTokenBalance = token1.balanceOf(address(this));
-            totalAssets_ = _getInUnderlyingAsset(address(token1), amount1 + total1 + otherTokenBalance)
-                + _getInUnderlyingAsset(address(token0), amount0 + total0 + totalPart);
-            totalPart = totalAssets_ - _getInUnderlyingAsset(address(token1), amount1 + otherTokenBalance);
-        } else {
-            otherTokenBalance = token0.balanceOf(address(this));
-            totalAssets_ = _getInUnderlyingAsset(address(token0), amount0 + total0 + otherTokenBalance)
-                + _getInUnderlyingAsset(address(token1), amount1 + total1 + totalPart);
-            totalPart = totalAssets_ - _getInUnderlyingAsset(address(token0), amount0 + otherTokenBalance);
-        }
-
-        return totalPart * PRECISION / totalAssets_;
+        return _getInUnderlyingAsset(address(tokenTreasure), totalTreasureAmount) * PRECISION / totalAssets();
     }
 
     /**
@@ -229,21 +235,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *
      * @return A percentage of the fund held in the particular token
      */
-    function getNettoPartForTokenReal(address inAsset) public view returns (uint256) {
-        uint256 totalPart = IERC20Metadata(inAsset).balanceOf(address(this));
+    function getNettoPartForTokenReal(IERC20Metadata inAsset) public view returns (uint256) {
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        uint256 totalAssets_ = _getInAsset(asset(), inAsset, totalAssets());
 
-        if (inAsset == address(token0)) {
-            totalPart =
-                totalAssets_ - _getInAsset(address(token1), inAsset, amount1 + token1.balanceOf(address(this)) + total1);
-        } else {
-            totalPart =
-                totalAssets_ - _getInAsset(address(token0), inAsset, amount0 + token0.balanceOf(address(this)) + total0);
-        }
+        uint256 totalInRequested =
+            (inAsset == token0 ? (amount0 + total0) : (amount1 + total1)) + inAsset.balanceOf(address(this));
 
-        return totalPart * PRECISION / totalAssets_;
+        return _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION / totalAssets();
     }
 
     /**
@@ -254,7 +253,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The total value locked in the vault
      */
     function getNettoTVL(address inAsset) public view returns (uint256) {
-        return _getInAsset(asset(), inAsset, totalAssets());
+        return _convert(asset(), inAsset, totalAssets());
     }
 
     /**
@@ -394,7 +393,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             price1 = currentPrice;
         }
 
-        (int24 tickLower, int24 tickUpper) = _getGreatestTicks(price1, price2, feeAmountTickSpacing[fee]);
+        (int24 tickLower, int24 tickUpper) = _adjustTicks(price1, price2, feeAmountTickSpacing[fee]);
         // recalculate ticks
         if (tickUpper > highestTick) highestTick = tickUpper;
         if (tickLower < lowestTick) lowestTick = tickLower;
@@ -440,8 +439,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      movements where maintaining the position would not earn fees effectively.
      */
     function closePositionsBadMarket() external onlyRole(MANAGER_ROLE) {
-        int24 currentTick =
-            TickMath.getTickAtSqrtRatio(_calculateSqrtPriceX96(_getPrice(address(token0)), _getPrice(address(token1))));
+        int24 currentTick = TickMath.getTickAtSqrtRatio(_getOracleSqrtPriceX96());
         if ((isToken0 ? (currentTick - highestTick) : (lowestTick - currentTick)) > tickDiff) _closePositionsAll();
     }
 
@@ -450,7 +448,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         // we need to subtract incoming assets from the user
-        uint256 currentPercentage = getNettoPartForTokenReal(address(tokenTreasure));
+        uint256 currentPercentage = getNettoPartForTokenReal(tokenTreasure);
         if (address(tokenTreasure) == asset()) {
             _swap(isToken0, assets * (PRECISION - currentPercentage) / PRECISION);
         } else {
@@ -558,14 +556,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @dev Calculates the square root of the price ratio between two tokens.
-     * @param token0Rate Rate of token0
-     * @param token1Rate Rate of token1
-     * @return sqrtPrice Square root price
+     * @dev Calculates the square root of the price ratio between two tokens based on data from oracle.
      */
-    function _calculateSqrtPriceX96(uint256 token0Rate, uint256 token1Rate) internal view returns (uint160 sqrtPrice) {
-        sqrtPrice = uint160(
-            Math.sqrt(Math.mulDiv(token0Rate, 2 ** 96, token1Rate))
+    function _getOracleSqrtPriceX96() internal view returns (uint160) {
+        uint256 price0 = _getPrice(address(token0));
+        uint256 price1 = _getPrice(address(token1));
+
+        return uint160(
+            Math.sqrt(Math.mulDiv(price0, 2 ** 96, price1))
                 * Math.sqrt(Math.mulDiv(10 ** token1Decimals, 2 ** 96, 10 ** token0Decimals))
         );
     }
@@ -611,25 +609,25 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @dev Adjusts price boundaries upwards when buying token0, and downwards otherwise. This ensures
      *      valid tick boundaries for given price ranges in Uniswap.
      *
-     * @param price1 The initial price boundary (lower bound).
-     * @param price2 The final price boundary (upper bound).
+     * @param priceLower The initial price boundary (lower bound).
+     * @param priceUpper The final price boundary (upper bound).
      * @param tickSpacing The allowable spacing between ticks.
-     * @return tick1 The adjusted tick for the initial price.
-     * @return tick2 The adjusted tick for the final price.
+     * @return tickLower The lower tick
+     * @return tickUpper The upper tick
      */
-    function _getGreatestTicks(uint256 price1, uint256 price2, int24 tickSpacing)
+    function _adjustTicks(uint256 priceLower, uint256 priceUpper, int24 tickSpacing)
         internal
         view
-        returns (int24 tick1, int24 tick2)
+        returns (int24 tickLower, int24 tickUpper)
     {
-        tick1 = TickMath.getTickAtSqrtRatio(uint160(price1));
-        tick2 = TickMath.getTickAtSqrtRatio(uint160(price2));
+        tickLower = TickMath.getTickAtSqrtRatio(uint160(priceLower));
+        tickUpper = TickMath.getTickAtSqrtRatio(uint160(priceUpper));
         if (isToken0) {
-            tick1 -= (tick1 < 0 ? tickSpacing : int24(0)) + tick1 % tickSpacing;
-            tick2 -= (tick2 < 0 ? tickSpacing : int24(0)) + tick2 % tickSpacing;
+            tickLower -= (tickLower < 0 ? tickSpacing : int24(0)) + tickLower % tickSpacing;
+            tickUpper -= (tickUpper < 0 ? tickSpacing : int24(0)) + tickUpper % tickSpacing;
         } else {
-            tick1 -= tick1 < 0 ? tick1 % tickSpacing : (tick1 % tickSpacing - tickSpacing);
-            tick2 -= tick2 < 0 ? tick2 % tickSpacing : (tick2 % tickSpacing - tickSpacing);
+            tickLower -= tickLower < 0 ? tickLower % tickSpacing : (tickLower % tickSpacing - tickSpacing);
+            tickUpper -= tickUpper < 0 ? tickUpper % tickSpacing : (tickUpper % tickSpacing - tickSpacing);
         }
     }
 
@@ -657,7 +655,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The equivalent amount in the vault's underlying asset
      */
     function _getInUnderlyingAsset(address asset_, uint256 amount) internal view returns (uint256) {
-        return _getInAsset(asset_, asset(), amount);
+        return _convert(asset_, asset(), amount);
     }
 
     /**
@@ -667,7 +665,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param amount The amount to convert
      * @return The equivalent amount in the assetOut
      */
-    function _getInAsset(address assetIn, address assetOut, uint256 amount) internal view returns (uint256) {
+    function _convert(address assetIn, address assetOut, uint256 amount) internal view returns (uint256) {
         if (assetIn != assetOut) {
             return (amount * _getPrice(assetIn) / (10 ** IERC20Metadata(assetIn).decimals()))
                 * (10 ** IERC20Metadata(assetOut).decimals()) / _getPrice(assetOut);
@@ -681,11 +679,11 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      once it's determined that additional LP positions are needed to acquire more treasure tokens.
      *
      * @param amount The amount of free tokens intended for exchange into the treasure token.
-     * @param tickWorse The calculated worse price moving towards the current market price to define the range.
-     * @param tickBetter The calculated better price to complete the price range.
+     * @param tickLower The lower tick for position
+     * @param tickUpper The upper tick for position
      * @param fee_ The fee tier for the Uniswap V3 pool position.
      */
-    function _openPosition(uint256 amount, int24 tickWorse, int24 tickBetter, uint24 fee_) internal {
+    function _openPosition(uint256 amount, int24 tickLower, int24 tickUpper, uint24 fee_) internal {
         if (isToken0) {
             uint256 balance = token1.balanceOf(address(this));
             if (balance < amount) {
@@ -719,8 +717,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
                 token0: address(token0),
                 token1: address(token1),
                 fee: fee_,
-                tickLower: tickWorse,
-                tickUpper: tickBetter,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
                 amount0Desired: amount0Desired,
                 amount1Desired: amount1Desired,
                 amount0Min: 0,
@@ -732,7 +730,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
         _tokenIds.add(tokenId);
 
-        positions[tokenId] = Position({tickLower: tickWorse, tickUpper: tickBetter, fee: fee_});
+        positions[tokenId] = Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_});
     }
 
     /**
@@ -804,32 +802,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             );
             amount0 += amount0_;
             amount1 += amount1_;
-        }
-    }
-
-    /**
-     * @dev Calculates the amounts of tokens for liquidity in the full range.
-     * @return amount0 The amount of token0 for liquidity in the full range.
-     * @return amount1 The amount of token1 for liquidity in the full range.
-     */
-    function _getAmountsForLiquidityForFullRange() internal view returns (uint256 amount0, uint256 amount1) {
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            uint256 tokenId = _tokenIds.at(i);
-            Position memory position = positions[tokenId];
-            uint128 liquidity = _getTokenLiquidity(tokenId);
-            if (isToken0) {
-                amount0 += LiquidityAmounts.getAmount0ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(position.tickLower),
-                    TickMath.getSqrtRatioAtTick(position.tickUpper),
-                    liquidity
-                );
-            } else {
-                amount1 += LiquidityAmounts.getAmount1ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(position.tickLower),
-                    TickMath.getSqrtRatioAtTick(position.tickUpper),
-                    liquidity
-                );
-            }
         }
     }
 

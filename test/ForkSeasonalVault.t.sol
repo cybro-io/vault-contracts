@@ -537,10 +537,12 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                 token0.transfer(address(vault), token0.balanceOf(user3));
             }
             vm.stopPrank();
-            uint256 nettoPartReal = seasonalVault.getNettoPartForTokenReal(tokenTreasure);
+            uint256 nettoPartReal = seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure));
             uint256 shares3 = _deposit(user3, amount);
             console.log("user3 shares", shares3);
-            vm.assertApproxEqAbs(seasonalVault.getNettoPartForTokenReal(tokenTreasure), nettoPartReal, 2e22);
+            vm.assertApproxEqAbs(
+                seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure)), nettoPartReal, 2e22
+            );
             vm.startPrank(admin);
         }
         seasonalVault.closePositionsWorkedOut(); // how to check? // do nothing now

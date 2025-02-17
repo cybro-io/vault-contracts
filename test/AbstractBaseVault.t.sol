@@ -20,6 +20,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     address user;
     address user2;
     address user3;
+    address user4;
     address user5;
 
     address feeRecipient;
@@ -48,6 +49,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         user = address(100);
         user2 = address(101);
         user3 = address(1020202);
+        user4 = address(1030303);
         user5 = address(1001001);
         feeRecipient = address(102);
         vm.label(admin, "Admin");
@@ -139,6 +141,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             asset_.transfer(user, amount_);
             asset_.transfer(user2, amount_);
             asset_.transfer(user3, amount_);
+            asset_.transfer(user4, amount_);
             asset_.transfer(admin, amount_);
             vm.stopPrank();
         }
@@ -149,6 +152,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         asset_.approve(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user3);
+        asset_.approve(vaultAddress, amount_);
+        vm.stopPrank();
+        vm.startPrank(user4);
         asset_.approve(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(admin);

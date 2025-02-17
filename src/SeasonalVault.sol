@@ -62,7 +62,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     EnumerableSet.UintSet _tokenIds;
 
     /// @notice Mapping of token IDs to Uniswap positions
-    mapping(uint256 tokenId => Position position) positions;
+    mapping(uint256 tokenId => Position position) public positions;
 
     /// @notice Maps fee tiers to pool addresses
     mapping(uint24 fee => address pool) public pools;
@@ -246,13 +246,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return A percentage of the fund held in the particular token
      */
     function getNettoPartForTokenReal(IERC20Metadata inAsset) public view returns (uint256) {
-        (uint256 total0, uint256 total1) = getPositionAmounts();
-        (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-
-        uint256 totalInRequested =
-            (inAsset == token0 ? (amount0 + total0) : (amount1 + total1)) + inAsset.balanceOf(address(this));
-
-        return _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION / totalAssets();
+        return _getNettoPartForTokenReal(inAsset, 0);
     }
 
     /**
@@ -283,6 +277,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function getCurrentSqrtPrice(address pool) public view returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
         return sqrtPriceX96;
+    }
+
+    /**
+     * @notice Returns token IDs of all positions
+     * @return Array of token IDs
+     */
+    function getTokenIds() external view returns (uint256[] memory) {
+        return _tokenIds.values();
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -391,7 +393,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint256 currentPercentage = getNettoPartForTokenOptimistic();
         if (percentageTreasureDesired <= currentPercentage) return;
 
-        uint256 amountToAdd = totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION;
         uint160 currentPrice = getCurrentSqrtPrice(_getOrUpdatePool(fee));
         if (price1 > price2) (price1, price2) = (price2, price1);
 
@@ -407,6 +408,18 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         // recalculate ticks
         if (tickUpper > highestTick) highestTick = tickUpper;
         if (tickLower < lowestTick) lowestTick = tickLower;
+
+        uint256 amountToAdd = _convert(
+            asset(), address(tokenTreasure), totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION
+        );
+
+        uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+        if (isToken0) {
+            amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
+        } else {
+            amountToAdd = Math.mulDiv(Math.mulDiv(amountToAdd, 1 << 96, priceUpper), 1 << 96, priceLower);
+        }
 
         _openPosition(amountToAdd, tickLower, tickUpper, fee);
     }
@@ -458,7 +471,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         // we need to subtract incoming assets from the user
-        uint256 currentPercentage = getNettoPartForTokenReal(tokenTreasure);
+        uint256 currentPercentage = _getNettoPartForTokenReal(tokenTreasure, assets);
         if (address(tokenTreasure) == asset()) {
             _swap(isToken0, assets * (PRECISION - currentPercentage) / PRECISION);
         } else {
@@ -491,6 +504,27 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         }
 
         assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
+    }
+
+    /**
+     * @notice Calculates the percentage of the TVL represented by the token
+     * subtracting the deposited amount from the total assets.
+     * @return A percentage of the fund held in the particular token
+     */
+    function _getNettoPartForTokenReal(IERC20Metadata inAsset, uint256 depositedAmount)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 total0, uint256 total1) = getPositionAmounts();
+        (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
+
+        uint256 totalInRequested = (inAsset == token0 ? (amount0 + total0) : (amount1 + total1))
+            + inAsset.balanceOf(address(this)) - (asset() == address(tokenTreasure) ? depositedAmount : 0);
+        // we need to subtract deposited amount from the total assets
+        uint256 totalAssets_ = totalAssets() - depositedAmount;
+        return _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION
+            / (totalAssets_ == 0 ? 1 : totalAssets_);
     }
 
     /**

@@ -16,6 +16,8 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 import {IUniswapV3Pool, IStargatePool, IJuicePool, IYieldStaking, IFeeProvider} from "./DeployUtils.sol";
 import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider} from "../src/FeeProvider.sol";
+import {Swapper} from "./libraries/Swapper.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     IERC20Metadata token0;
@@ -37,6 +39,8 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     uint256 amount1;
 
     address tokenTreasure;
+
+    Swapper swapper;
 
     /* ========== ONECLICK ========== */
 
@@ -66,6 +70,19 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         lendingShare = 25 * 10 ** (precision - 2);
         lendingShare2 = 50 * 10 ** (precision - 2);
     }
+
+    // function movePoolPrice(uint24 fee_, uint160 targetSqrtPriceX96) internal {
+    //     (, address caller,) = vm.readCallers();
+    //     IUniswapV3Pool pool =
+    //         IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee_));
+
+    //     (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
+    //     if (sqrtPriceX96 > targetSqrtPriceX96) {
+    //         pool.swap(caller, true, type(int256).max, targetSqrtPriceX96, "");
+    //     } else {
+    //         pool.swap(caller, false, type(int256).max, targetSqrtPriceX96, "");
+    //     }
+    // }
 
     /* ========== ONECLICK ========== */
 
@@ -108,7 +125,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare);
             lendingShares.push(lendingShare2);
-            // lendingShares.push(lendingShare2);
 
             tokens.push(address(usdb_BLAST));
             oracles.push(oracle_USDB_BLAST);
@@ -166,9 +182,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                         )
                     )
                 );
-                // additionalVault = address(
-                //     _deployBuffer(VaultSetup(asset_, address(0), address(0), address(0), name, symbol, admin, admin))
-                // );
             } else if (asset_ == weth_BLAST) {
                 vaults.push(
                     address(
@@ -220,8 +233,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                 );
             }
         } else if (block.chainid == 42161) {
-            // arbitrum
-            amount = 1e9; // decimals = 6
             lendingShares.push(lendingShare);
 
             tokens.push(address(usdt_ARBITRUM));
@@ -302,17 +313,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                     )
                 );
             }
-
-            // additionalVault = address(
-            //     _deployBuffer(VaultSetup(usdt_ARBITRUM, address(0), address(0), address(0), name, symbol, admin, admin))
-            // );
         } else if (block.chainid == 8453) {
-            // base// decimals = 6
-            // fromSwap.push(address(usdc_BASE));
-            // toSwap.push(address(weth_BASE));
-            // swapPools.push(pool_USDC_WETH_BASE);
-            // add wbtc
-
             lendingShares.push(lendingShare);
 
             tokens.push(address(usdc_BASE));
@@ -374,10 +375,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                     )
                 );
             }
-            // additionalVault = address(
-            //     _deployBuffer(VaultSetup(usdc_BASE, address(0), address(0), address(0), name, symbol, admin, admin))
-            // );
-            // vm.label(additionalVault, "AdditionalVault");
         }
         lendingFeeProvider = FeeProvider(
             address(
@@ -390,7 +387,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                 )
             )
         );
-        // vm.label(address(feeProvider), "Lending FeeProvider");
         OneClickIndex lending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
@@ -415,33 +411,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         console.log("getLendingPoolCount", lending.getLendingPoolCount());
         return IVault(vaultAddress);
     }
-
-    // function _middleInteractionsOneClick() internal {
-    //     vm.startPrank(admin);
-    //     uint256 totalLendingSharesBefore = lending.totalLendingShares();
-    //     uint256 totalAssetBefore = lending.totalAssets();
-    //     uint256 balanceBefore = lending.getBalanceOfPool(vaults[0]);
-    //     address[] memory vaults_ = new address[](1);
-    //     vaults_[0] = additionalVault;
-    //     uint256[] memory lendingShares_ = new uint256[](1);
-    //     lendingShares_[0] = lendingShare2;
-    //     lending.addLendingPools(vaults_);
-    //     lending.setLendingShares(vaults_, lendingShares_);
-    //     lending.rebalanceAuto();
-    //     vm.assertEq(lending.totalLendingShares(), totalLendingSharesBefore + lendingShare2);
-    //     vm.assertLt(lending.getBalanceOfPool(vaults[0]), balanceBefore);
-    //     vm.assertGt(lending.getBalanceOfPool(additionalVault), 0);
-
-    //     lendingShares_[0] = 0;
-    //     lending.setLendingShares(vaults_, lendingShares_);
-    //     lending.rebalanceAuto();
-    //     lending.removeLendingPools(vaults_);
-    //     vm.assertEq(totalLendingSharesBefore, lending.totalLendingShares());
-    //     vm.assertEq(IERC20Metadata(lending.asset()).balanceOf(address(lending)), 0);
-    //     vm.assertApproxEqAbs(lending.totalAssets(), totalAssetBefore, totalAssetBefore / 1e3);
-    //     vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), balanceBefore / 1e3);
-    //     vm.stopPrank();
-    // }
 
     /* ========== MAIN TESTS ========== */
 
@@ -482,6 +451,8 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         seasonalVault.setOracles(tokens, oracles);
         seasonalVault.setTreasureToken(tokenTreasure);
         seasonalVault.setMaxSlippage(1000);
+        // we need to initialize swapper contract to move pool price
+        swapper = new Swapper();
         vm.stopPrank();
     }
 
@@ -494,33 +465,36 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     }
 
     function _checkOpenPosition(uint256 newNettoPart, uint256 totalAssetsBefore) internal view {
-        vm.assertApproxEqAbs(newNettoPart, seasonalVault.getNettoPartForTokenOptimistic(), 1e21);
+        console.log("newNettoPart", newNettoPart);
+        console.log("NettoPartForTokenOptimistic", seasonalVault.getNettoPartForTokenOptimistic());
+        vm.assertApproxEqAbs(newNettoPart, seasonalVault.getNettoPartForTokenOptimistic(), 1e20);
         vm.assertApproxEqAbs(totalAssetsBefore, seasonalVault.totalAssets(), 10 ** asset.decimals());
     }
 
-    function _middleInteractions() internal override {
-        vm.startPrank(admin);
-
+    function _openPositions() internal {
         address pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), poolFee);
-
-        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
         uint256 nettoPartOptimistic = seasonalVault.getNettoPartForTokenOptimistic();
-        console.log("nettoPartOptimistic", nettoPartOptimistic);
-        bool isToken0 = seasonalVault.isToken0();
+        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
         if (nettoPartOptimistic < 9e23) {
+            // 5e22 equals to 5%
             uint256 newNettoPart = nettoPartOptimistic + 5e22;
             int160 price2;
             int160 price3;
-            int160 delta;
-            if (isToken0) {
-                delta = 10;
+            int160 delta = 5e21;
+            if (!seasonalVault.isToken0()) {
                 price2 = currentPrice + currentPrice / 95;
                 price3 = price2 + currentPrice / 95 + delta;
             } else {
-                delta = -10;
+                delta = -delta;
                 price2 = currentPrice - currentPrice / 95;
-                price3 = price2 - currentPrice / 95 - delta;
+                price3 = price2 - currentPrice / 95 + delta;
             }
+            console.log("delta", delta);
+            console.log();
+            console.log("price2", price2);
+            console.log("tick at price2", TickMath.getTickAtSqrtRatio(uint160(price2)));
+            console.log("price3", price3);
+            console.log();
             uint256 totalAssetsBefore = seasonalVault.totalAssets();
             seasonalVault.openPositionIfNeed(newNettoPart, uint160(currentPrice), uint160(price2), poolFee);
             _checkOpenPosition(newNettoPart, totalAssetsBefore);
@@ -528,25 +502,61 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             seasonalVault.openPositionIfNeed(newNettoPart + 5e22, uint160(price2 + delta), uint160(price3), poolFee);
             _checkOpenPosition(newNettoPart + 5e22, totalAssetsBefore);
 
-            // deposit for check swaps
-            vm.stopPrank();
-            vm.startPrank(user3);
-            if (asset == token0) {
-                token1.transfer(address(vault), token1.balanceOf(user3));
-            } else {
-                token0.transfer(address(vault), token0.balanceOf(user3));
-            }
-            vm.stopPrank();
-            uint256 nettoPartReal = seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure));
-            uint256 shares3 = _deposit(user3, amount);
-            console.log("user3 shares", shares3);
-            vm.assertApproxEqAbs(
-                seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure)), nettoPartReal, 2e22
-            );
-            vm.startPrank(admin);
+            console.log("currentTick", seasonalVault.getCurrentTick(pool));
+            console.log("POOL PRICE BEFORE MOVE", currentPrice);
+            swapper.movePoolPrice(positionManager, address(token0), address(token1), poolFee, uint160(price3 - delta));
+            console.log("POOL PRICE MOVED TO", seasonalVault.getCurrentSqrtPrice(pool));
+            console.log("currentTick after moved", seasonalVault.getCurrentTick(pool));
+
+            uint256 countBefore = positionManager.balanceOf(address(vault)); 
+            seasonalVault.closePositionsWorkedOut();
+            vm.assertEq(positionManager.balanceOf(address(vault)), countBefore - 1);
+            console.log("position worked out");
+
+            console.log("POOL PRICE BEFORE MOVE", currentPrice);
+            swapper.movePoolPrice(positionManager, address(token0), address(token1), poolFee, uint160(currentPrice));
+            console.log("POOL PRICE MOVED TO", seasonalVault.getCurrentSqrtPrice(pool));
+        } else {
+            return;
         }
-        seasonalVault.closePositionsWorkedOut(); // how to check? // do nothing now
+    }
+
+    function _middleInteractions() internal override {
+        vm.startPrank(admin);
+
+        address pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), poolFee);
+        console.log("pool", pool);
+
+        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
+        console.log("nettoPartOptimistic", seasonalVault.getNettoPartForTokenOptimistic());
+        bool isToken0 = seasonalVault.isToken0();
+
+        _openPositions();
+
+        // deposit to check swaps
+        vm.stopPrank();
+        vm.startPrank(user3);
+        if (asset == token0) {
+            token1.transfer(address(vault), token1.balanceOf(user3));
+        } else {
+            token0.transfer(address(vault), token0.balanceOf(user3));
+        }
+        vm.stopPrank();
+        console.log("balanceOf treasure", IERC20Metadata(tokenTreasure).balanceOf(address(vault)));
+        uint256 nettoPartReal = seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure));
+
+        uint256 shares3 = _deposit(user3, amount);
+        console.log("balanceOf treasure", IERC20Metadata(tokenTreasure).balanceOf(address(vault)));
+        console.log("user3 shares", shares3);
+        vm.assertApproxEqAbs(seasonalVault.getNettoPartForTokenReal(IERC20Metadata(tokenTreasure)), nettoPartReal, 2e22);
+        vm.startPrank(admin);
+
+        uint256 balanceToken0Before = token0.balanceOf(address(vault));
+        uint256 balanceToken1Before = token1.balanceOf(address(vault));
         seasonalVault.investFreeMoney();
+        if (balanceToken0Before != 0) vm.assertGt(balanceToken0Before, token0.balanceOf(address(vault)));
+        if (balanceToken1Before != 0) vm.assertGt(balanceToken1Before, token1.balanceOf(address(vault)));
+
         vm.warp(block.timestamp + 1000);
         seasonalVault.claimDEX();
         seasonalVault.closePositionsAll();
@@ -561,17 +571,27 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
                     9e23, uint160(currentPrice * 11 / 8), uint160(currentPrice * 10 / 8), poolFee
                 );
             }
+            uint256 countBefore = positionManager.balanceOf(address(vault));
             seasonalVault.closePositionsBadMarket();
+            vm.assertEq(positionManager.balanceOf(address(vault)), countBefore - 1);
         }
+        balanceToken0Before = token0.balanceOf(address(vault));
+        balanceToken1Before = token1.balanceOf(address(vault));
         seasonalVault.investFreeMoney();
+        if (balanceToken0Before != 0) vm.assertGt(balanceToken0Before, token0.balanceOf(address(vault)));
+        if (balanceToken1Before != 0) vm.assertGt(balanceToken1Before, token1.balanceOf(address(vault)));
+
+        seasonalVault.claimDEX();
+        seasonalVault.closePositionsAll();
+
+        uint256 nettoPartOptimistic = seasonalVault.getNettoPartForTokenOptimistic();
+        seasonalVault.setTreasureToken(address(isToken0 ? token1 : token0));
+        vm.assertApproxEqAbs(seasonalVault.getNettoPartForTokenOptimistic(), 1e24 - nettoPartOptimistic, 1e20);
+
+        _openPositions();
+        seasonalVault.closePositionsAll();
         vm.stopPrank();
     }
-
-    // function testBase() public fork {
-    //     asset = usdb_BLAST;
-    //     _provideAndApproveSpecific(true, weth_BLAST, wethAmount);
-    //     baseVaultTest(true);
-    // }
 
     function test_token0() public fork {
         asset = token0;
@@ -589,7 +609,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     }
 }
 
-contract ForkSeasonalVaultTestBaseChain is ForkSeasonalVaultBaseTest {
+contract ForkSeasonalVaultTestBaseChainWeth is ForkSeasonalVaultBaseTest {
     function setUp() public override(ForkSeasonalVaultBaseTest) {
         forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
         super.setUp();
@@ -603,10 +623,32 @@ contract ForkSeasonalVaultTestBaseChain is ForkSeasonalVaultBaseTest {
         console.log("amount0", amount0);
         console.log("amount1", amount1);
         tokenTreasure = address(weth_BASE);
+        poolFee = 3000;
     }
 }
 
-contract ForkSeasonalVaultTestArbitrum is ForkSeasonalVaultBaseTest {
+contract ForkSeasonalVaultTestArbitrumBtc is ForkSeasonalVaultBaseTest {
+    function setUp() public override(ForkSeasonalVaultBaseTest) {
+        vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+        positionManager = positionManager_UNI_ARB;
+        amount = 1e9;
+        token0 = usdt_ARBITRUM;
+        token1 = wbtc_ARBITRUM;
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+        vm.label(address(token0), "token0");
+        vm.label(address(token1), "token1");
+        (amount0, amount1) = token0 == usdt_ARBITRUM ? (amount, wbtcAmount) : (wbtcAmount, amount);
+        console.log("amount0", amount0);
+        console.log("amount1", amount1);
+        tokenTreasure = address(wbtc_ARBITRUM);
+        poolFee = 500;
+    }
+}
+
+// we haven't nice pools for BTCUSDC pair with uniswap v3 on arbitrum
+
+contract ForkSeasonalVaultTestArbitrumWeth is ForkSeasonalVaultBaseTest {
     function setUp() public override(ForkSeasonalVaultBaseTest) {
         vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
@@ -619,6 +661,24 @@ contract ForkSeasonalVaultTestArbitrum is ForkSeasonalVaultBaseTest {
         vm.label(address(token1), "token1");
         (amount0, amount1) = token0 == usdt_ARBITRUM ? (amount, wethAmount) : (wethAmount, amount);
         tokenTreasure = address(weth_ARBITRUM);
+        poolFee = 3000;
+    }
+}
+
+contract ForkSeasonalVaultTestArbitrumWethUsdc is ForkSeasonalVaultBaseTest {
+    function setUp() public override(ForkSeasonalVaultBaseTest) {
+        vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+        positionManager = positionManager_UNI_ARB;
+        amount = 1e9;
+        token0 = usdc_ARBITRUM;
+        token1 = weth_ARBITRUM;
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+        vm.label(address(token0), "token0");
+        vm.label(address(token1), "token1");
+        (amount0, amount1) = token0 == usdc_ARBITRUM ? (amount, wethAmount) : (wethAmount, amount);
+        tokenTreasure = address(weth_ARBITRUM);
+        poolFee = 500;
     }
 }
 

@@ -173,12 +173,14 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = _getTokensOwedForAllPositions();
+        // We're using sqrt price from oracle to avoid pool price manipulations affect the result
+        uint160 currentSqrtPrice = _getOracleSqrtPriceX96();
         for (uint256 i = 0; i < _tokenIds.length(); i++) {
             uint256 tokenId = _tokenIds.at(i);
             Position memory position = positions[tokenId];
             uint128 liquidity = _getTokenLiquidity(tokenId);
             (uint256 amount0_, uint256 amount1_) = LiquidityAmounts.getAmountsForLiquidity(
-                getCurrentSqrtPrice(pools[position.fee]),
+                currentSqrtPrice,
                 TickMath.getSqrtRatioAtTick(position.tickLower),
                 TickMath.getSqrtRatioAtTick(position.tickUpper),
                 liquidity
@@ -523,8 +525,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             + inAsset.balanceOf(address(this)) - (asset() == address(tokenTreasure) ? depositedAmount : 0);
         // we need to subtract deposited amount from the total assets
         uint256 totalAssets_ = totalAssets() - depositedAmount;
-        return _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION
-            / (totalAssets_ == 0 ? 1 : totalAssets_);
+        return (totalAssets_ == 0)
+            ? 0
+            : _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION / totalAssets_;
     }
 
     /**

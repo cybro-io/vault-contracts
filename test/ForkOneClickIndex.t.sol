@@ -103,7 +103,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                     _deployJuice(
                         VaultSetup(
                             usdb_BLAST,
-                            address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a),
+                            address(juice_usdbPool_BLAST),
                             address(0),
                             address(0),
                             name,
@@ -119,7 +119,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                     _deployYieldStaking(
                         VaultSetup(
                             usdb_BLAST,
-                            address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D),
+                            address(blastupYieldStaking_BLAST),
                             address(0),
                             address(0),
                             name,

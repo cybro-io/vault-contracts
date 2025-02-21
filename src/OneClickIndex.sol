@@ -490,10 +490,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * Ensures that the price impact of the swap doesn't exceed the permitted slippage.
      */
     function _checkSlippage(address from, address to, uint256 amountIn, uint256 amountOut) internal view {
-        uint256 priceFrom = _getPrice(from);
-        uint256 priceTo = _getPrice(to);
-        uint256 amountInUsd = amountIn * priceFrom / (10 ** IERC20Metadata(from).decimals());
-        uint256 amountOutUsd = amountOut * priceTo / (10 ** IERC20Metadata(to).decimals());
+        uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
+        uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
         require(
             amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
             "OneClickIndex: Slippage"

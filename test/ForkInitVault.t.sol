@@ -18,9 +18,9 @@ contract InitVaultTest is AbstractBaseVaultTest {
     function setUp() public override {
         forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
-        usdbPool = address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F);
-        wethPool = address(0xD20989EB39348994AA99F686bb4554090d0C09F3);
-        blastPool = address(0xdafB6929442303e904A2f673A0E7EB8753Bab571);
+        usdbPool = address(init_usdbPool_BLAST);
+        wethPool = address(init_wethPool_BLAST);
+        blastPool = address(init_blastPool_BLAST);
         amount = 1e20;
     }
 

@@ -450,7 +450,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         seasonalVault.setFeeForSwaps(poolFee);
         seasonalVault.setOracles(tokens, oracles);
         seasonalVault.setTreasureToken(tokenTreasure);
-        seasonalVault.setMaxSlippage(1000);
+        seasonalVault.setMaxSlippage(100);
         // we need to initialize swapper contract to move pool price
         swapper = new Swapper();
         vm.stopPrank();
@@ -508,7 +508,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             console.log("POOL PRICE MOVED TO", seasonalVault.getCurrentSqrtPrice(pool));
             console.log("currentTick after moved", seasonalVault.getCurrentTick(pool));
 
-            uint256 countBefore = positionManager.balanceOf(address(vault)); 
+            uint256 countBefore = positionManager.balanceOf(address(vault));
             seasonalVault.closePositionsWorkedOut();
             vm.assertEq(positionManager.balanceOf(address(vault)), countBefore - 1);
             console.log("position worked out");

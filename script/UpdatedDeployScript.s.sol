@@ -32,6 +32,8 @@ import {
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 import {DeployUtils} from "../test/DeployUtils.sol";
+import {SeasonalVault} from "../src/SeasonalVault.sol";
+import {BufferVault} from "../src/vaults/BufferVault.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     struct DeployVault {
@@ -68,6 +70,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     address[] vaults;
+    address[] vaults2;
     uint256[] lendingShares;
     IUniswapV3Pool[] swapPools;
     address[] tokens;
@@ -288,7 +291,27 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
-
+    function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
+        vault = BufferVault(
+            address(
+                _deployBuffer(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("BufferVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
     // Examples for deploying other vaults
 
     // feeProvider = _deployFeeProvider(admin, 0, 0, 0);
@@ -779,6 +802,224 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLending.revokeRole(MANAGER_ROLE, admin);
         fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    function deploySeasonalArbitrum() public {
+        vm.createSelectFork("arbitrum");
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdt_ARBITRUM), "USDT");
+        vm.label(address(usdc_ARBITRUM), "USDC");
+        vm.label(address(wbtc_ARBITRUM), "WBTC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults2.push(
+            address(
+                _deployBufferVault(
+                    DeployVault({
+                        asset: wbtc_ARBITRUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Buffer WBTC",
+                        symbol: "cyWBTC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(aave_pool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave USDC",
+                        symbol: "cyaUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdt_ARBITRUM,
+                        pool: address(aave_pool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave USDT",
+                        symbol: "cyaUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployStargateVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(stargate_usdcPool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Stargate USDC",
+                        symbol: "cystgUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployStargateVault(
+                    DeployVault({
+                        asset: usdt_ARBITRUM,
+                        pool: address(stargate_usdtPool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Stargate USDT",
+                        symbol: "cystgUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[3]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        OneClickIndex fundLendingWbtc = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(wbtc_ARBITRUM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "wbtcLendingIndex", admin, admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLendingWbtc));
+        lendingShares.push(10000);
+        fundLendingWbtc.addLendingPools(vaults2);
+        fundLendingWbtc.setLendingShares(vaults2, lendingShares);
+
+        tokens.push(address(usdc_ARBITRUM));
+        oracles.push(oracle_USDC_ARBITRUM);
+        tokens.push(address(usdt_ARBITRUM));
+        oracles.push(oracle_USDT_ARBITRUM);
+        tokens.push(address(wbtc_ARBITRUM));
+        oracles.push(oracle_BTC_ARBITRUM);
+
+        fundLendingWbtc.setOracles(tokens, oracles);
+        vm.assertTrue(fundLendingWbtc.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLendingWbtc.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLendingWbtc.hasRole(fundLendingWbtc.STRATEGIST_ROLE(), admin));
+        console.log("OneClickIndex WBTC Arbitrum", address(fundLendingWbtc));
+
+        delete lendingShares;
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_ARBITRUM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "usdcLendingIndex", admin, admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(2500);
+        lendingShares.push(2500);
+        lendingShares.push(2500);
+        lendingShares.push(2500);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        swapPools.push(pool_USDC_USDT_ARBITRUM);
+        fromSwap.push(address(usdc_ARBITRUM));
+        toSwap.push(address(usdt_ARBITRUM));
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setMaxSlippage(10);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(fundLending.STRATEGIST_ROLE(), admin));
+        console.log("OneClickIndex USDC Arbitrum", address(fundLending));
+
+        feeProvider = _deployFeeProvider(admin, 10, 20, 500, 100);
+        SeasonalVault seasonal = SeasonalVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new SeasonalVault(
+                            payable(address(positionManager_UNI_ARB)),
+                            usdc_ARBITRUM,
+                            address(wbtc_ARBITRUM),
+                            address(usdc_ARBITRUM),
+                            feeProvider,
+                            feeRecipient,
+                            fundLendingWbtc,
+                            fundLending
+                        )
+                    ),
+                    admin,
+                    abi.encodeCall(SeasonalVault.initialize, (admin, "Cybro Seasonal Vault", "cySEAS", admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(seasonal));
+        seasonal.setTickDiff(1823); // approximately equals to 20% of price diff
+        seasonal.setFeeForSwaps(500);
+        seasonal.setOracles(tokens, oracles);
+        seasonal.setTreasureToken(address(wbtc_ARBITRUM));
+        seasonal.setMaxSlippage(100);
+        vm.stopBroadcast();
+
+        console.log("Seasonal Vault USDC/WBTC Arbitrum", address(seasonal));
+        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+        _testVaultWorks(BaseVault(vaults2[0]), 1e10, false);
+        _testVaultWorks(BaseVault(address(fundLendingWbtc)), 1e10, true);
+        _testVaultWorks(BaseVault(address(seasonal)), 1e10, false);
+
+        vm.startBroadcast();
+        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLending.revokeRole(MANAGER_ROLE, admin);
+        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+
+        fundLendingWbtc.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLendingWbtc.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLendingWbtc.revokeRole(MANAGER_ROLE, admin);
+        fundLendingWbtc.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+
+        vaults.push(address(seasonal));
+        vaults.push(vaults2[0]);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }

@@ -24,6 +24,8 @@ import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/inter
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
 import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
+import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
+import {SparkVault} from "../src/vaults/SparkVault.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -62,6 +64,7 @@ contract DeployUtils {
     IERC20Metadata wbtc_BASE = IERC20Metadata(address(0x0555E30da8f98308EdB960aa94C0Db47230d2B9c));
     // coinbase wrapped btc
     IERC20Metadata cbwbtc_BASE = IERC20Metadata(address(0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf));
+    IERC20Metadata susds_BASE = IERC20Metadata(address(0x5875eEE11Cf8398102FdAd704C9E96607675467a));
 
     /* BLAST */
     IERC20Metadata usdb_BLAST = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
@@ -171,6 +174,7 @@ contract DeployUtils {
 
     IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
     IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
+    IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -364,6 +368,30 @@ contract DeployUtils {
                     abi.encodeCall(
                         GammaAlgebraVault.initialize,
                         (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                    )
+                )
+            )
+        );
+    }
+
+    function _deploySparkVault(VaultSetup memory vaultData) internal returns (IVault sparkVault_) {
+        sparkVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new SparkVault(
+                                vaultData.asset,
+                                IPSM3(vaultData.pool),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            SparkVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
                     )
                 )
             )

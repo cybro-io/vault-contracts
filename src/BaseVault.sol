@@ -89,11 +89,25 @@ abstract contract BaseVault is ERC20Upgradeable, OwnableUpgradeable, PausableUpg
             _spendAllowance(owner, _msgSender(), shares);
         }
 
+        return _redeemBaseVault(shares, receiver, owner);
+    }
+
+    function _redeemBaseVault(uint256 shares, address receiver, address owner) internal returns (uint256 assets) {
         assets = _redeem(shares);
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
 
         emit Withdraw(_msgSender(), receiver, owner, assets, shares);
+    }
+
+    function emergencyWithdraw(address[] memory accounts) external onlyOwner {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            uint256 balance = balanceOf(account);
+            if (balance > 0) {
+                _redeemBaseVault(balance, account, account);
+            }
+        }
     }
 
     function _validateTokenToRecover(address token) internal virtual returns (bool);

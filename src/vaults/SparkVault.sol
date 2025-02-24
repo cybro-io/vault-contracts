@@ -7,8 +7,6 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {IPSM3} from "../interfaces/spark/IPSM3.sol";
-import {ISSRAuthOracle} from "../interfaces/spark/ISSRAuthOracle.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract SparkVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
@@ -17,8 +15,6 @@ contract SparkVault is BaseVault {
 
     IPSM3 public immutable psm;
     IERC20Metadata public immutable susds;
-    ISSRAuthOracle public immutable rateProvider;
-    uint8 public immutable susdsDecimals;
 
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
@@ -27,9 +23,7 @@ contract SparkVault is BaseVault {
         BaseVault(_asset, _feeProvider, _feeRecipient)
     {
         psm = _psm;
-        rateProvider = ISSRAuthOracle(_psm.rateProvider());
         susds = IERC20Metadata(_psm.susds());
-        susdsDecimals = susds.decimals();
 
         _disableInitializers();
     }
@@ -43,7 +37,7 @@ contract SparkVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
-        return psm.previewSwapExactIn(address(susds), address(asset()), susds.balanceOf(address(this)));
+        return psm.previewSwapExactIn(address(susds), asset(), susds.balanceOf(address(this)));
     }
 
     /// @inheritdoc BaseVault

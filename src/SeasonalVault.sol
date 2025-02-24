@@ -622,15 +622,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Retrieves the current square root price of a Uniswap pool.
-     * @param pool The address of the Uniswap pool
-     * @return sqrtPriceX96 The current square root price of the pool
-     */
-    function getCurrentSqrtPrice(address pool) public view returns (uint160 sqrtPriceX96) {
-        (sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-    }
-
-    /**
      * @notice Returns token IDs of all positions
      * @return Array of token IDs
      */

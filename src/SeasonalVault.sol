@@ -243,6 +243,180 @@ library OraclesLogic {
     }
 }
 
+library VaultLogic {
+    using PositionsLogic for PositionsLogic.Positions;
+    using OraclesLogic for OraclesLogic.Oracles;
+
+    struct Immutables {
+        INonfungiblePositionManager positionManager;
+        IERC20Metadata token0;
+        IERC20Metadata token1;
+        uint8 token0Decimals;
+        uint8 token1Decimals;
+        IVault token0Vault;
+        IVault token1Vault;
+        address asset;
+    }
+
+    function openPositionIfNeed(
+        uint256 assetsToSpend,
+        uint24 fee,
+        uint160 price1,
+        uint160 price2,
+        address tokenTreasure,
+        Immutables memory immutables,
+        OraclesLogic.Oracles storage oracles,
+        PositionsLogic.Positions storage positions
+    ) external {
+        uint256 amountToAdd = oracles.convert(immutables.asset, address(tokenTreasure), assetsToSpend);
+
+        IUniswapV3Pool pool;
+        {
+            IUniswapV3Factory factory = IUniswapV3Factory(immutables.positionManager.factory());
+            pool = IUniswapV3Pool(factory.getPool(address(immutables.token0), address(immutables.token1), fee));
+        }
+        (uint160 currentPrice,,,,,,) = pool.slot0();
+        if (price1 > price2) (price1, price2) = (price2, price1);
+
+        bool isToken0 = tokenTreasure == address(immutables.token0);
+
+        // Move range if its outdated
+        if ((isToken0 && currentPrice < price2)) {
+            price1 -= (price2 - currentPrice);
+            price2 = currentPrice;
+        } else if (!isToken0 && currentPrice > price1) {
+            price2 += (currentPrice - price1);
+            price1 = currentPrice;
+        }
+
+        (int24 tickLower, int24 tickUpper) = _adjustTicks(isToken0, price1, price2, pool.tickSpacing());
+        {
+            uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
+            uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+
+            if (isToken0) {
+                amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
+            } else {
+                amountToAdd = Math.mulDiv(Math.mulDiv(amountToAdd, 1 << 96, priceUpper), 1 << 96, priceLower);
+            }
+        }
+
+        _openPosition(isToken0, amountToAdd, fee, tickLower, tickUpper, immutables, positions);
+    }
+
+    /**
+     * @notice Rounds desired price boundaries to the nearest permissible Uniswap ticks based on tick spacing.
+     * @dev Adjusts price boundaries upwards when buying token0, and downwards otherwise. This ensures
+     *      valid tick boundaries for given price ranges in Uniswap.
+     *
+     * @param priceLower The initial price boundary (lower bound).
+     * @param priceUpper The final price boundary (upper bound).
+     * @param tickSpacing The allowable spacing between ticks.
+     * @return tickLower The lower tick
+     * @return tickUpper The upper tick
+     */
+    function _adjustTicks(bool isToken0, uint160 priceLower, uint160 priceUpper, int24 tickSpacing)
+        private
+        pure
+        returns (int24 tickLower, int24 tickUpper)
+    {
+        tickLower = TickMath.getTickAtSqrtRatio(priceLower);
+        tickUpper = TickMath.getTickAtSqrtRatio(priceUpper);
+        if (isToken0) {
+            tickLower -= (tickLower < 0 ? tickSpacing : int24(0)) + tickLower % tickSpacing;
+            tickUpper -= (tickUpper < 0 ? tickSpacing : int24(0)) + tickUpper % tickSpacing;
+        } else {
+            tickLower -= tickLower < 0 ? tickLower % tickSpacing : (tickLower % tickSpacing - tickSpacing);
+            tickUpper -= tickUpper < 0 ? tickUpper % tickSpacing : (tickUpper % tickSpacing - tickSpacing);
+        }
+    }
+
+    /**
+     * @notice Creates a new Uniswap LP position using the specified amount of tokens and price range.
+     * @dev This function is internal and is called by `openPositionIfNeed` to initialize an LP position
+     *      once it's determined that additional LP positions are needed to acquire more treasure tokens.
+     *
+     * @param amount The amount of free tokens intended for exchange into the treasure token.
+     * @param tickLower The lower tick for position
+     * @param tickUpper The upper tick for position
+     * @param fee_ The fee tier for the Uniswap V3 pool position.
+     */
+    function _openPosition(
+        bool isToken0,
+        uint256 amount,
+        uint24 fee_,
+        int24 tickLower,
+        int24 tickUpper,
+        Immutables memory immutables,
+        PositionsLogic.Positions storage positions
+    ) private {
+        {
+            IVault vault = isToken0 ? immutables.token1Vault : immutables.token0Vault;
+            uint256 balance =
+                isToken0 ? immutables.token1.balanceOf(address(this)) : immutables.token0.balanceOf(address(this));
+            if (balance < amount) {
+                amount = balance
+                    + vault.redeem(
+                        (amount - balance) * 10 ** vault.decimals() / vault.sharePrice(), address(this), address(this), 0
+                    );
+            }
+        }
+        uint256 tokenId;
+        {
+            (uint256 amount0Desired, uint256 amount1Desired) = isToken0 ? (uint256(0), amount) : (amount, 0);
+
+            (tokenId,,,) = immutables.positionManager.mint(
+                INonfungiblePositionManager.MintParams({
+                    token0: address(immutables.token0),
+                    token1: address(immutables.token1),
+                    fee: fee_,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    amount0Desired: amount0Desired,
+                    amount1Desired: amount1Desired,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this),
+                    deadline: block.timestamp
+                })
+            );
+        }
+
+        positions.add(tokenId, PositionsLogic.Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_}));
+    }
+
+    function redeem(
+        uint256 shares,
+        uint256 totalSupply,
+        Immutables memory immutables,
+        PositionsLogic.Positions storage positions
+    ) external returns (uint256 amount0, uint256 amount1) {
+        amount0 = immutables.token0.balanceOf(address(this)) * shares / totalSupply;
+        amount1 = immutables.token1.balanceOf(address(this)) * shares / totalSupply;
+
+        uint256 farmingShares0 = immutables.token0Vault.balanceOf(address(this)) * shares / totalSupply;
+        uint256 farmingShares1 = immutables.token1Vault.balanceOf(address(this)) * shares / totalSupply;
+
+        if (farmingShares0 > 0) {
+            amount0 += immutables.token0Vault.redeem(farmingShares0, address(this), address(this), 0);
+        }
+
+        if (farmingShares1 > 0) {
+            amount1 += immutables.token1Vault.redeem(farmingShares1, address(this), address(this), 0);
+        }
+
+        (uint256 positions0, uint256 positions1) =
+            positions.removeLiquidityAndRewardsPercent(immutables.positionManager, shares * PRECISION / totalSupply);
+        amount0 += positions0;
+        amount1 += positions1;
+    }
+
+    function investFreeMoney(Immutables memory immutables) external {
+        immutables.token0Vault.deposit(immutables.token0.balanceOf(address(this)), address(this), 0);
+        immutables.token1Vault.deposit(immutables.token1.balanceOf(address(this)), address(this), 0);
+    }
+}
+
 /**
  * @title SeasonalVault
  * @notice Vault that manages assets based on crypto market seasons strategy
@@ -282,9 +456,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     /// @notice Maps fee tiers to pool addresses
     mapping(uint24 fee => address pool) public pools;
-
-    /// @notice Maps fee tiers to tick spacings
-    mapping(uint24 fee => int24 tickSpacing) public feeAmountTickSpacing;
 
     /// @notice Mapping of tokens to their oracles
     OraclesLogic.Oracles oracles;
@@ -364,8 +535,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function totalAssets() public view override returns (uint256 total) {
         (uint256 total0, uint256 total1) = getPositionAmounts();
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
-        return _getInUnderlyingAsset(address(token0), total0 + token0.balanceOf(address(this)) + amount0)
-            + _getInUnderlyingAsset(address(token1), total1 + token1.balanceOf(address(this)) + amount1);
+        return _getInUnderlyingAsset(address(token0), total0 + _getBalance(address(token0)) + amount0)
+            + _getInUnderlyingAsset(address(token1), total1 + _getBalance(address(token1)) + amount1);
     }
 
     /// @inheritdoc BaseVault
@@ -415,7 +586,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The percentage of the fund held as the treasure token.
      */
     function getNettoPartForTokenOptimistic() public view returns (uint256) {
-        uint256 totalTreasureAmount = getTreasureAmountForFullRange() + tokenTreasure.balanceOf(address(this))
+        uint256 totalTreasureAmount = getTreasureAmountForFullRange() + _getBalance(address(tokenTreasure))
             + (isToken0 ? token0Vault : token1Vault).getBalanceInUnderlying(address(this));
 
         return _getInUnderlyingAsset(address(tokenTreasure), totalTreasureAmount) * PRECISION / totalAssets();
@@ -526,15 +697,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function updatePoolForFee(uint24 fee) external onlyRole(MANAGER_ROLE) returns (address pool) {
         pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
         pools[fee] = pool;
-        feeAmountTickSpacing[fee] = IUniswapV3Pool(pool).tickSpacing();
     }
 
     /**
      * @notice Deposits free funds into the vaults.
      */
     function investFreeMoney() external onlyRole(MANAGER_ROLE) {
-        token0Vault.deposit(token0.balanceOf(address(this)), address(this), 0);
-        token1Vault.deposit(token1.balanceOf(address(this)), address(this), 0);
+        VaultLogic.investFreeMoney(_getImmutables());
     }
 
     /**
@@ -570,34 +739,18 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint256 currentPercentage = getNettoPartForTokenOptimistic();
         if (percentageTreasureDesired <= currentPercentage) return;
 
-        uint160 currentPrice = getCurrentSqrtPrice(_getOrUpdatePool(fee));
-        if (price1 > price2) (price1, price2) = (price2, price1);
+        uint256 assetsToSpend = totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION;
 
-        // Move range if its outdated
-        if ((isToken0 && currentPrice < price2)) {
-            price1 -= (price2 - currentPrice);
-            price2 = currentPrice;
-        } else if (!isToken0 && currentPrice > price1) {
-            price2 += (currentPrice - price1);
-            price1 = currentPrice;
-        }
-
-        uint256 amountToAdd = oracles.convert(
-            asset(), address(tokenTreasure), totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION
-        );
-
-        (int24 tickLower, int24 tickUpper) = _adjustTicks(price1, price2, feeAmountTickSpacing[fee]);
-
-        uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
-        uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
-
-        if (isToken0) {
-            amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
-        } else {
-            amountToAdd = Math.mulDiv(Math.mulDiv(amountToAdd, 1 << 96, priceUpper), 1 << 96, priceLower);
-        }
-
-        _openPosition(amountToAdd, tickLower, tickUpper, fee);
+        VaultLogic.openPositionIfNeed({
+            assetsToSpend: assetsToSpend,
+            fee: fee,
+            price1: price1,
+            price2: price2,
+            tokenTreasure: address(tokenTreasure),
+            immutables: _getImmutables(),
+            oracles: oracles,
+            positions: positions
+        });
     }
 
     /**
@@ -659,24 +812,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        uint256 amount0 = IERC20Metadata(token0).balanceOf(address(this)) * shares / totalSupply();
-        uint256 amount1 = IERC20Metadata(token1).balanceOf(address(this)) * shares / totalSupply();
-
-        uint256 farmingShares0 = IERC20Metadata(token0Vault).balanceOf(address(this)) * shares / totalSupply();
-        uint256 farmingShares1 = IERC20Metadata(token1Vault).balanceOf(address(this)) * shares / totalSupply();
-
-        if (farmingShares0 > 0) {
-            amount0 += token0Vault.redeem(farmingShares0, address(this), address(this), 0);
-        }
-
-        if (farmingShares1 > 0) {
-            amount1 += token1Vault.redeem(farmingShares1, address(this), address(this), 0);
-        }
-
-        (uint256 positions0, uint256 positions1) =
-            positions.removeLiquidityAndRewardsPercent(positionManager, shares * PRECISION / totalSupply());
-        amount0 += positions0;
-        amount1 += positions1;
+        (uint256 amount0, uint256 amount1) = VaultLogic.redeem(shares, totalSupply(), _getImmutables(), positions);
 
         assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
     }
@@ -695,7 +831,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         (uint256 amount0, uint256 amount1) = _getAmountsForFarmings();
 
         uint256 totalInRequested = (inAsset == token0 ? (amount0 + total0) : (amount1 + total1))
-            + inAsset.balanceOf(address(this)) - (asset() == address(tokenTreasure) ? depositedAmount : 0);
+            + _getBalance(address(inAsset)) - (asset() == address(tokenTreasure) ? depositedAmount : 0);
         // we need to subtract deposited amount from the total assets
         uint256 totalAssets_ = totalAssets() - depositedAmount;
         return (totalAssets_ == 0)
@@ -713,7 +849,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         if (pool == address(0)) {
             pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
             pools[fee] = pool;
-            feeAmountTickSpacing[fee] = IUniswapV3Pool(pool).tickSpacing();
         }
     }
 
@@ -740,33 +875,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Rounds desired price boundaries to the nearest permissible Uniswap ticks based on tick spacing.
-     * @dev Adjusts price boundaries upwards when buying token0, and downwards otherwise. This ensures
-     *      valid tick boundaries for given price ranges in Uniswap.
-     *
-     * @param priceLower The initial price boundary (lower bound).
-     * @param priceUpper The final price boundary (upper bound).
-     * @param tickSpacing The allowable spacing between ticks.
-     * @return tickLower The lower tick
-     * @return tickUpper The upper tick
-     */
-    function _adjustTicks(uint160 priceLower, uint160 priceUpper, int24 tickSpacing)
-        internal
-        view
-        returns (int24 tickLower, int24 tickUpper)
-    {
-        tickLower = TickMath.getTickAtSqrtRatio(priceLower);
-        tickUpper = TickMath.getTickAtSqrtRatio(priceUpper);
-        if (isToken0) {
-            tickLower -= (tickLower < 0 ? tickSpacing : int24(0)) + tickLower % tickSpacing;
-            tickUpper -= (tickUpper < 0 ? tickSpacing : int24(0)) + tickUpper % tickSpacing;
-        } else {
-            tickLower -= tickLower < 0 ? tickLower % tickSpacing : (tickLower % tickSpacing - tickSpacing);
-            tickUpper -= tickUpper < 0 ? tickUpper % tickSpacing : (tickUpper % tickSpacing - tickSpacing);
-        }
-    }
-
-    /**
      * @notice Converts an amount to the vault's underlying asset value
      * @param asset_ The address of the asset to convert from
      * @param amount The amount to convert
@@ -774,47 +882,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function _getInUnderlyingAsset(address asset_, uint256 amount) internal view returns (uint256) {
         return oracles.convert(asset_, asset(), amount);
-    }
-
-    /**
-     * @notice Creates a new Uniswap LP position using the specified amount of tokens and price range.
-     * @dev This function is internal and is called by `openPositionIfNeed` to initialize an LP position
-     *      once it's determined that additional LP positions are needed to acquire more treasure tokens.
-     *
-     * @param amount The amount of free tokens intended for exchange into the treasure token.
-     * @param tickLower The lower tick for position
-     * @param tickUpper The upper tick for position
-     * @param fee_ The fee tier for the Uniswap V3 pool position.
-     */
-    function _openPosition(uint256 amount, int24 tickLower, int24 tickUpper, uint24 fee_) internal {
-        IVault vault = isToken0 ? token1Vault : token0Vault;
-        uint256 balance = isToken0 ? token1.balanceOf(address(this)) : token0.balanceOf(address(this));
-        if (balance < amount) {
-            amount = balance
-                + vault.redeem(
-                    (amount - balance) * 10 ** vault.decimals() / vault.sharePrice(), address(this), address(this), 0
-                );
-        }
-
-        (uint256 amount0Desired, uint256 amount1Desired) = isToken0 ? (uint256(0), amount) : (amount, 0);
-
-        (uint256 tokenId,,,) = positionManager.mint(
-            INonfungiblePositionManager.MintParams({
-                token0: address(token0),
-                token1: address(token1),
-                fee: fee_,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                amount0Desired: amount0Desired,
-                amount1Desired: amount1Desired,
-                amount0Min: 0,
-                amount1Min: 0,
-                recipient: address(this),
-                deadline: block.timestamp
-            })
-        );
-
-        positions.add(tokenId, PositionsLogic.Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_}));
     }
 
     /**
@@ -854,6 +921,19 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         );
     }
 
+    function _getImmutables() private view returns (VaultLogic.Immutables memory immutables) {
+        return VaultLogic.Immutables({
+            positionManager: positionManager,
+            token0: token0,
+            token1: token1,
+            token0Decimals: token0Decimals,
+            token1Decimals: token1Decimals,
+            token0Vault: token0Vault,
+            token1Vault: token1Vault,
+            asset: asset()
+        });
+    }
+
     /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override(BaseVault) returns (bool) {
         return token != address(token0) && token != address(token1) && token != address(token0Vault)
@@ -885,5 +965,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
+    }
+
+    function _getBalance(address token) private view returns (uint256) {
+        return IERC20Metadata(token).balanceOf(address(this));
     }
 }

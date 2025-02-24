@@ -17,6 +17,232 @@ import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
+uint256 constant PRECISION = 1e24;
+
+library PositionsLogic {
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    struct Position {
+        int24 tickLower;
+        int24 tickUpper;
+        uint24 fee;
+    }
+
+    struct Positions {
+        /// @notice Mapping of token IDs to Uniswap positions
+        mapping(uint256 tokenId => Position position) positions;
+        /// @notice Set of token IDs for managed Uniswap positions
+        EnumerableSet.UintSet tokenIds;
+        /// @notice The lowest tick of all current positions
+        int24 lowestTick;
+        /// @notice The highest tick of all current positions
+        int24 highestTick;
+    }
+
+    /**
+     * @dev Recalculates the lowest and highest ticks for current positions.
+     */
+    function recalculateTicks(Positions storage self) external {
+        self.lowestTick = TickMath.MAX_TICK;
+        self.highestTick = TickMath.MIN_TICK;
+        if (self.tokenIds.length() == 0) return;
+        for (uint256 i = 0; i < self.tokenIds.length(); i++) {
+            PositionsLogic.Position memory position = self.positions[self.tokenIds.at(i)];
+            if (position.tickUpper > self.highestTick) self.highestTick = position.tickUpper;
+            if (position.tickLower < self.lowestTick) self.lowestTick = position.tickLower;
+        }
+    }
+
+    /**
+     * @dev Adds a new position to the set.
+     */
+    function add(Positions storage self, uint256 tokenId, Position memory position) external {
+        self.positions[tokenId] = position;
+        self.tokenIds.add(tokenId);
+
+        if (position.tickUpper > self.highestTick) self.highestTick = position.tickUpper;
+        if (position.tickLower < self.lowestTick) self.lowestTick = position.tickLower;
+    }
+
+    function close(Positions storage self, INonfungiblePositionManager positionManager, uint256 tokenId) external {
+        (,,,,,,, uint128 liquidity,,,,) = positionManager.positions(tokenId);
+
+        positionManager.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        positionManager.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+        positionManager.burn(tokenId);
+
+        self.tokenIds.remove(tokenId);
+        delete self.positions[tokenId];
+    }
+
+    function removeLiquidityAndRewardsPercent(
+        Positions storage self,
+        INonfungiblePositionManager positionManager,
+        uint256 percent
+    ) external returns (uint256 amount0, uint256 amount1) {
+        for (uint256 i = 0; i < self.tokenIds.length(); i++) {
+            uint256 tokenId = self.tokenIds.at(i);
+            (,,,,,,, uint128 totalLiquidity,,,,) = positionManager.positions(tokenId);
+            uint256 liquidity = totalLiquidity * percent / PRECISION;
+
+            (uint256 liq0, uint256 liq1) = positionManager.decreaseLiquidity(
+                INonfungiblePositionManager.DecreaseLiquidityParams({
+                    tokenId: tokenId,
+                    liquidity: uint128(liquidity),
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: type(uint256).max
+                })
+            );
+            uint256 fees0;
+            uint256 fees1;
+            {
+                // everything besides just claimed liquidity are fees
+                (,,,,,,,,,, uint256 owed0, uint256 owed1) = positionManager.positions(tokenId);
+                fees0 = owed0 - liq0;
+                fees1 = owed1 - liq1;
+            }
+
+            (uint256 collected0, uint256 collected1) = positionManager.collect(
+                INonfungiblePositionManager.CollectParams({
+                    tokenId: tokenId,
+                    recipient: address(this),
+                    amount0Max: uint128(fees0 * liquidity / totalLiquidity + liq0),
+                    amount1Max: uint128(fees1 * liquidity / totalLiquidity + liq1)
+                })
+            );
+
+            amount0 += collected0;
+            amount1 += collected1;
+        }
+    }
+
+    function claimAll(Positions storage self, INonfungiblePositionManager positionManager) external {
+        for (uint256 i = 0; i < self.tokenIds.length(); i++) {
+            positionManager.collect(
+                INonfungiblePositionManager.CollectParams({
+                    tokenId: self.tokenIds.at(i),
+                    recipient: address(this),
+                    amount0Max: type(uint128).max,
+                    amount1Max: type(uint128).max
+                })
+            );
+        }
+    }
+
+    function getTotalOwed(Positions storage self, INonfungiblePositionManager positionManager)
+        external
+        view
+        returns (uint128 amount0, uint128 amount1)
+    {
+        for (uint256 i = 0; i < self.tokenIds.length(); i++) {
+            uint256 tokenId = self.tokenIds.at(i);
+            (,,,,,,,,,, uint128 owed0, uint128 owed1) = positionManager.positions(tokenId);
+            amount0 += owed0;
+            amount1 += owed1;
+        }
+    }
+
+    function getTotalAmountsAt(Positions storage self, INonfungiblePositionManager positionManager, uint160 sqrtPrice)
+        external
+        view
+        returns (uint256 amount0, uint256 amount1)
+    {
+        for (uint256 i = 0; i < self.tokenIds.length(); i++) {
+            uint256 tokenId = self.tokenIds.at(i);
+            (,,,,,,,,,, uint128 owed0, uint128 owed1) = positionManager.positions(tokenId);
+            amount0 += owed0;
+            amount1 += owed1;
+
+            PositionsLogic.Position memory position = self.positions[tokenId];
+            (,,,,,,, uint128 liquidity,,,,) = positionManager.positions(tokenId);
+            (uint256 amount0_, uint256 amount1_) = LiquidityAmounts.getAmountsForLiquidity(
+                sqrtPrice,
+                TickMath.getSqrtRatioAtTick(position.tickLower),
+                TickMath.getSqrtRatioAtTick(position.tickUpper),
+                liquidity
+            );
+            amount0 += amount0_;
+            amount1 += amount1_;
+        }
+    }
+}
+
+library OraclesLogic {
+    using OraclesLogic for OraclesLogic.Oracles;
+
+    struct Oracles {
+        /// @notice Mapping of tokens to their oracles
+        mapping(address token => IChainlinkOracle oracle) oracles;
+    }
+
+    function _getPrice(Oracles storage self, address asset_) private view returns (uint256) {
+        IChainlinkOracle oracle = self.oracles[asset_];
+        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
+
+        require(answeredInRound >= roundID, "Stale price");
+        require(timestamp != 0, "Round not complete");
+        require(price > 0, "Chainlink price reporting 0");
+
+        return uint256(price);
+    }
+
+    function getPrice(Oracles storage self, address asset_) external view returns (uint256) {
+        return _getPrice(self, asset_);
+    }
+
+    /**
+     * @notice Converts an amount of the assetIn to the assetOut
+     * @param assetIn The address of the asset to convert from
+     * @param assetOut The address of the asset to convert to
+     * @param amount The amount to convert
+     * @return The equivalent amount in the assetOut
+     */
+    function convert(Oracles storage self, address assetIn, address assetOut, uint256 amount)
+        external
+        view
+        returns (uint256)
+    {
+        if (assetIn != assetOut) {
+            return (amount * _getPrice(self, assetIn) / (10 ** IERC20Metadata(assetIn).decimals()))
+                * (10 ** IERC20Metadata(assetOut).decimals()) / _getPrice(self, assetOut);
+        }
+        return amount;
+    }
+
+    /**
+     * @dev Calculates the square root of the price ratio between two tokens based on data from oracle.
+     */
+    function getSqrtPriceX96(Oracles storage self, IERC20Metadata token0, IERC20Metadata token1)
+        external
+        view
+        returns (uint160)
+    {
+        uint256 price0 = _getPrice(self, address(token0));
+        uint256 price1 = _getPrice(self, address(token1));
+
+        return uint160(
+            Math.sqrt(Math.mulDiv(price0, 2 ** 96, price1))
+                * Math.sqrt(Math.mulDiv(10 ** token1.decimals(), 2 ** 96, 10 ** token0.decimals()))
+        );
+    }
+}
+
 /**
  * @title SeasonalVault
  * @notice Vault that manages assets based on crypto market seasons strategy
@@ -25,18 +251,12 @@ import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/call
 contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.UintSet;
+    using PositionsLogic for PositionsLogic.Positions;
+    using OraclesLogic for OraclesLogic.Oracles;
 
     /* ========== EVENTS ========== */
 
-    struct Position {
-        int24 tickLower;
-        int24 tickUpper;
-        uint24 fee;
-    }
-
     /* ========== CONSTANTS ========== */
-
-    uint256 public constant PRECISION = 1e24;
 
     /// @notice Precision for slippage
     uint32 public constant slippagePrecision = 10000;
@@ -58,11 +278,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
-    /// @notice Set of token IDs for managed Uniswap positions
-    EnumerableSet.UintSet _tokenIds;
-
-    /// @notice Mapping of token IDs to Uniswap positions
-    mapping(uint256 tokenId => Position position) public positions;
+    PositionsLogic.Positions positions;
 
     /// @notice Maps fee tiers to pool addresses
     mapping(uint24 fee => address pool) public pools;
@@ -71,19 +287,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     mapping(uint24 fee => int24 tickSpacing) public feeAmountTickSpacing;
 
     /// @notice Mapping of tokens to their oracles
-    mapping(address token => IChainlinkOracle oracle) public oracles;
+    OraclesLogic.Oracles oracles;
 
     /**
      * @notice The address of the token that is being accumulated
      * in the vault during the current period
      */
     IERC20Metadata public tokenTreasure;
-
-    /// @notice The lowest tick of all current positions
-    int24 public lowestTick;
-
-    /// @notice The highest tick of all current positions
-    int24 public highestTick;
 
     /**
      * @notice The difference between the worst and the current
@@ -172,22 +382,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return amount1 The total amount of token1, including liquidity and owed tokens
      */
     function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
-        (amount0, amount1) = _getTokensOwedForAllPositions();
         // We're using sqrt price from oracle to avoid pool price manipulations affect the result
-        uint160 currentSqrtPrice = _getOracleSqrtPriceX96();
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            uint256 tokenId = _tokenIds.at(i);
-            Position memory position = positions[tokenId];
-            uint128 liquidity = _getTokenLiquidity(tokenId);
-            (uint256 amount0_, uint256 amount1_) = LiquidityAmounts.getAmountsForLiquidity(
-                currentSqrtPrice,
-                TickMath.getSqrtRatioAtTick(position.tickLower),
-                TickMath.getSqrtRatioAtTick(position.tickUpper),
-                liquidity
-            );
-            amount0 += amount0_;
-            amount1 += amount1_;
-        }
+        uint160 currentSqrtPrice = oracles.getSqrtPriceX96(token0, token1);
+        return positions.getTotalAmountsAt(positionManager, currentSqrtPrice);
     }
 
     /**
@@ -199,31 +396,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return amount The total potential amount of treasure token
      */
     function getTreasureAmountForFullRange() public view returns (uint256 amount) {
-        (uint128 owed0, uint128 owed1) = _getTokensOwedForAllPositions();
+        uint160 sqrtPrice = TickMath.getSqrtRatioAtTick(isToken0 ? positions.lowestTick : positions.highestTick);
+        (uint256 total0, uint256 total1) = positions.getTotalAmountsAt(positionManager, sqrtPrice);
 
         if (isToken0) {
-            amount += owed0;
+            return total0;
         } else {
-            amount += owed1;
-        }
-
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            uint256 tokenId = _tokenIds.at(i);
-            Position memory position = positions[tokenId];
-            uint128 liquidity = _getTokenLiquidity(tokenId);
-            if (isToken0) {
-                amount += LiquidityAmounts.getAmount0ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(position.tickLower),
-                    TickMath.getSqrtRatioAtTick(position.tickUpper),
-                    liquidity
-                );
-            } else {
-                amount += LiquidityAmounts.getAmount1ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(position.tickLower),
-                    TickMath.getSqrtRatioAtTick(position.tickUpper),
-                    liquidity
-                );
-            }
+            return total1;
         }
     }
 
@@ -259,7 +438,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The total value locked in the vault
      */
     function getNettoTVL(address inAsset) public view returns (uint256) {
-        return _convert(asset(), inAsset, totalAssets());
+        return oracles.convert(asset(), inAsset, totalAssets());
     }
 
     /**
@@ -285,7 +464,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return Array of token IDs
      */
     function getTokenIds() external view returns (uint256[] memory) {
-        return _tokenIds.values();
+        return positions.tokenIds.values();
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -314,7 +493,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         require(token_ == address(token0) || token_ == address(token1), "Invalid token");
         tokenTreasure = IERC20Metadata(token_);
         isToken0 = tokenTreasure == token0;
-        _recalculateTicks();
+        positions.recalculateTicks();
     }
 
     /**
@@ -335,7 +514,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         onlyRole(MANAGER_ROLE)
     {
         for (uint256 i = 0; i < oracles_.length; i++) {
-            oracles[tokens_[i]] = IChainlinkOracle(oracles_[i]);
+            oracles.oracles[tokens_[i]] = IChainlinkOracle(oracles_[i]);
         }
     }
 
@@ -362,10 +541,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @notice Claims earned fees from the liquidity positions.
      */
     function claimDEX() external onlyRole(MANAGER_ROLE) {
-        // Collect earned fees from the liquidity position
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            _collect(_tokenIds.at(i), type(uint128).max, type(uint128).max);
-        }
+        positions.claimAll(positionManager);
     }
 
     /**
@@ -397,6 +573,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint160 currentPrice = getCurrentSqrtPrice(_getOrUpdatePool(fee));
         if (price1 > price2) (price1, price2) = (price2, price1);
 
+        // Move range if its outdated
         if ((isToken0 && currentPrice < price2)) {
             price1 -= (price2 - currentPrice);
             price2 = currentPrice;
@@ -405,17 +582,15 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             price1 = currentPrice;
         }
 
-        (int24 tickLower, int24 tickUpper) = _adjustTicks(price1, price2, feeAmountTickSpacing[fee]);
-        // recalculate ticks
-        if (tickUpper > highestTick) highestTick = tickUpper;
-        if (tickLower < lowestTick) lowestTick = tickLower;
-
-        uint256 amountToAdd = _convert(
+        uint256 amountToAdd = oracles.convert(
             asset(), address(tokenTreasure), totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION
         );
 
+        (int24 tickLower, int24 tickUpper) = _adjustTicks(price1, price2, feeAmountTickSpacing[fee]);
+
         uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+
         if (isToken0) {
             amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
         } else {
@@ -443,17 +618,17 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function closePositionsWorkedOut() external onlyRole(MANAGER_ROLE) {
         bool changed;
-        for (uint256 i = _tokenIds.length(); i > 0; i--) {
-            uint256 tokenId = _tokenIds.at(i - 1);
-            Position memory position = positions[tokenId];
+        for (uint256 i = positions.tokenIds.length(); i > 0; i--) {
+            uint256 tokenId = positions.tokenIds.at(i - 1);
+            PositionsLogic.Position memory position = positions.positions[tokenId];
             int24 currentTick = getCurrentTick(pools[position.fee]);
 
             if ((isToken0 && position.tickLower > currentTick) || (!isToken0 && position.tickUpper < currentTick)) {
-                _closePosition(tokenId);
+                positions.close(positionManager, tokenId);
                 changed = true;
             }
         }
-        if (changed) _recalculateTicks();
+        if (changed) positions.recalculateTicks();
     }
 
     /**
@@ -463,8 +638,10 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      movements where maintaining the position would not earn fees effectively.
      */
     function closePositionsBadMarket() external onlyRole(MANAGER_ROLE) {
-        int24 currentTick = TickMath.getTickAtSqrtRatio(_getOracleSqrtPriceX96());
-        if ((isToken0 ? (currentTick - highestTick) : (lowestTick - currentTick)) > tickDiff) _closePositionsAll();
+        int24 currentTick = TickMath.getTickAtSqrtRatio(oracles.getSqrtPriceX96(token0, token1));
+        if ((isToken0 ? (currentTick - positions.highestTick) : (positions.lowestTick - currentTick)) > tickDiff) {
+            _closePositionsAll();
+        }
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -496,13 +673,10 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             amount1 += token1Vault.redeem(farmingShares1, address(this), address(this), 0);
         }
 
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            (uint256 removed0, uint256 removed1) =
-                _removeLiquidityAndRewardsPercent(_tokenIds.at(i), shares * PRECISION / totalSupply());
-
-            amount0 += removed0;
-            amount1 += removed1;
-        }
+        (uint256 positions0, uint256 positions1) =
+            positions.removeLiquidityAndRewardsPercent(positionManager, shares * PRECISION / totalSupply());
+        amount0 += positions0;
+        amount1 += positions1;
 
         assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
     }
@@ -527,91 +701,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         return (totalAssets_ == 0)
             ? 0
             : _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION / totalAssets_;
-    }
-
-    /**
-     * @notice Function to remove liquidity from a specific Dex position
-     * @param tokenId The ID of the position to remove liquidity from
-     * @param percent The percentage of liquidity to remove
-     * @return amount0 The amount of token0 received from removing liquidity
-     * @return amount1 The amount of token1 received from removing liquidity
-     */
-    function _removeLiquidityAndRewardsPercent(uint256 tokenId, uint256 percent)
-        internal
-        returns (uint256 amount0, uint256 amount1)
-    {
-        uint256 totalLiquidity = _getTokenLiquidity(tokenId);
-        uint256 liquidity = totalLiquidity * percent / PRECISION;
-        (uint256 liq0, uint256 liq1) = _decreaseLiquidity(tokenId, uint128(liquidity));
-        (uint128 owed0, uint128 owed1) = _getTokensOwed(tokenId);
-
-        // everything besides just claimed liquidity are fees
-        uint256 fees0 = owed0 - liq0;
-        uint256 fees1 = owed1 - liq1;
-        (amount0, amount1) = _collect(
-            tokenId,
-            uint128(liquidity * fees0 / totalLiquidity + liq0),
-            uint128(liquidity * fees1 / totalLiquidity + liq1)
-        );
-    }
-
-    /**
-     * @notice Function to decrease the liquidity of an existing Dex position
-     * @param tokenId The ID of the position to decrease liquidity for
-     * @param liquidity The amount of liquidity to remove from the position
-     * @return amount0 The amount of token0 received from decreasing liquidity
-     * @return amount1 The amount of token1 received from decreasing liquidity
-     */
-    function _decreaseLiquidity(uint256 tokenId, uint128 liquidity)
-        internal
-        returns (uint256 amount0, uint256 amount1)
-    {
-        // Decrease liquidity for the current position and return the received token amounts
-        (amount0, amount1) = positionManager.decreaseLiquidity(
-            INonfungiblePositionManager.DecreaseLiquidityParams({
-                tokenId: tokenId,
-                liquidity: liquidity,
-                amount0Min: 0,
-                amount1Min: 0,
-                deadline: type(uint256).max
-            })
-        );
-    }
-
-    /**
-     * @notice Function to collect fees earned by the Dex position
-     * @param tokenId The ID of the position to collect fees for
-     * @param amount0Max The maximum amount of token0 to collect
-     * @param amount1Max The maximum amount of token1 to collect
-     * @return amount0 The amount of token0 collected
-     * @return amount1 The amount of token1 collected
-     */
-    function _collect(uint256 tokenId, uint128 amount0Max, uint128 amount1Max)
-        internal
-        returns (uint256 amount0, uint256 amount1)
-    {
-        // Collect earned fees from the liquidity position
-        (amount0, amount1) = positionManager.collect(
-            INonfungiblePositionManager.CollectParams({
-                tokenId: tokenId,
-                recipient: address(this),
-                amount0Max: amount0Max,
-                amount1Max: amount1Max
-            })
-        );
-    }
-
-    /**
-     * @dev Calculates the square root of the price ratio between two tokens based on data from oracle.
-     */
-    function _getOracleSqrtPriceX96() internal view returns (uint160) {
-        uint256 price0 = _getPrice(address(token0));
-        uint256 price1 = _getPrice(address(token1));
-
-        return uint160(
-            Math.sqrt(Math.mulDiv(price0, 2 ** 96, price1))
-                * Math.sqrt(Math.mulDiv(10 ** token1Decimals, 2 ** 96, 10 ** token0Decimals))
-        );
     }
 
     /**
@@ -678,45 +767,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Gets the latest price for a asset using oracle
-     * @param asset_ The address of the asset
-     * @return The latest price from the oracle
-     */
-    function _getPrice(address asset_) internal view returns (uint256) {
-        IChainlinkOracle oracle = oracles[asset_];
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, "Stale price");
-        require(timestamp != 0, "Round not complete");
-        require(price > 0, "Chainlink price reporting 0");
-
-        // returns price in the vault decimals
-        return uint256(price) * (10 ** decimals()) / (10 ** oracle.decimals());
-    }
-
-    /**
      * @notice Converts an amount to the vault's underlying asset value
      * @param asset_ The address of the asset to convert from
      * @param amount The amount to convert
      * @return The equivalent amount in the vault's underlying asset
      */
     function _getInUnderlyingAsset(address asset_, uint256 amount) internal view returns (uint256) {
-        return _convert(asset_, asset(), amount);
-    }
-
-    /**
-     * @notice Converts an amount of the assetIn to the assetOut
-     * @param assetIn The address of the asset to convert from
-     * @param assetOut The address of the asset to convert to
-     * @param amount The amount to convert
-     * @return The equivalent amount in the assetOut
-     */
-    function _convert(address assetIn, address assetOut, uint256 amount) internal view returns (uint256) {
-        if (assetIn != assetOut) {
-            return (amount * _getPrice(assetIn) / (10 ** IERC20Metadata(assetIn).decimals()))
-                * (10 ** IERC20Metadata(assetOut).decimals()) / _getPrice(assetOut);
-        }
-        return amount;
+        return oracles.convert(asset_, asset(), amount);
     }
 
     /**
@@ -730,30 +787,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param fee_ The fee tier for the Uniswap V3 pool position.
      */
     function _openPosition(uint256 amount, int24 tickLower, int24 tickUpper, uint24 fee_) internal {
-        if (isToken0) {
-            uint256 balance = token1.balanceOf(address(this));
-            if (balance < amount) {
-                amount = balance
-                    + token1Vault.redeem(
-                        (amount - balance) * 10 ** token1Decimals / token1Vault.sharePrice(),
-                        address(this),
-                        address(this),
-                        0
-                    );
-                // may raise error if amount > funds of the vault in the farming
-            }
-        } else {
-            uint256 balance = token0.balanceOf(address(this));
-            if (balance < amount) {
-                amount = balance
-                    + token0Vault.redeem(
-                        (amount - balance) * 10 ** token0Decimals / token0Vault.sharePrice(),
-                        address(this),
-                        address(this),
-                        0
-                    );
-                // may raise error if amount > funds of the vault in the farming
-            }
+        IVault vault = isToken0 ? token1Vault : token0Vault;
+        uint256 balance = isToken0 ? token1.balanceOf(address(this)) : token0.balanceOf(address(this));
+        if (balance < amount) {
+            amount = balance
+                + vault.redeem(
+                    (amount - balance) * 10 ** vault.decimals() / vault.sharePrice(), address(this), address(this), 0
+                );
         }
 
         (uint256 amount0Desired, uint256 amount1Desired) = isToken0 ? (uint256(0), amount) : (amount, 0);
@@ -774,49 +814,17 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             })
         );
 
-        _tokenIds.add(tokenId);
-
-        positions[tokenId] = Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_});
+        positions.add(tokenId, PositionsLogic.Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_}));
     }
 
     /**
      * @dev Closes all Uniswap positions.
      */
     function _closePositionsAll() internal {
-        for (uint256 i = _tokenIds.length(); i > 0; i--) {
-            uint256 tokenId = _tokenIds.at(i - 1);
-            _closePosition(tokenId);
+        for (uint256 i = positions.tokenIds.length(); i > 0; i--) {
+            positions.close(positionManager, positions.tokenIds.at(i - 1));
         }
-        _recalculateTicks();
-    }
-
-    /**
-     * @dev Recalculates the lowest and highest ticks for current positions.
-     */
-    function _recalculateTicks() internal {
-        lowestTick = TickMath.MAX_TICK;
-        highestTick = TickMath.MIN_TICK;
-        if (_tokenIds.length() == 0) return;
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            Position memory position = positions[_tokenIds.at(i)];
-            if (position.tickUpper > highestTick) highestTick = position.tickUpper;
-            if (position.tickLower < lowestTick) lowestTick = position.tickLower;
-        }
-    }
-
-    /**
-     * @dev Closes a specific position.
-     * @param tokenId Token ID of the position to close
-     */
-    function _closePosition(uint256 tokenId) internal {
-        uint128 liquidity = _getTokenLiquidity(tokenId);
-
-        _decreaseLiquidity(tokenId, liquidity);
-        _collect(tokenId, type(uint128).max, type(uint128).max);
-
-        positionManager.burn(tokenId);
-        _tokenIds.remove(tokenId);
-        delete positions[tokenId];
+        positions.recalculateTicks();
     }
 
     /**
@@ -830,38 +838,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @dev Retrieves the amounts of tokens owed to the vault from all uniswap positions.
-     * @return amount0 The amount of token0 owed
-     * @return amount1 The amount of token1 owed
-     */
-    function _getTokensOwedForAllPositions() internal view returns (uint128 amount0, uint128 amount1) {
-        for (uint256 i = 0; i < _tokenIds.length(); i++) {
-            (uint128 amount0_, uint128 amount1_) = _getTokensOwed(_tokenIds.at(i));
-            amount0 += amount0_;
-            amount1 += amount1_;
-        }
-    }
-
-    /**
-     * @dev Retrieves the amounts of tokens owed to the vault from a specific uniswap position.
-     * @param tokenId Token ID of the position
-     * @return amount0 The amount of token0 owed
-     * @return amount1 The amount of token1 owed
-     */
-    function _getTokensOwed(uint256 tokenId) internal view virtual returns (uint128 amount0, uint128 amount1) {
-        (,,,,,,,,,, amount0, amount1) = positionManager.positions(tokenId);
-    }
-
-    /**
-     * @dev Retrieves the liquidity of a specific uniswap position.
-     * @param tokenId Token ID of the position
-     * @return liquidity The liquidity of the position
-     */
-    function _getTokenLiquidity(uint256 tokenId) internal view virtual returns (uint128 liquidity) {
-        (,,,,,,, liquidity,,,,) = positionManager.positions(tokenId);
-    }
-
-    /**
      * @notice Checks if the swap was within the allowed slippage
      * @param zeroForOne Whether the swap is zero for one or not
      * @param amountIn The initial amount of tokens swapped
@@ -872,11 +848,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function _checkSlippage(bool zeroForOne, uint256 amountIn, uint256 amountOut) internal view {
         (address from, address to) =
             zeroForOne ? (address(token0), address(token1)) : (address(token1), address(token0));
-        uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
-        uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
+        uint256 expectedOut = oracles.convert(from, to, amountIn);
         require(
-            amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
-            "SeasonalVault: Slippage"
+            amountOut >= expectedOut * (slippagePrecision - maxSlippage) / slippagePrecision, "SeasonalVault: Slippage"
         );
     }
 

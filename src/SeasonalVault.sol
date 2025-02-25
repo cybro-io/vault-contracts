@@ -17,7 +17,10 @@ import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
-uint256 constant PRECISION = 1e24;
+library Constants {
+    uint256 constant PRECISION = 1e24;
+    uint32 constant SLIPPAGE_PRECISION = 10000;
+}
 
 library PositionsLogic {
     using EnumerableSet for EnumerableSet.UintSet;
@@ -64,7 +67,11 @@ library PositionsLogic {
         if (position.tickLower < self.lowestTick) self.lowestTick = position.tickLower;
     }
 
-    function close(Positions storage self, INonfungiblePositionManager positionManager, uint256 tokenId) external {
+    function closeAt(Positions storage self, INonfungiblePositionManager positionManager, uint256 id) external {
+        close(self, positionManager, self.tokenIds.at(id));
+    }
+
+    function close(Positions storage self, INonfungiblePositionManager positionManager, uint256 tokenId) public {
         (,,,,,,, uint128 liquidity,,,,) = positionManager.positions(tokenId);
 
         positionManager.decreaseLiquidity(
@@ -98,7 +105,7 @@ library PositionsLogic {
         for (uint256 i = 0; i < self.tokenIds.length(); i++) {
             uint256 tokenId = self.tokenIds.at(i);
             (,,,,,,, uint128 totalLiquidity,,,,) = positionManager.positions(tokenId);
-            uint256 liquidity = totalLiquidity * percent / PRECISION;
+            uint256 liquidity = totalLiquidity * percent / Constants.PRECISION;
 
             (uint256 liq0, uint256 liq1) = positionManager.decreaseLiquidity(
                 INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -181,6 +188,14 @@ library PositionsLogic {
             amount1 += amount1_;
         }
     }
+
+    function getTokenIdsLength(Positions storage self) external view returns (uint256) {
+        return self.tokenIds.length();
+    }
+
+    function getPositionAt(Positions storage self, uint256 id) external view returns (PositionsLogic.Position memory) {
+        return self.positions[self.tokenIds.at(id)];
+    }
 }
 
 library OraclesLogic {
@@ -246,6 +261,8 @@ library OraclesLogic {
 library VaultLogic {
     using PositionsLogic for PositionsLogic.Positions;
     using OraclesLogic for OraclesLogic.Oracles;
+
+    error Slippage();
 
     struct Immutables {
         INonfungiblePositionManager positionManager;
@@ -385,6 +402,30 @@ library VaultLogic {
         positions.add(tokenId, PositionsLogic.Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_}));
     }
 
+    function deposit(
+        Immutables memory immutables,
+        OraclesLogic.Oracles storage oracles,
+        uint256 assets,
+        uint32 maxSlippage,
+        uint256 currentPercentage,
+        address tokenTreasure,
+        address pool
+    ) external {
+        bool isToken0 = tokenTreasure == address(immutables.token0);
+        if (tokenTreasure == immutables.asset) {
+            swap(
+                isToken0,
+                assets * (Constants.PRECISION - currentPercentage) / Constants.PRECISION,
+                maxSlippage,
+                pool,
+                oracles,
+                immutables
+            );
+        } else {
+            swap(!isToken0, assets * currentPercentage / Constants.PRECISION, maxSlippage, pool, oracles, immutables);
+        }
+    }
+
     function redeem(
         uint256 shares,
         uint256 totalSupply,
@@ -405,15 +446,83 @@ library VaultLogic {
             amount1 += immutables.token1Vault.redeem(farmingShares1, address(this), address(this), 0);
         }
 
-        (uint256 positions0, uint256 positions1) =
-            positions.removeLiquidityAndRewardsPercent(immutables.positionManager, shares * PRECISION / totalSupply);
+        (uint256 positions0, uint256 positions1) = positions.removeLiquidityAndRewardsPercent(
+            immutables.positionManager, shares * Constants.PRECISION / totalSupply
+        );
         amount0 += positions0;
         amount1 += positions1;
+    }
+
+    function closePositionsAll(Immutables memory immutables, PositionsLogic.Positions storage positions) public {
+        for (uint256 i = positions.getTokenIdsLength(); i > 0; i--) {
+            positions.closeAt(immutables.positionManager, i - 1);
+        }
+        positions.recalculateTicks();
+    }
+
+    /**
+     * @notice Closes all Uniswap positions when the current market price moves adversely beyond a threshold.
+     * @dev If the current market price is worse than the worst boundary of each LP range by a percentage defined by `tickDiff`,
+     *      this function will close all open Uniswap positions. This mechanism is intended to protect against adverse market
+     *      movements where maintaining the position would not earn fees effectively.
+     */
+    function closePositionsBadMarket(
+        OraclesLogic.Oracles storage oracles,
+        PositionsLogic.Positions storage positions,
+        Immutables memory immutables,
+        bool isToken0,
+        int24 tickDiff
+    ) external {
+        int24 currentTick = TickMath.getTickAtSqrtRatio(oracles.getSqrtPriceX96(immutables.token0, immutables.token1));
+        if ((isToken0 ? (currentTick - positions.highestTick) : (positions.lowestTick - currentTick)) > tickDiff) {
+            closePositionsAll(immutables, positions);
+        }
     }
 
     function investFreeMoney(Immutables memory immutables) external {
         immutables.token0Vault.deposit(immutables.token0.balanceOf(address(this)), address(this), 0);
         immutables.token1Vault.deposit(immutables.token1.balanceOf(address(this)), address(this), 0);
+    }
+
+    /**
+     * @notice Internal function to perform a token swap on the DEX
+     * @param zeroForOne Whether to swap token0 for token1 (true) or token1 for token0 (false)
+     * @param amount The amount of tokens to swap
+     * @return amountOut The amount of tokens received from the swap
+     */
+    function swap(
+        bool zeroForOne,
+        uint256 amount,
+        uint32 maxSlippage,
+        address pool,
+        OraclesLogic.Oracles storage oracles,
+        Immutables memory immutables
+    ) public returns (uint256 amountOut) {
+        // Execute the swap and capture the output amount
+        if (amount == 0) return 0;
+        (address from, address to) = zeroForOne
+            ? (address(immutables.token0), address(immutables.token1))
+            : (address(immutables.token1), address(immutables.token0));
+        {
+            (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
+                address(this),
+                zeroForOne,
+                int256(amount),
+                zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
+                abi.encode(from, to)
+            );
+
+            // Return the output amount (convert from negative if needed)
+            amountOut = uint256(-(zeroForOne ? amount1 : amount0));
+        }
+        // check slippage
+        if (
+            amountOut
+                < oracles.convert(from, to, amount) * (Constants.SLIPPAGE_PRECISION - maxSlippage)
+                    / Constants.SLIPPAGE_PRECISION
+        ) {
+            revert Slippage();
+        }
     }
 }
 
@@ -428,12 +537,9 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     using PositionsLogic for PositionsLogic.Positions;
     using OraclesLogic for OraclesLogic.Oracles;
 
+    error InvalidTreasureToken();
+
     /* ========== EVENTS ========== */
-
-    /* ========== CONSTANTS ========== */
-
-    /// @notice Precision for slippage
-    uint32 public constant slippagePrecision = 10000;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
@@ -554,8 +660,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      */
     function getPositionAmounts() public view returns (uint256 amount0, uint256 amount1) {
         // We're using sqrt price from oracle to avoid pool price manipulations affect the result
-        uint160 currentSqrtPrice = oracles.getSqrtPriceX96(token0, token1);
-        return positions.getTotalAmountsAt(positionManager, currentSqrtPrice);
+        return positions.getTotalAmountsAt(positionManager, oracles.getSqrtPriceX96(token0, token1));
     }
 
     /**
@@ -586,10 +691,11 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return The percentage of the fund held as the treasure token.
      */
     function getNettoPartForTokenOptimistic() public view returns (uint256) {
-        uint256 totalTreasureAmount = getTreasureAmountForFullRange() + _getBalance(address(tokenTreasure))
-            + (isToken0 ? token0Vault : token1Vault).getBalanceInUnderlying(address(this));
-
-        return _getInUnderlyingAsset(address(tokenTreasure), totalTreasureAmount) * PRECISION / totalAssets();
+        return _getInUnderlyingAsset(
+            address(tokenTreasure),
+            getTreasureAmountForFullRange() + _getBalance(address(tokenTreasure))
+                + (isToken0 ? token0Vault : token1Vault).getBalanceInUnderlying(address(this))
+        ) * Constants.PRECISION / totalAssets();
     }
 
     /**
@@ -608,17 +714,18 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param inAsset The address of the asset to calculate the total value locked in
      * @return The total value locked in the vault
      */
-    function getNettoTVL(address inAsset) public view returns (uint256) {
+    function getNettoTVL(address inAsset) external view returns (uint256) {
         return oracles.convert(asset(), inAsset, totalAssets());
     }
 
     /**
-     * @notice Retrieves the current tick of a Uniswap pool.
+     * @notice Retrieves the current square root price of a Uniswap pool.
      * @param pool The address of the Uniswap pool
+     * @return sqrtPriceX96 The current square root price of the pool
      * @return tick The current tick of the pool
      */
-    function getCurrentTick(address pool) public view returns (int24 tick) {
-        (, tick,,,,,) = IUniswapV3Pool(pool).slot0();
+    function getPoolState(address pool) public view returns (uint160 sqrtPriceX96, int24 tick) {
+        (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
     }
 
     /**
@@ -652,7 +759,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param token_ The address of the treasure token.
      */
     function setTreasureToken(address token_) external onlyRole(MANAGER_ROLE) {
-        require(token_ == address(token0) || token_ == address(token1), "Invalid token");
+        if (token_ != address(token0) && token_ != address(token1)) revert InvalidTreasureToken();
         tokenTreasure = IERC20Metadata(token_);
         isToken0 = tokenTreasure == token0;
         positions.recalculateTicks();
@@ -686,7 +793,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @return pool The address of the updated pool
      */
     function updatePoolForFee(uint24 fee) external onlyRole(MANAGER_ROLE) returns (address pool) {
-        pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
+        pool = _getPool(fee);
         pools[fee] = pool;
     }
 
@@ -730,8 +837,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint256 currentPercentage = getNettoPartForTokenOptimistic();
         if (percentageTreasureDesired <= currentPercentage) return;
 
-        uint256 assetsToSpend = totalAssets() * (percentageTreasureDesired - currentPercentage) / PRECISION;
-
+        uint256 assetsToSpend = totalAssets() * (percentageTreasureDesired - currentPercentage) / Constants.PRECISION;
         VaultLogic.openPositionIfNeed({
             assetsToSpend: assetsToSpend,
             fee: fee,
@@ -750,7 +856,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      token or not.
      */
     function closePositionsAll() external onlyRole(MANAGER_ROLE) {
-        _closePositionsAll();
+        VaultLogic.closePositionsAll(_getImmutables(), positions);
     }
 
     /**
@@ -765,7 +871,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         for (uint256 i = positions.tokenIds.length(); i > 0; i--) {
             uint256 tokenId = positions.tokenIds.at(i - 1);
             PositionsLogic.Position memory position = positions.positions[tokenId];
-            int24 currentTick = getCurrentTick(pools[position.fee]);
+            (, int24 currentTick) = getPoolState(pools[position.fee]);
 
             if ((isToken0 && position.tickLower > currentTick) || (!isToken0 && position.tickUpper < currentTick)) {
                 positions.close(positionManager, tokenId);
@@ -782,30 +888,32 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      movements where maintaining the position would not earn fees effectively.
      */
     function closePositionsBadMarket() external onlyRole(MANAGER_ROLE) {
-        int24 currentTick = TickMath.getTickAtSqrtRatio(oracles.getSqrtPriceX96(token0, token1));
-        if ((isToken0 ? (currentTick - positions.highestTick) : (positions.lowestTick - currentTick)) > tickDiff) {
-            _closePositionsAll();
-        }
+        VaultLogic.closePositionsBadMarket(oracles, positions, _getImmutables(), isToken0, tickDiff);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
-        // we need to subtract incoming assets from the user
-        uint256 currentPercentage = _getNettoPartForTokenReal(tokenTreasure, assets);
-        if (address(tokenTreasure) == asset()) {
-            _swap(isToken0, assets * (PRECISION - currentPercentage) / PRECISION);
-        } else {
-            _swap(!isToken0, assets * currentPercentage / PRECISION);
-        }
+        VaultLogic.deposit(
+            _getImmutables(),
+            oracles,
+            assets,
+            maxSlippage,
+            _getNettoPartForTokenReal(tokenTreasure, assets),
+            address(tokenTreasure),
+            _getOrUpdatePool(feeForSwaps)
+        );
     }
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        (uint256 amount0, uint256 amount1) = VaultLogic.redeem(shares, totalSupply(), _getImmutables(), positions);
+        VaultLogic.Immutables memory immutables = _getImmutables();
+        (uint256 amount0, uint256 amount1) = VaultLogic.redeem(shares, totalSupply(), immutables, positions);
 
-        assets = asset() == address(token0) ? amount0 + _swap(false, amount1) : amount1 + _swap(true, amount0);
+        assets = asset() == address(token0)
+            ? amount0 + VaultLogic.swap(false, amount1, maxSlippage, _getOrUpdatePool(feeForSwaps), oracles, immutables)
+            : amount1 + VaultLogic.swap(true, amount0, maxSlippage, _getOrUpdatePool(feeForSwaps), oracles, immutables);
     }
 
     /**
@@ -825,9 +933,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             + _getBalance(address(inAsset)) - (asset() == address(tokenTreasure) ? depositedAmount : 0);
         // we need to subtract deposited amount from the total assets
         uint256 totalAssets_ = totalAssets() - depositedAmount;
-        return (totalAssets_ == 0)
-            ? 0
-            : _getInUnderlyingAsset(address(inAsset), totalInRequested) * PRECISION / totalAssets_;
+        if (totalAssets_ == 0) return 0;
+        return _getInUnderlyingAsset(address(inAsset), totalInRequested) * Constants.PRECISION / totalAssets_;
     }
 
     /**
@@ -838,31 +945,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function _getOrUpdatePool(uint24 fee) internal returns (address pool) {
         pool = pools[fee];
         if (pool == address(0)) {
-            pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
+            pool = _getPool(fee);
             pools[fee] = pool;
         }
     }
 
-    /**
-     * @notice Internal function to perform a token swap on the DEX
-     * @param zeroForOne Whether to swap token0 for token1 (true) or token1 for token0 (false)
-     * @param amount The amount of tokens to swap
-     * @return amountOut The amount of tokens received from the swap
-     */
-    function _swap(bool zeroForOne, uint256 amount) internal returns (uint256 amountOut) {
-        // Execute the swap and capture the output amount
-        if (amount == 0) return 0;
-        (int256 amount0, int256 amount1) = IUniswapV3Pool(_getOrUpdatePool(feeForSwaps)).swap(
-            address(this),
-            zeroForOne,
-            int256(amount),
-            zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
-            zeroForOne ? abi.encode(token0, token1) : abi.encode(token1, token0)
-        );
-
-        // Return the output amount (convert from negative if needed)
-        amountOut = uint256(-(zeroForOne ? amount1 : amount0));
-        _checkSlippage(zeroForOne, amount, amountOut);
+    function _getPool(uint24 fee) private view returns (address) {
+        return IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
     }
 
     /**
@@ -876,16 +965,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @dev Closes all Uniswap positions.
-     */
-    function _closePositionsAll() internal {
-        for (uint256 i = positions.tokenIds.length(); i > 0; i--) {
-            positions.close(positionManager, positions.tokenIds.at(i - 1));
-        }
-        positions.recalculateTicks();
-    }
-
-    /**
      * @dev Retrieves the amounts of tokens owed to the vault from the farming positions.
      * @return amount0 The amount of token0 owed
      * @return amount1 The amount of token1 owed
@@ -893,23 +972,6 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     function _getAmountsForFarmings() internal view returns (uint256 amount0, uint256 amount1) {
         amount0 = token0Vault.getBalanceInUnderlying(address(this));
         amount1 = token1Vault.getBalanceInUnderlying(address(this));
-    }
-
-    /**
-     * @notice Checks if the swap was within the allowed slippage
-     * @param zeroForOne Whether the swap is zero for one or not
-     * @param amountIn The initial amount of tokens swapped
-     * @param amountOut The amount of tokens received
-     *
-     * Ensures that the price impact of the swap doesn't exceed the permitted slippage.
-     */
-    function _checkSlippage(bool zeroForOne, uint256 amountIn, uint256 amountOut) internal view {
-        (address from, address to) =
-            zeroForOne ? (address(token0), address(token1)) : (address(token1), address(token0));
-        uint256 expectedOut = oracles.convert(from, to, amountIn);
-        require(
-            amountOut >= expectedOut * (slippagePrecision - maxSlippage) / slippagePrecision, "SeasonalVault: Slippage"
-        );
     }
 
     function _getImmutables() private view returns (VaultLogic.Immutables memory immutables) {

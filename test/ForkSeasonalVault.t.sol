@@ -474,13 +474,16 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     function _openPositions() internal {
         address pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), poolFee);
         uint256 nettoPartOptimistic = seasonalVault.getNettoPartForTokenOptimistic();
-        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
+        (uint160 currentPrice_,) = seasonalVault.getPoolState(pool);
+        int160 currentPrice = int160(currentPrice_);
+        console.log("currentPrice", currentPrice);
+        console.log("nettoPartOptimistic", nettoPartOptimistic);
         if (nettoPartOptimistic < 9e23) {
             // 5e22 equals to 5%
             uint256 newNettoPart = nettoPartOptimistic + 5e22;
             int160 price2;
             int160 price3;
-            int160 delta = 5e21;
+            int160 delta = 3e21;
             if (!seasonalVault.isToken0()) {
                 price2 = currentPrice + currentPrice / 95;
                 price3 = price2 + currentPrice / 95 + delta;
@@ -502,20 +505,19 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             seasonalVault.openPositionIfNeed(newNettoPart + 5e22, uint160(price2 + delta), uint160(price3), poolFee);
             _checkOpenPosition(newNettoPart + 5e22, totalAssetsBefore);
 
-            console.log("currentTick", seasonalVault.getCurrentTick(pool));
+            (currentPrice_,) = seasonalVault.getPoolState(pool);
+            currentPrice = int160(currentPrice_);
             console.log("POOL PRICE BEFORE MOVE", currentPrice);
             swapper.movePoolPrice(positionManager, address(token0), address(token1), poolFee, uint160(price3 - delta));
-            console.log("POOL PRICE MOVED TO", seasonalVault.getCurrentSqrtPrice(pool));
-            console.log("currentTick after moved", seasonalVault.getCurrentTick(pool));
 
             uint256 countBefore = positionManager.balanceOf(address(vault));
             seasonalVault.closePositionsWorkedOut();
             vm.assertEq(positionManager.balanceOf(address(vault)), countBefore - 1);
             console.log("position worked out");
 
-            console.log("POOL PRICE BEFORE MOVE", currentPrice);
+            (currentPrice_,) = seasonalVault.getPoolState(pool);
+            console.log("POOL PRICE BEFORE MOVE", currentPrice_);
             swapper.movePoolPrice(positionManager, address(token0), address(token1), poolFee, uint160(currentPrice));
-            console.log("POOL PRICE MOVED TO", seasonalVault.getCurrentSqrtPrice(pool));
         } else {
             return;
         }
@@ -527,7 +529,8 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         address pool = IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), poolFee);
         console.log("pool", pool);
 
-        int160 currentPrice = int160(seasonalVault.getCurrentSqrtPrice(pool));
+        (uint160 currentPrice_,) = seasonalVault.getPoolState(pool);
+        int160 currentPrice = int160(currentPrice_);
         console.log("nettoPartOptimistic", seasonalVault.getNettoPartForTokenOptimistic());
         bool isToken0 = seasonalVault.isToken0();
 

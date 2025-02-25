@@ -18,7 +18,9 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
 library Constants {
+    /// @notice The precision used for calculations involving percentages
     uint256 constant PRECISION = 1e24;
+    /// @notice The precision used for slippage calculations
     uint32 constant SLIPPAGE_PRECISION = 10000;
 }
 
@@ -45,7 +47,7 @@ library PositionsLogic {
     /**
      * @dev Recalculates the lowest and highest ticks for current positions.
      */
-    function recalculateTicks(Positions storage self) external {
+    function recalculateTicks(Positions storage self) public {
         self.lowestTick = TickMath.MAX_TICK;
         self.highestTick = TickMath.MIN_TICK;
         if (self.tokenIds.length() == 0) return;
@@ -67,10 +69,20 @@ library PositionsLogic {
         if (position.tickLower < self.lowestTick) self.lowestTick = position.tickLower;
     }
 
+    /**
+     * @notice Closes a position at a given index.
+     * @param positionManager The address of the Uniswap V3 position manager
+     * @param id The index of the position to close
+     */
     function closeAt(Positions storage self, INonfungiblePositionManager positionManager, uint256 id) external {
         close(self, positionManager, self.tokenIds.at(id));
     }
 
+    /**
+     * @notice Closes a position by burning it and removing liquidity.
+     * @param positionManager The address of the Uniswap V3 position manager
+     * @param tokenId The ID of the position to close
+     */
     function close(Positions storage self, INonfungiblePositionManager positionManager, uint256 tokenId) public {
         (,,,,,,, uint128 liquidity,,,,) = positionManager.positions(tokenId);
 
@@ -97,6 +109,13 @@ library PositionsLogic {
         delete self.positions[tokenId];
     }
 
+    /**
+     * @notice Removes liquidity from all positions and claims rewards.
+     * @param positionManager The address of the Uniswap V3 position manager
+     * @param percent The percentage of liquidity to remove
+     * @return amount0 The amount of token0 claimed
+     * @return amount1 The amount of token1 claimed
+     */
     function removeLiquidityAndRewardsPercent(
         Positions storage self,
         INonfungiblePositionManager positionManager,
@@ -139,6 +158,10 @@ library PositionsLogic {
         }
     }
 
+    /**
+     * @notice Claims all owed tokens from all positions.
+     * @param positionManager The address of the Uniswap V3 position manager
+     */
     function claimAll(Positions storage self, INonfungiblePositionManager positionManager) external {
         for (uint256 i = 0; i < self.tokenIds.length(); i++) {
             positionManager.collect(
@@ -152,6 +175,12 @@ library PositionsLogic {
         }
     }
 
+    /**
+     * @notice Calculates the total owed amounts of tokens across all positions in the vault.
+     * @param positionManager The address of the Uniswap V3 position manager
+     * @return amount0 The total owed amount of token0
+     * @return amount1 The total owed amount of token1
+     */
     function getTotalOwed(Positions storage self, INonfungiblePositionManager positionManager)
         external
         view
@@ -165,6 +194,15 @@ library PositionsLogic {
         }
     }
 
+    /**
+     * @notice Calculates and returns the total amounts of tokens held across all positions in the vault.
+     * @dev This includes the amounts derived from liquidity positions using the given pool price
+     *      and adds any tokens owed from the positions.
+     * @param positionManager The address of the Uniswap V3 position manager
+     * @param sqrtPrice The current pool price
+     * @return amount0 The total amount of token0
+     * @return amount1 The total amount of token1
+     */
     function getTotalAmountsAt(Positions storage self, INonfungiblePositionManager positionManager, uint160 sqrtPrice)
         external
         view
@@ -189,10 +227,19 @@ library PositionsLogic {
         }
     }
 
+    /**
+     * @notice Gets the length of the token IDs set
+     * @return The length of the token IDs set
+     */
     function getTokenIdsLength(Positions storage self) external view returns (uint256) {
         return self.tokenIds.length();
     }
 
+    /**
+     * @notice Gets the position at a given index
+     * @param id The index of the position to get
+     * @return The position at the given index
+     */
     function getPositionAt(Positions storage self, uint256 id) external view returns (PositionsLogic.Position memory) {
         return self.positions[self.tokenIds.at(id)];
     }
@@ -206,6 +253,11 @@ library OraclesLogic {
         mapping(address token => IChainlinkOracle oracle) oracles;
     }
 
+    /**
+     * @notice Gets the latest price for a asset using oracle
+     * @param asset_ The address of the asset
+     * @return The latest price from the oracle
+     */
     function _getPrice(Oracles storage self, address asset_) private view returns (uint256) {
         IChainlinkOracle oracle = self.oracles[asset_];
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
@@ -285,6 +337,7 @@ library VaultLogic {
         OraclesLogic.Oracles storage oracles,
         PositionsLogic.Positions storage positions
     ) external {
+        // amount of assets to add to the position in the treasure token
         uint256 amountToAdd = oracles.convert(immutables.asset, address(tokenTreasure), assetsToSpend);
 
         IUniswapV3Pool pool;
@@ -311,6 +364,8 @@ library VaultLogic {
             uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
             uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
 
+            // The amount is calculated as if the position will be fully executed
+            // and we will sell all the tokens received at the current price.
             if (isToken0) {
                 amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
             } else {
@@ -371,6 +426,7 @@ library VaultLogic {
             IVault vault = isToken0 ? immutables.token1Vault : immutables.token0Vault;
             uint256 balance =
                 isToken0 ? immutables.token1.balanceOf(address(this)) : immutables.token0.balanceOf(address(this));
+            // if we have less than the amount we need to redeem assets from the farmings
             if (balance < amount) {
                 amount = balance
                     + vault.redeem(
@@ -402,30 +458,37 @@ library VaultLogic {
         positions.add(tokenId, PositionsLogic.Position({tickLower: tickLower, tickUpper: tickUpper, fee: fee_}));
     }
 
+    /**
+     * @notice Internal function to deposit assets
+     */
     function deposit(
-        Immutables memory immutables,
-        OraclesLogic.Oracles storage oracles,
         uint256 assets,
         uint32 maxSlippage,
         uint256 currentPercentage,
         address tokenTreasure,
-        address pool
+        address pool,
+        Immutables memory immutables,
+        OraclesLogic.Oracles storage oracles
     ) external {
         bool isToken0 = tokenTreasure == address(immutables.token0);
+        // we try to keep the ratio of tokens in the vault
         if (tokenTreasure == immutables.asset) {
             swap(
                 isToken0,
                 assets * (Constants.PRECISION - currentPercentage) / Constants.PRECISION,
                 maxSlippage,
                 pool,
-                oracles,
-                immutables
+                immutables,
+                oracles
             );
         } else {
-            swap(!isToken0, assets * currentPercentage / Constants.PRECISION, maxSlippage, pool, oracles, immutables);
+            swap(!isToken0, assets * currentPercentage / Constants.PRECISION, maxSlippage, pool, immutables, oracles);
         }
     }
 
+    /**
+     * @notice Internal function to redeem shares
+     */
     function redeem(
         uint256 shares,
         uint256 totalSupply,
@@ -453,6 +516,9 @@ library VaultLogic {
         amount1 += positions1;
     }
 
+    /**
+     * @dev Internal function that closes all positions
+     */
     function closePositionsAll(Immutables memory immutables, PositionsLogic.Positions storage positions) public {
         for (uint256 i = positions.getTokenIdsLength(); i > 0; i--) {
             positions.closeAt(immutables.positionManager, i - 1);
@@ -461,17 +527,14 @@ library VaultLogic {
     }
 
     /**
-     * @notice Closes all Uniswap positions when the current market price moves adversely beyond a threshold.
-     * @dev If the current market price is worse than the worst boundary of each LP range by a percentage defined by `tickDiff`,
-     *      this function will close all open Uniswap positions. This mechanism is intended to protect against adverse market
-     *      movements where maintaining the position would not earn fees effectively.
+     * @dev Internal function that performs the closing of positions in a bad market
      */
     function closePositionsBadMarket(
-        OraclesLogic.Oracles storage oracles,
-        PositionsLogic.Positions storage positions,
-        Immutables memory immutables,
         bool isToken0,
-        int24 tickDiff
+        int24 tickDiff,
+        Immutables memory immutables,
+        OraclesLogic.Oracles storage oracles,
+        PositionsLogic.Positions storage positions
     ) external {
         int24 currentTick = TickMath.getTickAtSqrtRatio(oracles.getSqrtPriceX96(immutables.token0, immutables.token1));
         if ((isToken0 ? (currentTick - positions.highestTick) : (positions.lowestTick - currentTick)) > tickDiff) {
@@ -479,6 +542,9 @@ library VaultLogic {
         }
     }
 
+    /**
+     * @notice Deposits free funds into the vaults.
+     */
     function investFreeMoney(Immutables memory immutables) external {
         immutables.token0Vault.deposit(immutables.token0.balanceOf(address(this)), address(this), 0);
         immutables.token1Vault.deposit(immutables.token1.balanceOf(address(this)), address(this), 0);
@@ -495,8 +561,8 @@ library VaultLogic {
         uint256 amount,
         uint32 maxSlippage,
         address pool,
-        OraclesLogic.Oracles storage oracles,
-        Immutables memory immutables
+        Immutables memory immutables,
+        OraclesLogic.Oracles storage oracles
     ) public returns (uint256 amountOut) {
         // Execute the swap and capture the output amount
         if (amount == 0) return 0;
@@ -529,7 +595,8 @@ library VaultLogic {
 /**
  * @title SeasonalVault
  * @notice Vault that manages assets based on crypto market seasons strategy
- * @dev Implements seasonal strategy for crypto asset management
+ * @dev Implements seasonal strategy for crypto asset management.
+ * The vault logic is divided into several contracts to comply with bytecode size limits.
  */
 contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     using SafeERC20 for IERC20Metadata;
@@ -537,7 +604,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     using PositionsLogic for PositionsLogic.Positions;
     using OraclesLogic for OraclesLogic.Oracles;
 
-    error InvalidTreasureToken();
+    error InvalidTreasureToken(address token);
 
     /* ========== EVENTS ========== */
 
@@ -633,6 +700,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         __ERC20_init(name, symbol);
         __BaseVault_init(admin, manager);
         tokenTreasure = IERC20Metadata(token0);
+        positions.lowestTick = TickMath.MIN_TICK;
+        positions.highestTick = TickMath.MAX_TICK;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -719,7 +788,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Retrieves the current square root price of a Uniswap pool.
+     * @notice Retrieves the current square root price and tick of a Uniswap pool.
      * @param pool The address of the Uniswap pool
      * @return sqrtPriceX96 The current square root price of the pool
      * @return tick The current tick of the pool
@@ -759,7 +828,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param token_ The address of the treasure token.
      */
     function setTreasureToken(address token_) external onlyRole(MANAGER_ROLE) {
-        if (token_ != address(token0) && token_ != address(token1)) revert InvalidTreasureToken();
+        if (token_ != address(token0) && token_ != address(token1)) revert InvalidTreasureToken(token_);
         tokenTreasure = IERC20Metadata(token_);
         isToken0 = tokenTreasure == token0;
         positions.recalculateTicks();
@@ -837,6 +906,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         uint256 currentPercentage = getNettoPartForTokenOptimistic();
         if (percentageTreasureDesired <= currentPercentage) return;
 
+        // amount of assets needed to open position calculated in the underlying asset of the vault
         uint256 assetsToSpend = totalAssets() * (percentageTreasureDesired - currentPercentage) / Constants.PRECISION;
         VaultLogic.openPositionIfNeed({
             assetsToSpend: assetsToSpend,
@@ -888,7 +958,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      *      movements where maintaining the position would not earn fees effectively.
      */
     function closePositionsBadMarket() external onlyRole(MANAGER_ROLE) {
-        VaultLogic.closePositionsBadMarket(oracles, positions, _getImmutables(), isToken0, tickDiff);
+        VaultLogic.closePositionsBadMarket(isToken0, tickDiff, _getImmutables(), oracles, positions);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -896,13 +966,13 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override {
         VaultLogic.deposit(
-            _getImmutables(),
-            oracles,
             assets,
             maxSlippage,
             _getNettoPartForTokenReal(tokenTreasure, assets),
             address(tokenTreasure),
-            _getOrUpdatePool(feeForSwaps)
+            _getOrUpdatePool(feeForSwaps),
+            _getImmutables(),
+            oracles
         );
     }
 
@@ -912,8 +982,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         (uint256 amount0, uint256 amount1) = VaultLogic.redeem(shares, totalSupply(), immutables, positions);
 
         assets = asset() == address(token0)
-            ? amount0 + VaultLogic.swap(false, amount1, maxSlippage, _getOrUpdatePool(feeForSwaps), oracles, immutables)
-            : amount1 + VaultLogic.swap(true, amount0, maxSlippage, _getOrUpdatePool(feeForSwaps), oracles, immutables);
+            ? amount0 + VaultLogic.swap(false, amount1, maxSlippage, _getOrUpdatePool(feeForSwaps), immutables, oracles)
+            : amount1 + VaultLogic.swap(true, amount0, maxSlippage, _getOrUpdatePool(feeForSwaps), immutables, oracles);
     }
 
     /**
@@ -950,6 +1020,11 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         }
     }
 
+    /**
+     * @notice Internal function to get the pool
+     * @param fee The fee tier
+     * @return The pool
+     */
     function _getPool(uint24 fee) private view returns (address) {
         return IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee);
     }
@@ -974,6 +1049,10 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         amount1 = token1Vault.getBalanceInUnderlying(address(this));
     }
 
+    /**
+     * @notice Internal function to get the immutables
+     * @return immutables The immutables
+     */
     function _getImmutables() private view returns (VaultLogic.Immutables memory immutables) {
         return VaultLogic.Immutables({
             positionManager: positionManager,
@@ -985,6 +1064,15 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             token1Vault: token1Vault,
             asset: asset()
         });
+    }
+
+    /**
+     * @notice Internal function to get the token balance
+     * @param token The address of the token to get the balance
+     * @return The balance
+     */
+    function _getBalance(address token) private view returns (uint256) {
+        return IERC20Metadata(token).balanceOf(address(this));
     }
 
     /// @inheritdoc BaseVault
@@ -1018,9 +1106,5 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
-    }
-
-    function _getBalance(address token) private view returns (uint256) {
-        return IERC20Metadata(token).balanceOf(address(this));
     }
 }

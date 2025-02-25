@@ -291,6 +291,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
+
     function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
         vault = BufferVault(
             address(
@@ -807,7 +808,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     }
 
     function deploySeasonalArbitrum() public {
-        vm.createSelectFork("arbitrum");
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();
 

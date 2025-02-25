@@ -147,6 +147,27 @@ contract DeployUtils {
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
 
+    /* JUICE */
+
+    IJuicePool juice_usdbPool_BLAST = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
+    IJuicePool juice_wethPool_BLAST = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+
+    IYieldStaking blastupYieldStaking_BLAST =
+        IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
+
+    /* INIT */
+
+    IInitLendingPool init_usdbPool_BLAST =
+        IInitLendingPool(payable(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F)));
+    IInitLendingPool init_blastPool_BLAST =
+        IInitLendingPool(payable(address(0xdafB6929442303e904A2f673A0E7EB8753Bab571)));
+    IInitLendingPool init_wethPool_BLAST =
+        IInitLendingPool(payable(address(0xD20989EB39348994AA99F686bb4554090d0C09F3)));
+
+    CErc20 compound_usdbPool_BLAST = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
+    CErc20 compound_wbtcPool_BLAST = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
+    CEth compound_ethPool_BLAST = CEth(address(0x0872b71EFC37CB8DdE22B2118De3d800427fdba0));
+
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
             address(

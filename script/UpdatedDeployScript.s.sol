@@ -439,6 +439,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         vm.startBroadcast();
         fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
         fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLending.revokeRole(MANAGER_ROLE, admin);
         fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
@@ -669,6 +670,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         vm.startBroadcast();
         fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
         fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLending.revokeRole(MANAGER_ROLE, admin);
         fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
@@ -800,6 +802,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         vm.startBroadcast();
         fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
         fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLending.revokeRole(MANAGER_ROLE, admin);
         fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
@@ -1009,15 +1012,23 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         vm.startBroadcast();
         fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
         fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLending.revokeRole(MANAGER_ROLE, admin);
         fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, cybroManager));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
 
         fundLendingWbtc.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLendingWbtc.grantRole(MANAGER_ROLE, cybroManager);
         fundLendingWbtc.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
         fundLendingWbtc.revokeRole(MANAGER_ROLE, admin);
         fundLendingWbtc.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        vm.assertTrue(fundLendingWbtc.hasRole(MANAGER_ROLE, cybroManager));
+        vm.assertTrue(fundLendingWbtc.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
 
+        seasonal.grantRole(MANAGER_ROLE, cybroManager);
+        vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
         vaults.push(address(seasonal));
         vaults.push(vaults2[0]);
         _grantAndRevokeRoles(admin);

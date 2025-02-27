@@ -71,19 +71,6 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
         lendingShare2 = 50 * 10 ** (precision - 2);
     }
 
-    // function movePoolPrice(uint24 fee_, uint160 targetSqrtPriceX96) internal {
-    //     (, address caller,) = vm.readCallers();
-    //     IUniswapV3Pool pool =
-    //         IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(address(token0), address(token1), fee_));
-
-    //     (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
-    //     if (sqrtPriceX96 > targetSqrtPriceX96) {
-    //         pool.swap(caller, true, type(int256).max, targetSqrtPriceX96, "");
-    //     } else {
-    //         pool.swap(caller, false, type(int256).max, targetSqrtPriceX96, "");
-    //     }
-    // }
-
     /* ========== ONECLICK ========== */
 
     function _setOracles(OneClickIndex lending_) internal {
@@ -509,6 +496,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             currentPrice = int160(currentPrice_);
             console.log("POOL PRICE BEFORE MOVE", currentPrice);
             swapper.movePoolPrice(positionManager, address(token0), address(token1), poolFee, uint160(price3 - delta));
+            console.log("nettoPartOptimistic after move", seasonalVault.getNettoPartForTokenOptimistic());
 
             uint256 countBefore = positionManager.balanceOf(address(vault));
             seasonalVault.closePositionsWorkedOut();

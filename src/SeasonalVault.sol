@@ -337,9 +337,6 @@ library VaultLogic {
         OraclesLogic.Oracles storage oracles,
         PositionsLogic.Positions storage positions
     ) external {
-        // amount of assets to add to the position in the treasure token
-        uint256 amountToAdd = oracles.convert(immutables.asset, address(tokenTreasure), assetsToSpend);
-
         IUniswapV3Pool pool;
         {
             IUniswapV3Factory factory = IUniswapV3Factory(immutables.positionManager.factory());
@@ -349,6 +346,8 @@ library VaultLogic {
         if (price1 > price2) (price1, price2) = (price2, price1);
 
         bool isToken0 = tokenTreasure == address(immutables.token0);
+        assetsToSpend =
+            oracles.convert(immutables.asset, address(isToken0 ? immutables.token1 : immutables.token0), assetsToSpend);
 
         // Move range if its outdated
         if ((isToken0 && currentPrice < price2)) {
@@ -360,20 +359,8 @@ library VaultLogic {
         }
 
         (int24 tickLower, int24 tickUpper) = _adjustTicks(isToken0, price1, price2, pool.tickSpacing());
-        {
-            uint160 priceLower = TickMath.getSqrtRatioAtTick(tickLower);
-            uint160 priceUpper = TickMath.getSqrtRatioAtTick(tickUpper);
 
-            // The amount is calculated as if the position will be fully executed
-            // and we will sell all the tokens received at the current price.
-            if (isToken0) {
-                amountToAdd = Math.mulDiv(amountToAdd, Math.mulDiv(priceLower, priceUpper, 1 << 96), 1 << 96);
-            } else {
-                amountToAdd = Math.mulDiv(Math.mulDiv(amountToAdd, 1 << 96, priceUpper), 1 << 96, priceLower);
-            }
-        }
-
-        _openPosition(isToken0, amountToAdd, fee, tickLower, tickUpper, immutables, positions);
+        _openPosition(isToken0, assetsToSpend, fee, tickLower, tickUpper, immutables, positions);
     }
 
     /**
@@ -733,38 +720,26 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     }
 
     /**
-     * @notice Calculates the potential amounts of tokens assuming the price traverses the entire range,
-     *         fully swapping one token into the other.
-     * @dev This includes the scenarios where the liquidity positions are entirely converted from one token
-     *      to the other based on the full range tick boundaries.
-     *      Additionally, it adds any tokens that are currently owed from the positions.
-     * @return amount The total potential amount of treasure token
-     */
-    function getTreasureAmountForFullRange() public view returns (uint256 amount) {
-        uint160 sqrtPrice = TickMath.getSqrtRatioAtTick(isToken0 ? positions.lowestTick : positions.highestTick);
-        (uint256 total0, uint256 total1) = positions.getTotalAmountsAt(positionManager, sqrtPrice);
-
-        if (isToken0) {
-            return total0;
-        } else {
-            return total1;
-        }
-    }
-
-    /**
      * @notice Optimistically calculates the percentage of the TVL represented by the treasure token.
-     * @dev Assumes that all LP positions are fully converted into the treasure token as if the price has passed the entire range.
-     *      Assets are considered from three sources: free funds, farming projects, and Uniswap LP positions.
-     *      This calculation provides an optimistic view by presuming total conversion of liquidity positions into the treasure token.
-     *
      * @return The percentage of the fund held as the treasure token.
      */
     function getNettoPartForTokenOptimistic() public view returns (uint256) {
-        return _getInUnderlyingAsset(
-            address(tokenTreasure),
-            getTreasureAmountForFullRange() + _getBalance(address(tokenTreasure))
-                + (isToken0 ? token0Vault : token1Vault).getBalanceInUnderlying(address(this))
-        ) * Constants.PRECISION / totalAssets();
+        (uint256 total0, uint256 total1) = getPositionAmounts();
+        if (isToken0) {
+            return (
+                _getInUnderlyingAsset(
+                    address(tokenTreasure),
+                    total0 + _getBalance(address(tokenTreasure)) + token0Vault.getBalanceInUnderlying(address(this))
+                ) + _getInUnderlyingAsset(address(token1), total1)
+            ) * Constants.PRECISION / totalAssets();
+        } else {
+            return (
+                _getInUnderlyingAsset(
+                    address(tokenTreasure),
+                    total1 + _getBalance(address(tokenTreasure)) + token1Vault.getBalanceInUnderlying(address(this))
+                ) + _getInUnderlyingAsset(address(token0), total0)
+            ) * Constants.PRECISION / totalAssets();
+        }
     }
 
     /**

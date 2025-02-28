@@ -569,9 +569,10 @@ library VaultLogic {
             amountOut = uint256(-(zeroForOne ? amount1 : amount0));
         }
         // check slippage
+        // we subtract 3 to avoid reverts caused by slippage with small values
         if (
-            amountOut
-                < oracles.convert(from, to, amount) * (Constants.SLIPPAGE_PRECISION - maxSlippage)
+            amountOut + 3
+                < oracles.convert(from, to, amount < 3 ? 0 : amount - 3) * (Constants.SLIPPAGE_PRECISION - maxSlippage)
                     / Constants.SLIPPAGE_PRECISION
         ) {
             revert Slippage();

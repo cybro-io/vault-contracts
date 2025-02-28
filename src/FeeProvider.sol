@@ -15,6 +15,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
+    error InvalidSignature();
+    error DifferentArraysLength();
+    error ExpiredSignature();
+
     struct UserFees {
         bool initialized;
         uint32 depositFee;
@@ -182,6 +186,12 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         performanceFee = _applyDiscount(performanceFee, user);
     }
 
+    /**
+     * @notice Sets the tiers
+     * @param discountTiers_ The discount tiers
+     * @param discounts_ The discounts
+     * @param minAmounts_ The minimum amounts for the tiers
+     */
     function setTiers(uint8[] memory discountTiers_, uint32[] memory discounts_, uint256[] memory minAmounts_)
         external
         onlyOwner
@@ -193,27 +203,46 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         }
     }
 
+    /**
+     * @notice Sets the staked amount and deadline for a user
+     * @param user The user to set the staked amount and deadline for
+     * @param stakedAmount The staked amount
+     * @param deadline The deadline
+     * @param signature The signature
+     */
     function setStakedAmount(address user, uint256 stakedAmount, uint256 deadline, bytes memory signature) external {
-        require(stakedAmount > 0, "FeeProvider: stakedAmount must be greater than 0");
-        require(block.timestamp <= deadline, "FeeProvider: expired signature");
+        if (block.timestamp > deadline) revert ExpiredSignature();
         address signer_ =
             keccak256(abi.encodePacked(user, stakedAmount, deadline)).toEthSignedMessageHash().recover(signature);
-        require(signers[signer_]);
+        if (!signers[signer_]) revert InvalidSignature();
         _stakedAmounts[user] = StakedAmount({stakedAmount: stakedAmount, deadline: deadline});
     }
 
+    /**
+     * @notice Sets the staked amounts and deadlines for multiple users
+     * @param users_ The users to set the staked amounts and deadlines for
+     * @param stakedAmounts_ The staked amounts
+     * @param deadlines_ The deadlines
+     */
     function setStakedAmounts(address[] memory users_, uint256[] memory stakedAmounts_, uint256[] memory deadlines_)
         external
         onlyOwner
     {
-        require(users_.length == stakedAmounts_.length);
+        if (users_.length != stakedAmounts_.length || users_.length != deadlines_.length) {
+            revert DifferentArraysLength();
+        }
         for (uint256 i = 0; i < users_.length; i++) {
             _stakedAmounts[users_[i]] = StakedAmount({stakedAmount: stakedAmounts_[i], deadline: deadlines_[i]});
         }
     }
 
+    /**
+     * @notice Sets the signers
+     * @param signers_ The signers to set
+     * @param isSigner_ Indicates whether users are signers
+     */
     function setSigners(address[] memory signers_, bool[] memory isSigner_) external onlyOwner {
-        require(signers_.length == isSigner_.length);
+        if (signers_.length != isSigner_.length) revert DifferentArraysLength();
         for (uint256 i = 0; i < signers_.length; i++) {
             signers[signers_[i]] = isSigner_[i];
         }
@@ -272,6 +301,11 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         return _managementFee;
     }
 
+    /**
+     * @notice Returns the discount for a user
+     * @param user The user to get the discount for
+     * @return The discount
+     */
     function getDiscount(address user) public view returns (uint32) {
         if (_stakedAmounts[user].deadline < block.timestamp) return 0;
         uint256 amount = _stakedAmounts[user].stakedAmount;
@@ -282,8 +316,24 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         return 0;
     }
 
+    /**
+     * @notice Returns the staked amount and deadline for a user
+     * @param user The user to get the staked amount and deadline for
+     * @return stakedAmount The staked amount
+     * @return deadline The deadline
+     */
+    function stakedAmountInfo(address user) external view returns (uint256 stakedAmount, uint256 deadline) {
+        return (_stakedAmounts[user].stakedAmount, _stakedAmounts[user].deadline);
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    /**
+     * @notice Applies the discount to a fee
+     * @param fee The fee to apply the discount to
+     * @param user The user to apply the discount to
+     * @return The fee with the discount applied
+     */
     function _applyDiscount(uint32 fee, address user) internal view returns (uint32) {
         return fee * (_feePrecision - getDiscount(user)) / _feePrecision;
     }

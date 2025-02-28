@@ -10,8 +10,13 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {IVault} from "../src/interfaces/IVault.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {DeployUtils} from "./DeployUtils.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 abstract contract AbstractBaseVaultTest is Test, DeployUtils {
+    using MessageHashUtils for bytes32;
+    using ECDSA for bytes32;
+
     uint256 forkId;
     IVault vault;
     IERC20Metadata asset;
@@ -43,6 +48,11 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
     address assetProvider;
 
+    address[] signers;
+    uint8[] discountTiers;
+    uint32[] discounts;
+    uint256[] minAmounts;
+
     function setUp() public virtual {
         adminPrivateKey = baseAdminPrivateKey;
         admin = vm.addr(baseAdminPrivateKey);
@@ -68,6 +78,17 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         vm.startPrank(admin);
         testToken = new ERC20Mock("Test Token", "TEST", 18);
         testTokenAmount = 5e18;
+
+        discountTiers.push(0);
+        discounts.push(0);
+        minAmounts.push(0);
+        discountTiers.push(1);
+        discounts.push(1000);
+        minAmounts.push(1e18);
+        discountTiers.push(2);
+        discounts.push(2000);
+        minAmounts.push(1e19);
+
         feeProvider = FeeProvider(
             address(
                 new TransparentUpgradeableProxy(
@@ -86,6 +107,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         bool[] memory isWhitelisted = new bool[](1);
         isWhitelisted[0] = true;
         feeProvider.setWhitelistedContracts(whitelistedContracts, isWhitelisted);
+        signers.push(admin);
+        feeProvider.setSigners(signers, isWhitelisted);
+        feeProvider.setTiers(discountTiers, discounts, minAmounts);
         vm.stopPrank();
     }
 
@@ -197,17 +221,52 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
     function _additionalChecksAfterDeposit(address _user, uint256 amount_, uint256 shares) internal virtual {}
 
+    function _getSignature(address _user, uint256 _stakedAmount, uint256 _deadline)
+        internal
+        returns (bytes memory signature)
+    {
+        vm.startPrank(admin);
+        bytes32 digest = keccak256(abi.encodePacked(_user, _stakedAmount, _deadline)).toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(adminPrivateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+        vm.stopPrank();
+    }
+
     function _deposit(address _user, uint256 amount_) internal returns (uint256 shares) {
         uint256 amountWithFee = amount_;
+        uint256 deadline = block.timestamp + 1e10;
+        bytes memory signature;
         if (feeProvider != IFeeProvider(address(0))) {
             uint32 depositFee_ = vault.getDepositFee(_user);
+            vm.expectRevert();
+            feeProvider.setStakedAmount(_user, 100, 0, new bytes(0));
+            signature = _getSignature(_user, minAmounts[0], deadline);
+            feeProvider.setStakedAmount(_user, minAmounts[0], deadline, signature);
+            (uint256 stakedAmount_, uint256 deadline_) = feeProvider.stakedAmountInfo(_user);
+            vm.assertEq(stakedAmount_, minAmounts[0]);
+            vm.assertEq(deadline_, deadline);
+            vm.assertEq(depositFee_, feeProvider.getDepositFee(_user));
+
+            signature = _getSignature(_user, minAmounts[1], deadline);
+            feeProvider.setStakedAmount(_user, minAmounts[1], deadline, signature);
+            (stakedAmount_, deadline_) = feeProvider.stakedAmountInfo(_user);
+            vm.assertEq(stakedAmount_, minAmounts[1]);
+            if (depositFee_ > 0) {
+                vm.assertGt(depositFee_, feeProvider.getDepositFee(_user));
+                depositFee_ = vault.getDepositFee(_user);
+            }
             amountWithFee = amountWithFee * (feePrecision - depositFee_) / feePrecision;
         }
         uint256 totalSupplyBefore = vault.totalSupply();
         uint256 tvlBefore = vault.totalAssets();
 
+        signature = _getSignature(_user, minAmounts[1], deadline);
         vm.startPrank(_user);
-        shares = vault.deposit(amount_, _user, 0);
+        if (feeProvider != IFeeProvider(address(0))) {
+            shares = vault.updateFeeDiscountDeposit(amount_, _user, 0, minAmounts[1], deadline, signature);
+        } else {
+            shares = vault.deposit(amount_, _user, 0);
+        }
         vm.stopPrank();
 
         (bool success, bytes memory returnData) =
@@ -228,7 +287,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         vm.assertApproxEqAbs(vault.totalAssets() - tvlBefore, amountWithFee, amount / 100);
 
         if (feeProvider != IFeeProvider(address(0))) {
+            signature = _getSignature(_user, 0, deadline);
             vm.startPrank(admin);
+            feeProvider.setStakedAmount(_user, 0, deadline, signature);
             feeProvider.setFees(depositFee * 2, withdrawalFee * 2, performanceFee * 2);
             vm.assertEq(vault.getDepositFee(_user), depositFee);
             vm.assertEq(vault.getWithdrawalFee(_user), withdrawalFee);

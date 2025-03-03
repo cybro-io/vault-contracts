@@ -374,7 +374,7 @@ contract DeployUtils {
         );
     }
 
-    function _deploySparkVault(VaultSetup memory vaultData) internal returns (IVault sparkVault_) {
+    function _deploySpark(VaultSetup memory vaultData) internal returns (IVault sparkVault_) {
         sparkVault_ = IVault(
             payable(
                 address(

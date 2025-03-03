@@ -17,7 +17,7 @@ contract SparkVaultTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault = _deploySparkVault(
+        vault = _deploySpark(
             VaultSetup(asset, address(psm3Pool_BASE), address(feeProvider), feeRecipient, name, symbol, admin, admin)
         );
         vm.stopPrank();

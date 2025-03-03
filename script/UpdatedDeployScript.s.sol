@@ -31,7 +31,7 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
-import {DeployUtils} from "../test/DeployUtils.sol";
+import {DeployUtils, SparkVault} from "../test/DeployUtils.sol";
 import {SeasonalVault} from "../src/SeasonalVault.sol";
 import {BufferVault} from "../src/vaults/BufferVault.sol";
 import {GammaAlgebraVault} from "../src/vaults/GammaAlgebraVault.sol";
@@ -292,7 +292,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
-
     function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
         vault = BufferVault(
             address(
@@ -334,6 +333,29 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("GammaAlgebraVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
+
+    function _deploySparkVault(DeployVault memory vaultData) internal returns (SparkVault vault) {
+        vault = SparkVault(
+            address(
+                _deploySpark(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: address(vaultData.pool),
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("SparkVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
 
@@ -697,6 +719,25 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
 
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deploySparkVault(
+                    DeployVault({
+                        asset: usdc_BASE,
+                        pool: address(psm3Pool_BASE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Spark USDC",
+                        symbol: "cysUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[3]);
+
         feeProvider = _deployFeeProvider(admin, 0, 30, 500, 0);
         OneClickIndex fundLending = OneClickIndex(
             address(
@@ -711,6 +752,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         lendingShares.push(3000);
         lendingShares.push(4000);
         lendingShares.push(3000);
+        lendingShares.push(3000);
         fundLending.addLendingPools(vaults);
         fundLending.setLendingShares(vaults, lendingShares);
         vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
@@ -722,6 +764,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
         _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
         _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
         _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
 
         vm.startBroadcast();
@@ -735,7 +778,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     }
 
     function deployOneClickArbitrum() public {
-        vm.createSelectFork("arbitrum");
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();
 
@@ -865,7 +907,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
-
     function deploySeasonalArbitrum() public {
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();
@@ -1087,6 +1128,39 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
         vaults.push(address(seasonal));
         vaults.push(vaults2[0]);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    function deploySparkBase() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(susds_BASE), "SUSDS");
+        vm.label(address(usdc_BASE), "USDC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deploySparkVault(
+                    DeployVault({
+                        asset: usdc_BASE,
+                        pool: address(psm3Pool_BASE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Spark USDC",
+                        symbol: "cysUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        vm.stopBroadcast();
+        _testVaultWorks(BaseVault(address(vaults[0])), 1e10, false);
+        vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }

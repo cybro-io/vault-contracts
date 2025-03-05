@@ -37,3 +37,8 @@ To deploy one click index with all the vaults, on the arbitrum chain, run the fo
 ```bash
 forge script UpdatedDeployScript --sig "deployOneClickArbitrum()" --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
 ```
+
+To deploy one click index with all of the vaults, on the blast chain with WETH, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployOneClickBlast_WETH()" --private-key <your_private_key> --rpc-url <your_blast_rpc_url>
+```

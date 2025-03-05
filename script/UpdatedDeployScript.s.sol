@@ -406,15 +406,16 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
 
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        pool = address(0x4E5Ed7a628760f7c60b4A9DA0A25c28BB024F787);
         vaults.push(
             address(
-                _deployBufferVault(
+                _deployYieldStakingVault(
                     DeployVault({
                         asset: weth_BLAST,
-                        pool: address(0),
+                        pool: pool,
                         feeProvider: feeProvider,
                         feeRecipient: feeRecipient,
-                        name: "Buffer WETH",
+                        name: "CYBRO WETH",
                         symbol: "cyWETH",
                         manager: cybroManager,
                         admin: admin

@@ -255,6 +255,12 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 vm.assertGt(depositFee_, feeProvider.getDepositFee(_user));
                 depositFee_ = vault.getDepositFee(_user);
             }
+            if (vm.randomUint() % 2 == 0) {
+                signature = _getSignature(_user, 0, deadline);
+                feeProvider.setStakedAmount(_user, 0, deadline, signature);
+            } else if (depositFee_ > 0) {
+                depositFee_ = vault.getDepositFee(_user);
+            }
             amountWithFee = amountWithFee * (feePrecision - depositFee_) / feePrecision;
         }
         uint256 totalSupplyBefore = vault.totalSupply();
@@ -262,7 +268,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
         signature = _getSignature(_user, minAmounts[1], deadline);
         vm.startPrank(_user);
-        if (feeProvider != IFeeProvider(address(0))) {
+        if (feeProvider != IFeeProvider(address(0)) ? feeProvider.getDiscount(_user) > 0 : false) {
             shares = vault.updateFeeDiscountDeposit(amount_, _user, 0, minAmounts[1], deadline, signature);
         } else {
             shares = vault.deposit(amount_, _user, 0);

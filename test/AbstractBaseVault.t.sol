@@ -111,6 +111,12 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 assetProvider = assetProvider_USDC_ARBITRUM;
             } else if (asset == weth_ARBITRUM) {
                 assetProvider = assetProvider_WETH_ARBITRUM;
+            } else if (asset == eETH_ARBITRUM) {
+                assetProvider = assetProvider_eETH_ARBITRUM;
+            } else if (asset == rsETH_ARBITRUM) {
+                assetProvider = assetProvider_rsETH_ARBITRUM;
+            } else if (asset == wbtc_ARBITRUM) {
+                assetProvider = assetProvider_WBTC_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
             if (asset == usdc_BASE) {
@@ -214,7 +220,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             vm.stopPrank();
         }
         _additionalChecksAfterDeposit(_user, amount_, shares);
-        vm.warp(block.timestamp + 10000);
+        vm.warp(block.timestamp + 100);
     }
 
     function _redeem(address _caller, address _owner, address _receiver, uint256 _shares)
@@ -336,7 +342,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             users[0] = admin;
             vault.collectPerformanceFee(users);
             assert(vault.getWaterline(admin) >= depositedBalanceBefore);
-            vm.warp(block.timestamp + 120 days);
+            vm.warp(block.timestamp + 1 days);
             uint256 totalSupplyBefore = vault.totalSupply();
             vault.collectManagementFee();
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);

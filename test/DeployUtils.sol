@@ -19,6 +19,12 @@ import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {CErc20} from "../src/interfaces/compound/IcERC.sol";
+import {IPAllActionV3} from "@pendle/core-v2/interfaces/IPAllActionV3.sol";
+import {IPMarket} from "@pendle/core-v2/interfaces/IPMarket.sol";
+import {PendleVault} from "../src/PendleVault.sol";
+import {IPPYLpOracle} from "@pendle/core-v2/interfaces/IPPYLpOracle.sol";
+import {IRSETHPool} from "../src/interfaces/kelp/IRSETHPool.sol";
+import {IPRouterStatic} from "@pendle/core-v2/interfaces/IPRouterStatic.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -46,6 +52,10 @@ contract DeployUtils {
     IERC20Metadata usdt_ARBITRUM = IERC20Metadata(address(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9));
     IERC20Metadata weth_ARBITRUM = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));
     IERC20Metadata usdc_ARBITRUM = IERC20Metadata(address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831));
+    IERC20Metadata wbtc_ARBITRUM = IERC20Metadata(address(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f));
+    IERC20Metadata dwbtc_ARBITRUM = IERC20Metadata(address(0x0a52BCb532F59F6a37A9d3B5bc9FfD47E461d995));
+    IERC20Metadata eETH_ARBITRUM = IERC20Metadata(address(0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe));
+    IERC20Metadata rsETH_ARBITRUM = IERC20Metadata(address(0x4186BFC76E2E237523CBC30FD220FE055156b41F));
 
     IERC20Metadata weth_BASE = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
     IERC20Metadata usdc_BASE = IERC20Metadata(address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913));
@@ -80,12 +90,15 @@ contract DeployUtils {
     address assetProvider_USDT_ARBITRUM = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
     address assetProvider_USDC_ARBITRUM = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
     address assetProvider_WETH_ARBITRUM = address(0x70d95587d40A2caf56bd97485aB3Eec10Bee6336);
+    address assetProvider_eETH_ARBITRUM = address(0x8437d7C167dFB82ED4Cb79CD44B7a32A1dd95c77);
+    address assetProvider_rsETH_ARBITRUM = address(0xf176fB51F4eB826136a54FDc71C50fCd2202E272);
+    address assetProvider_WBTC_ARBITRUM = address(0x078f358208685046a11C85e8ad32895DED33A249);
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
 
     uint256 lastCachedBlockid_BLAST = 14284818;
-    uint256 lastCachedBlockid_ARBITRUM = 297475175;
+    uint256 lastCachedBlockid_ARBITRUM = 312827557;
     uint256 lastCachedBlockid_BASE = 25292162;
 
     IStargatePool stargate_usdtPool_ARBITRUM =
@@ -104,6 +117,13 @@ contract DeployUtils {
     IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
+    IPAllActionV3 pendle_router_ARBITRUM = IPAllActionV3(address(0x888888888889758F76e7103c6CbF23ABbF58F946));
+    IPMarket pendle_market_WBTC_ARBITRUM = IPMarket(address(0x8cAB5Fd029ae2FBF28c53E965E4194C7260aDF0C));
+    IPMarket pendle_market_rsETH_ARBITRUM = IPMarket(address(0x816F59FfA2239Fd7106F94eAbdC0a9547a892F2f));
+    IPMarket pendle_market_eETH_ARBITRUM = IPMarket(address(0xBf5E60ddf654085F80DAe9DD33Ec0E345773E1F8));
+    IPPYLpOracle pendle_oracle_ARBITRUM = IPPYLpOracle(address(0x9a9Fa8338dd5E5B2188006f1Cd2Ef26d921650C2));
+
+    IRSETHPool kelp_poolRsETH_ARBITRUM = IRSETHPool(address(0x376A7564AF88242D6B8598A5cfdD2E9759711B61));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -266,6 +286,37 @@ contract DeployUtils {
                         abi.encodeCall(
                             StargateVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployPendle(VaultSetup memory vaultData) internal returns (IVault pendleVault_) {
+        pendleVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new PendleVault(
+                            vaultData.asset,
+                            vaultData.pool,
+                            pendle_oracle_ARBITRUM,
+                            IFeeProvider(vaultData.feeProvider),
+                            vaultData.feeRecipient
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        PendleVault.initialize,
+                        (
+                            vaultData.admin,
+                            vaultData.name,
+                            vaultData.symbol,
+                            vaultData.manager,
+                            vaultData.asset == wbtc_ARBITRUM
+                                ? address(pendle_market_WBTC_ARBITRUM)
+                                : address(pendle_market_eETH_ARBITRUM)
                         )
                     )
                 )

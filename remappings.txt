@@ -4,3 +4,4 @@
 @uniswap/v3-periphery/=lib/v3-periphery/
 @cryptoalgebra/integral-core/=lib/Algebra/src/core/
 @cryptoalgebra/integral-periphery/=lib/Algebra/src/periphery/
+@pendle/core-v2/=lib/pendle-core-v2-public/contracts/

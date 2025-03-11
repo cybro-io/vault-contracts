@@ -20,6 +20,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    error InvalidPoolAddress();
+    error ArraysLengthMismatch();
     /* ========== EVENTS ========== */
 
     /**
@@ -154,7 +156,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         public
         onlyRole(MANAGER_ROLE)
     {
+        if (poolAddresses.length != newLendingShares.length) revert ArraysLengthMismatch();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
+            if (!lendingPoolAddresses.contains(poolAddresses[i])) revert InvalidPoolAddress();
             totalLendingShares = totalLendingShares - lendingShares[poolAddresses[i]] + newLendingShares[i];
             lendingShares[poolAddresses[i]] = newLendingShares[i];
 
@@ -267,16 +271,15 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
             int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
 
             if (deviation > 0) {
-                totalAssetsToRedistribute += _swap(
-                    IVault(pool).asset(),
-                    asset(),
-                    IVault(pool).redeem(
-                        uint256(deviation) * IVault(pool).balanceOf(address(this)) / poolBalance,
-                        address(this),
-                        address(this),
-                        0
-                    )
+                uint256 redeemedAmount = IVault(pool).redeem(
+                    uint256(deviation) * IVault(pool).balanceOf(address(this)) / poolBalance,
+                    address(this),
+                    address(this),
+                    0
                 );
+                if (redeemedAmount > 0) {
+                    totalAssetsToRedistribute += _swap(IVault(pool).asset(), asset(), redeemedAmount);
+                }
             } else if (deviation < 0) {
                 poolsToDeposit[count] = pool;
                 amountsToDeposit[count] = uint256(-deviation);

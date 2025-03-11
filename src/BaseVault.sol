@@ -532,8 +532,10 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         uint256 fee_;
         if (assets > balancePortion) {
             fee_ = (assets - balancePortion) * feeProvider.getPerformanceFee(owner) / feePrecision;
-            IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);
-            emit PerformanceFeeCollected(owner, fee_);
+            if (fee_ > 0) {
+                IERC20Metadata(_asset).safeTransfer(feeRecipient, fee_);
+                emit PerformanceFeeCollected(owner, fee_);
+            }
         }
         return (assets - fee_, fee_);
     }

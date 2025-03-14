@@ -42,7 +42,7 @@ contract SparkVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function underlyingTVL() external view virtual override returns (uint256) {
-        return psm.totalAssets();
+        return psm.totalAssets() * (10 ** decimals()) / 1e18;
     }
 
     /// @inheritdoc BaseVault

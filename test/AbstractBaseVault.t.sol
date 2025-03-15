@@ -9,6 +9,7 @@ import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {DeployUtils} from "./DeployUtils.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -152,12 +153,18 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 assetProvider_ = assetProvider_WEETH_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
-            if (asset_ == usdc_BASE) {
+            if (asset == usdc_BASE) {
                 assetProvider_ = assetProvider_USDC_BASE;
             } else if (asset_ == weth_BASE) {
                 assetProvider_ = assetProvider_WETH_BASE;
             } else if (asset_ == cbwbtc_BASE) {
                 assetProvider_ = assetProvider_CBWBTC_BASE;
+            }
+        } else if (block.chainid == 1) {
+            if (asset_ == usdt_ETHEREUM) {
+                assetProvider_ = assetProvider_USDT_ETHEREUM;
+            } else if (asset_ == weth_ETHEREUM) {
+                assetProvider_ = assetProvider_WETH_ETHEREUM;
             }
         }
     }

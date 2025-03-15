@@ -26,6 +26,9 @@ import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
 import {SparkVault} from "../src/vaults/SparkVault.sol";
+import {IHubPool} from "../src/interfaces/across/IHubPool.sol";
+import {AcrossVault} from "../src/vaults/AcrossVault.sol";
+import {IAcceleratingDistributor} from "../src/interfaces/across/IAcceleratingDistributor.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -72,6 +75,12 @@ contract DeployUtils {
     IERC20Metadata wbtc_BLAST = IERC20Metadata(address(0xF7bc58b8D8f97ADC129cfC4c9f45Ce3C0E1D2692));
     IERC20Metadata blast_BLAST = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
 
+    IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+    IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
+
+    IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+    IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
+
     /* ========== CHAINLINK ORACLES ========== */
 
     /* BLAST */
@@ -95,10 +104,13 @@ contract DeployUtils {
 
     /* UNISWAP */
 
+    IUniswapV3Factory factory_UNI_ETHEREUM = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_ARB = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_BASE = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
     IUniswapV3Pool pool_USDC_WETH_BASE = IUniswapV3Pool(address(0xd0b53D9277642d899DF5C87A3966A349A798F224));
     IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
+    IUniswapV3Pool pool_ACX_WETH_ETHEREUM = IUniswapV3Pool(address(0x508acdC358be2ed126B1441F0Cff853dEc49d40F));
+    IUniswapV3Pool pool_USDT_WETH_ETHEREUM = IUniswapV3Pool(address(0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -124,11 +136,15 @@ contract DeployUtils {
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
     address assetProvider_CBWBTC_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb); // 2,459 WBTC
 
+    address assetProvider_WETH_ETHEREUM = address(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
+    address assetProvider_USDT_ETHEREUM = address(0x2933782B5A8d72f2754103D1489614F29bfA4625);
+
     /* ========== CACHED BLOCKIDS ========== */
 
     uint256 lastCachedBlockid_BLAST = 14284818;
     uint256 lastCachedBlockid_ARBITRUM = 300132227;
     uint256 lastCachedBlockid_BASE = 25292162;
+    uint256 lastCachedBlockid_ETHEREUM = 22052977;
 
     /* ========== POOLS ========== */
 
@@ -181,6 +197,35 @@ contract DeployUtils {
     IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
     IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
     IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
+
+    /* JUICE */
+
+    IJuicePool juice_usdbPool_BLAST = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
+    IJuicePool juice_wethPool_BLAST = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
+
+    IYieldStaking blastupYieldStaking_BLAST =
+        IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
+
+    /* INIT */
+
+    IInitLendingPool init_usdbPool_BLAST =
+        IInitLendingPool(payable(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F)));
+    IInitLendingPool init_blastPool_BLAST =
+        IInitLendingPool(payable(address(0xdafB6929442303e904A2f673A0E7EB8753Bab571)));
+    IInitLendingPool init_wethPool_BLAST =
+        IInitLendingPool(payable(address(0xD20989EB39348994AA99F686bb4554090d0C09F3)));
+
+    CErc20 compound_usdbPool_BLAST = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
+    CErc20 compound_wbtcPool_BLAST = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
+    CEth compound_ethPool_BLAST = CEth(address(0x0872b71EFC37CB8DdE22B2118De3d800427fdba0));
+
+    IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
+    IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
+    IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
+
+    IHubPool across_hubPool_ETHEREUM = IHubPool(payable(address(0xc186fA914353c44b2E33eBE05f21846F1048bEda)));
+    IAcceleratingDistributor across_acceleratingDistributor_ETHEREUM =
+        IAcceleratingDistributor(address(0x9040e41eF5E8b281535a96D9a48aCb8cfaBD9a48));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -396,6 +441,34 @@ contract DeployUtils {
                         vaultData.admin,
                         abi.encodeCall(
                             SparkVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployAcross(VaultSetup memory vaultData) internal returns (IVault acrossVault_) {
+        acrossVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new AcrossVault(
+                                vaultData.asset,
+                                vaultData.pool,
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient,
+                                address(across_acceleratingDistributor_ETHEREUM),
+                                address(pool_ACX_WETH_ETHEREUM),
+                                vaultData.asset == weth_ETHEREUM ? address(0) : address(pool_USDT_WETH_ETHEREUM),
+                                address(weth_ETHEREUM)
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            AcrossVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
                     )

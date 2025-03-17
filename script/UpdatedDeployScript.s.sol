@@ -34,6 +34,7 @@ import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
 import {DeployUtils} from "../test/DeployUtils.sol";
 import {SeasonalVault} from "../src/SeasonalVault.sol";
 import {BufferVault} from "../src/vaults/BufferVault.sol";
+import {GammaAlgebraVault} from "../src/vaults/GammaAlgebraVault.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     struct DeployVault {
@@ -313,6 +314,29 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("BufferVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
+
+    function _deployGammaAlgebraVault(DeployVault memory vaultData) internal returns (GammaAlgebraVault vault) {
+        vault = GammaAlgebraVault(
+            address(
+                _deployGammaAlgebra(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("GammaAlgebraVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
+
     // Examples for deploying other vaults
 
     // feeProvider = _deployFeeProvider(admin, 0, 0, 0);
@@ -337,6 +361,38 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     // pool = address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F);
     // InitVault initVault =
     //     _deployInitVault(DeployVault(usdb, pool, feeProvider, feeRecipient, "Init USDB", "cyiUSDB", admin, admin));
+
+    function deployGammaCamelotArbitrum() external {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+        vm.label(address(usdc_ARBITRUM), "USDC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployGammaAlgebraVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(hypervisor_gamma_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Gamma Camelot USDC",
+                        symbol: "cygcUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+        vm.stopBroadcast();
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+
+        vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
 
     function deployBlast() external {
         vm.startBroadcast();

@@ -37,3 +37,8 @@ To deploy one click index with all the vaults, on the arbitrum chain, run the fo
 ```bash
 forge script UpdatedDeployScript --sig "deployOneClickArbitrum()" --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
 ```
+
+To deploy spark vault on the base chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deploySparkBase()" --private-key <your_private_key> --rpc-url <your_base_rpc_url>
+```

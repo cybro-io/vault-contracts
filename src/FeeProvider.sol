@@ -18,6 +18,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     error InvalidSignature();
     error DifferentArraysLength();
     error ExpiredSignature();
+    error ArraysLengthMismatch();
 
     struct UserFees {
         bool initialized;
@@ -140,14 +141,23 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32[] memory withdrawalFees,
         uint32[] memory performanceFees
     ) external onlyOwner {
+        if (
+            users.length != depositFees.length || users.length != withdrawalFees.length
+                || users.length != performanceFees.length
+        ) revert ArraysLengthMismatch();
+
         for (uint256 i = 0; i < users.length; i++) {
             UserFees storage userFees = _users[users[i]];
-            userFees.initialized = true;
-            // we don't need to verify that global fees are lower than user fees
-            // because it will be automatically checked in getUpdateUserFees
-            userFees.depositFee = uint32(Math.min(depositFees[i], userFees.depositFee));
-            userFees.withdrawalFee = uint32(Math.min(withdrawalFees[i], userFees.withdrawalFee));
-            userFees.performanceFee = uint32(Math.min(performanceFees[i], userFees.performanceFee));
+            if (userFees.initialized) {
+                userFees.depositFee = uint32(Math.min(depositFees[i], userFees.depositFee));
+                userFees.withdrawalFee = uint32(Math.min(withdrawalFees[i], userFees.withdrawalFee));
+                userFees.performanceFee = uint32(Math.min(performanceFees[i], userFees.performanceFee));
+            } else {
+                userFees.depositFee = depositFees[i];
+                userFees.withdrawalFee = withdrawalFees[i];
+                userFees.performanceFee = performanceFees[i];
+                userFees.initialized = true;
+            }
         }
     }
 

@@ -78,9 +78,6 @@ contract DeployUtils {
     IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
     IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
 
-    IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
-    IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
-
     /* ========== CHAINLINK ORACLES ========== */
 
     /* BLAST */
@@ -205,31 +202,6 @@ contract DeployUtils {
     /* LODESTAR */
 
     CErc20 compound_lodestarUSDC_ARBITRUM = CErc20(address(0x4C9aAed3b8c443b4b634D1A189a5e25C604768dE));
-
-    /* JUICE */
-
-    IJuicePool juice_usdbPool_BLAST = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
-    IJuicePool juice_wethPool_BLAST = IJuicePool(address(0x44f33bC796f7d3df55040cd3C631628B560715C2));
-
-    IYieldStaking blastupYieldStaking_BLAST =
-        IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
-
-    /* INIT */
-
-    IInitLendingPool init_usdbPool_BLAST =
-        IInitLendingPool(payable(address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F)));
-    IInitLendingPool init_blastPool_BLAST =
-        IInitLendingPool(payable(address(0xdafB6929442303e904A2f673A0E7EB8753Bab571)));
-    IInitLendingPool init_wethPool_BLAST =
-        IInitLendingPool(payable(address(0xD20989EB39348994AA99F686bb4554090d0C09F3)));
-
-    CErc20 compound_usdbPool_BLAST = CErc20(address(0x9aECEdCD6A82d26F2f86D331B17a1C1676442A87));
-    CErc20 compound_wbtcPool_BLAST = CErc20(address(0x8C415331761063E5D6b1c8E700f996b13603Fc2E));
-    CEth compound_ethPool_BLAST = CEth(address(0x0872b71EFC37CB8DdE22B2118De3d800427fdba0));
-
-    IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
-    IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
-    IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
 
     IHubPool across_hubPool_ETHEREUM = IHubPool(payable(address(0xc186fA914353c44b2E33eBE05f21846F1048bEda)));
     IAcceleratingDistributor across_acceleratingDistributor_ETHEREUM =

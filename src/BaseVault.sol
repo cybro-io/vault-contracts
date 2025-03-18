@@ -200,6 +200,29 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     }
 
     /**
+     * @notice Deposits assets with an updated fee discount based on staking amount
+     * @dev Updates the user's staked amount before performing the deposit to apply the correct fee discount
+     * @param assets The amount of assets to deposit
+     * @param receiver The address to receive the shares
+     * @param minShares The minimum amount of shares to mint (slippage protection)
+     * @param stakedAmount The amount of tokens staked by the user
+     * @param deadline The deadline for the signature to be valid
+     * @param signature The signature from the authorized signer verifying the staked amount
+     * @return shares The amount of shares minted to the receiver
+     */
+    function updateFeeDiscountDeposit(
+        uint256 assets,
+        address receiver,
+        uint256 minShares,
+        uint256 stakedAmount,
+        uint256 deadline,
+        bytes memory signature
+    ) external returns (uint256 shares) {
+        feeProvider.setStakedAmount(msg.sender, stakedAmount, deadline, signature);
+        return deposit(assets, receiver, minShares);
+    }
+
+    /**
      * @notice Redeems shares from the vault
      * @param shares The amount of shares to redeem
      * @param receiver The address to receive the assets

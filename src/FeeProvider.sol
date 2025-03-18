@@ -4,17 +4,36 @@ pragma solidity =0.8.26;
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /**
  * @title FeeProvider
  * @notice A contract for managing fees for users
  */
 contract FeeProvider is IFeeProvider, OwnableUpgradeable {
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
+
+    error InvalidSignature();
+    error DifferentArraysLength();
+    error ExpiredSignature();
+
     struct UserFees {
         bool initialized;
         uint32 depositFee;
         uint32 withdrawalFee;
         uint32 performanceFee;
+    }
+
+    struct StakedAmount {
+        uint256 stakedAmount;
+        uint256 deadline;
+    }
+
+    struct TierData {
+        uint32 discount;
+        uint256 minAmount;
     }
 
     /* ========== EVENTS ========== */
@@ -42,6 +61,11 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
     mapping(address contractAddress => bool isWhitelisted) public whitelistedContracts;
 
     uint32 private _managementFee;
+
+    mapping(address user => StakedAmount stakedAmount) private _stakedAmounts;
+    mapping(address signer => bool isSigner) public signers;
+    uint8[] public discountTiers;
+    mapping(uint8 tier => TierData tierData) public tiersData;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -156,6 +180,72 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
             userFees.withdrawalFee = withdrawalFee;
             userFees.performanceFee = performanceFee;
         }
+
+        depositFee = _applyDiscount(depositFee, user);
+        withdrawalFee = _applyDiscount(withdrawalFee, user);
+        performanceFee = _applyDiscount(performanceFee, user);
+    }
+
+    /**
+     * @notice Sets the tiers
+     * @param discountTiers_ The discount tiers
+     * @param discounts_ The discounts
+     * @param minAmounts_ The minimum amounts for the tiers
+     */
+    function setTiers(uint8[] memory discountTiers_, uint32[] memory discounts_, uint256[] memory minAmounts_)
+        external
+        onlyOwner
+    {
+        require(discountTiers_.length == discounts_.length && discounts_.length == minAmounts_.length);
+        discountTiers = discountTiers_;
+        for (uint8 i = 0; i < discountTiers_.length; i++) {
+            tiersData[discountTiers_[i]] = TierData({discount: discounts_[i], minAmount: minAmounts_[i]});
+        }
+    }
+
+    /**
+     * @notice Sets the staked amount and deadline for a user
+     * @param user The user to set the staked amount and deadline for
+     * @param stakedAmount The staked amount
+     * @param deadline The deadline
+     * @param signature The signature
+     */
+    function setStakedAmount(address user, uint256 stakedAmount, uint256 deadline, bytes memory signature) external {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        address signer_ =
+            keccak256(abi.encodePacked(user, stakedAmount, deadline)).toEthSignedMessageHash().recover(signature);
+        if (!signers[signer_]) revert InvalidSignature();
+        _stakedAmounts[user] = StakedAmount({stakedAmount: stakedAmount, deadline: deadline});
+    }
+
+    /**
+     * @notice Sets the staked amounts and deadlines for multiple users
+     * @param users_ The users to set the staked amounts and deadlines for
+     * @param stakedAmounts_ The staked amounts
+     * @param deadlines_ The deadlines
+     */
+    function setStakedAmounts(address[] memory users_, uint256[] memory stakedAmounts_, uint256[] memory deadlines_)
+        external
+        onlyOwner
+    {
+        if (users_.length != stakedAmounts_.length || users_.length != deadlines_.length) {
+            revert DifferentArraysLength();
+        }
+        for (uint256 i = 0; i < users_.length; i++) {
+            _stakedAmounts[users_[i]] = StakedAmount({stakedAmount: stakedAmounts_[i], deadline: deadlines_[i]});
+        }
+    }
+
+    /**
+     * @notice Sets the signers
+     * @param signers_ The signers to set
+     * @param isSigner_ Indicates whether users are signers
+     */
+    function setSigners(address[] memory signers_, bool[] memory isSigner_) external onlyOwner {
+        if (signers_.length != isSigner_.length) revert DifferentArraysLength();
+        for (uint256 i = 0; i < signers_.length; i++) {
+            signers[signers_[i]] = isSigner_[i];
+        }
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -174,7 +264,9 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The deposit fee
      */
     function getDepositFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? uint32(Math.min(_depositFee, _users[user].depositFee)) : _depositFee;
+        return _applyDiscount(
+            _users[user].initialized ? uint32(Math.min(_depositFee, _users[user].depositFee)) : _depositFee, user
+        );
     }
 
     /**
@@ -183,7 +275,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The withdrawal fee
      */
     function getWithdrawalFee(address user) external view returns (uint32) {
-        return _users[user].initialized ? uint32(Math.min(_withdrawalFee, _users[user].withdrawalFee)) : _withdrawalFee;
+        return _applyDiscount(
+            _users[user].initialized ? uint32(Math.min(_withdrawalFee, _users[user].withdrawalFee)) : _withdrawalFee,
+            user
+        );
     }
 
     /**
@@ -192,8 +287,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @return The performance fee
      */
     function getPerformanceFee(address user) external view returns (uint32) {
-        return
-            _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee;
+        return _applyDiscount(
+            _users[user].initialized ? uint32(Math.min(_performanceFee, _users[user].performanceFee)) : _performanceFee,
+            user
+        );
     }
 
     /**
@@ -202,5 +299,42 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      */
     function getManagementFee() external view returns (uint32) {
         return _managementFee;
+    }
+
+    /**
+     * @notice Returns the discount for a user
+     * @param user The user to get the discount for
+     * @return The discount
+     */
+    function getDiscount(address user) public view returns (uint32) {
+        if (_stakedAmounts[user].deadline < block.timestamp) return 0;
+        uint256 amount = _stakedAmounts[user].stakedAmount;
+        for (uint8 i = uint8(discountTiers.length); i > 0; i--) {
+            TierData memory tierData = tiersData[discountTiers[i - 1]];
+            if (amount >= tierData.minAmount) return tierData.discount;
+        }
+        return 0;
+    }
+
+    /**
+     * @notice Returns the staked amount and deadline for a user
+     * @param user The user to get the staked amount and deadline for
+     * @return stakedAmount The staked amount
+     * @return deadline The deadline
+     */
+    function stakedAmountInfo(address user) external view returns (uint256 stakedAmount, uint256 deadline) {
+        return (_stakedAmounts[user].stakedAmount, _stakedAmounts[user].deadline);
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    /**
+     * @notice Applies the discount to a fee
+     * @param fee The fee to apply the discount to
+     * @param user The user to apply the discount to
+     * @return The fee with the discount applied
+     */
+    function _applyDiscount(uint32 fee, address user) internal view returns (uint32) {
+        return fee * (_feePrecision - getDiscount(user)) / _feePrecision;
     }
 }

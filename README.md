@@ -42,3 +42,13 @@ To deploy spark vault on the base chain, run the following command:
 ```bash
 forge script UpdatedDeployScript --sig "deploySparkBase()" --private-key <your_private_key> --rpc-url <your_base_rpc_url>
 ```
+
+To deploy one click index with all of the vaults, on the blast chain with WETH, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deployOneClickBlast_WETH()" --private-key <your_private_key> --rpc-url <your_blast_rpc_url>
+```
+
+To deploy seasonal vault on the arbitrum chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deploySeasonalArbitrum()"  --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
+```

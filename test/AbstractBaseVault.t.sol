@@ -12,10 +12,12 @@ import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
 import {DeployUtils} from "./DeployUtils.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
+    using SafeERC20 for IERC20Metadata;
 
     uint256 forkId;
     IVault vault;
@@ -170,19 +172,19 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             vm.stopPrank();
         }
         vm.startPrank(user);
-        asset_.approve(vaultAddress, amount_);
+        asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user2);
-        asset_.approve(vaultAddress, amount_);
+        asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user3);
-        asset_.approve(vaultAddress, amount_);
+        asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user4);
-        asset_.approve(vaultAddress, amount_);
+        asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(admin);
-        asset_.approve(vaultAddress, amount_);
+        asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
     }
 

@@ -292,6 +292,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
+
     function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
         vault = BufferVault(
             address(
@@ -383,6 +384,130 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     // pool = address(0xc5EaC92633aF47c0023Afa0116500ab86FAB430F);
     // InitVault initVault =
     //     _deployInitVault(DeployVault(usdb, pool, feeProvider, feeRecipient, "Init USDB", "cyiUSDB", admin, admin));
+
+    function deployOneClickBlast_WETH() external {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(weth_BLAST), "WETH");
+
+        // Zerolend WETH
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: weth_BLAST,
+                        pool: address(aave_zerolendPool_BLAST),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Zerolend WETH",
+                        symbol: "cyzlWETH",
+                        manager: cybroManager,
+                        admin: admin
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployJuiceVault(
+                    DeployVault({
+                        asset: weth_BLAST,
+                        pool: address(juice_wethPool_BLAST),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Juice WETH",
+                        symbol: "cyjceWETH",
+                        manager: cybroManager,
+                        admin: admin
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        // ASO WETH
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVaultETH(
+                    DeployVault({
+                        asset: weth_BLAST,
+                        pool: address(aso_weth_BLAST),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "ASO WETH",
+                        symbol: "cyasoWETH",
+                        manager: cybroManager,
+                        admin: admin
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployYieldStakingVault(
+                    DeployVault({
+                        asset: weth_BLAST,
+                        pool: address(blastupYieldStaking_WETH_BLAST),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "CYBRO WETH",
+                        symbol: "cyWETH",
+                        manager: cybroManager,
+                        admin: admin
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[3]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 500, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(weth_BLAST, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Blast Index WETH", "wethIndex", admin, admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(2500);
+        lendingShares.push(2500);
+        lendingShares.push(1000);
+        lendingShares.push(4000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(fundLending.STRATEGIST_ROLE(), admin));
+
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex WETH", address(fundLending));
+        _testVaultWorks(BaseVault(vaults[0]), 1e19, false);
+        _testVaultWorks(BaseVault(vaults[1]), 1e19, false);
+        _testVaultWorks(BaseVault(vaults[2]), 1e19, false);
+        _testVaultWorks(BaseVault(vaults[3]), 1e19, false);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e19, true);
+
+        vm.startBroadcast();
+        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(fundLending.MANAGER_ROLE(), cybroManager);
+        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLending.revokeRole(MANAGER_ROLE, admin);
+        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
 
     function deployGammaCamelotArbitrum() external {
         vm.startBroadcast();
@@ -907,6 +1032,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
+
     function deploySeasonalArbitrum() public {
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();

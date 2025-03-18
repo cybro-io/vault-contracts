@@ -151,6 +151,10 @@ contract DeployUtils {
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
 
+    /* ASO (compound) */
+
+    CEth aso_weth_BLAST = CEth(address(0x001FF326A2836bdD77B28E992344983681071f87));
+
     /* JUICE */
 
     IJuicePool juice_usdbPool_BLAST = IJuicePool(address(0x4A1d9220e11a47d8Ab22Ccd82DA616740CF0920a));
@@ -158,6 +162,8 @@ contract DeployUtils {
 
     IYieldStaking blastupYieldStaking_BLAST =
         IYieldStaking(payable(address(0x0E84461a00C661A18e00Cab8888d146FDe10Da8D)));
+    IYieldStaking blastupYieldStaking_WETH_BLAST =
+        IYieldStaking(payable(address(0x4E5Ed7a628760f7c60b4A9DA0A25c28BB024F787)));
 
     /* INIT */
 

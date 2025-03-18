@@ -88,9 +88,6 @@ contract DeployUtils {
     IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
     IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
 
-    IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
-    IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
-
     /* ========== CHAINLINK ORACLES ========== */
 
     /* BLAST */

@@ -26,6 +26,8 @@ import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
 import {SparkVault} from "../src/vaults/SparkVault.sol";
+import {SteerCamelotVault} from "../src/vaults/SteerCamelot.sol";
+import {ICamelotMultiPositionLiquidityManager} from "../src/interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -189,6 +191,11 @@ contract DeployUtils {
     /* LODESTAR */
 
     CErc20 compound_lodestarUSDC_ARBITRUM = CErc20(address(0x4C9aAed3b8c443b4b634D1A189a5e25C604768dE));
+
+    /* STEER */
+
+    ICamelotMultiPositionLiquidityManager steer_wethusdc_ARBITRUM =
+        ICamelotMultiPositionLiquidityManager(address(0x801B4184de0CDF298ce933b042911500FADA1de6));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -406,6 +413,25 @@ contract DeployUtils {
                             SparkVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deploySteerCamelot(VaultSetup memory vaultData) internal returns (IVault steerCamelotVault_) {
+        steerCamelotVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new SteerCamelotVault(
+                            vaultData.asset, vaultData.feeRecipient, IFeeProvider(vaultData.feeProvider), vaultData.pool
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        SteerCamelotVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                     )
                 )
             )

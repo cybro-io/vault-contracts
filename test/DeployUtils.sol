@@ -26,6 +26,8 @@ import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
 import {SparkVault} from "../src/vaults/SparkVault.sol";
+import {SteerCamelotVault} from "../src/vaults/SteerCamelot.sol";
+import {ICamelotMultiPositionLiquidityManager} from "../src/interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -181,6 +183,11 @@ contract DeployUtils {
     IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
     IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
     IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
+
+    /* STEER */
+
+    ICamelotMultiPositionLiquidityManager steer_wethusdc_ARBITRUM =
+        ICamelotMultiPositionLiquidityManager(address(0x801B4184de0CDF298ce933b042911500FADA1de6));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -398,6 +405,25 @@ contract DeployUtils {
                             SparkVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deploySteerCamelot(VaultSetup memory vaultData) internal returns (IVault steerCamelotVault_) {
+        steerCamelotVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new SteerCamelotVault(
+                            vaultData.asset, vaultData.feeRecipient, IFeeProvider(vaultData.feeProvider), vaultData.pool
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        SteerCamelotVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                     )
                 )
             )

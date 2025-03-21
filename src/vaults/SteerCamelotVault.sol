@@ -99,14 +99,23 @@ contract SteerCamelotVault is BaseVault {
         }
         (, uint256 amount0Used, uint256 amount1Used) = steerVault.deposit(amount0, amount1, 0, 0, address(this));
 
-        // Return unused tokens back to sender
-        uint256 unusedAmount0 = amount0 - amount0Used;
-        uint256 unusedAmount1 = amount1 - amount1Used;
-        if (unusedAmount0 > 0) {
-            IERC20Metadata(token0).safeTransfer(msg.sender, unusedAmount0);
-        }
-        if (unusedAmount1 > 0) {
-            IERC20Metadata(token1).safeTransfer(msg.sender, unusedAmount1);
+        // Calculate remaining amounts after liquidity provision
+        amount0 -= amount0Used;
+        amount1 -= amount1Used;
+
+        // Handle remaining tokens and return them to the user if necessary
+        if (amount0 > 0 && !isToken0) {
+            amount1 += _swap(true, amount0);
+            IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
+        } else if (amount1 > 0 && isToken0) {
+            amount0 += _swap(false, amount1);
+            IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
+        } else {
+            if (isToken0 && amount0 > 0) {
+                IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
+            } else if (amount1 > 0) {
+                IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
+            }
         }
     }
 

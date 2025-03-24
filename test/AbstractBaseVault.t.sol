@@ -295,6 +295,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         vm.assertEq(vault.balanceOf(_user), shares);
         vm.assertApproxEqAbs(shares * vault.sharePrice() / (10 ** vault.decimals()), amountWithFee, amount / 100);
         vm.assertApproxEqAbs(vault.totalAssets() - tvlBefore, amountWithFee, amount / 100);
+        if (tvlBefore == 0) {
+            vm.assertApproxEqAbs(vault.totalAssets(), amountWithFee, amountWithFee / 10);
+        }
 
         if (feeProvider != IFeeProvider(address(0))) {
             signature = _getSignature(_user, 0, deadline);

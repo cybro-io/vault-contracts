@@ -12,6 +12,7 @@ import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IRewardTracker} from "../interfaces/jones/IRewardTracker.sol";
 
 /**
  * @title JonesCamelotVault
@@ -31,6 +32,7 @@ contract JonesCamelotVault is BaseVault {
     IAlgebraPool public immutable pool;
     IAlgebraLPManager public immutable LPManager;
     ICompounder public immutable compounder;
+    IRewardTracker public immutable tracker;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -45,6 +47,7 @@ contract JonesCamelotVault is BaseVault {
         router = IRouter(compounder.router());
         pool = IAlgebraPool(_pool);
         LPManager = IAlgebraLPManager(compounder.manager());
+        tracker = IRewardTracker(compounder.tracker());
         // tokens are already sorted
         token0 = compounder.token0();
         token1 = compounder.token1();
@@ -147,9 +150,10 @@ contract JonesCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _totalAssetsPrecise() internal override returns (uint256) {
-        (uint256 amount0, uint256 amount1) = LPManager.aum();
-        return compounder.previewRedeem(compounder.balanceOf(address(this))) * _calculateInBaseToken(amount0, amount1)
-            / LPManager.totalSupply();
+        (uint256 amount0, uint256 amount1) = tracker.claimable(address(this));
+        require(amount0 == 0 && amount1 == 0, "JonesCamelot: claimable gt zero");
+        router.claim(address(compounder), 0);
+        return totalAssets();
     }
 
     /**

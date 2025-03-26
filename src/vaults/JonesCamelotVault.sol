@@ -150,8 +150,6 @@ contract JonesCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _totalAssetsPrecise() internal override returns (uint256) {
-        (uint256 amount0, uint256 amount1) = tracker.claimable(address(this));
-        require(amount0 == 0 && amount1 == 0, "JonesCamelot: claimable gt zero");
         router.claim(address(compounder), 0);
         return totalAssets();
     }

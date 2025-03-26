@@ -180,7 +180,15 @@ contract DeployUtils {
 
     IUniProxy uniProxy_gamma_ARBITRUM = IUniProxy(address(0x1F1Ca4e8236CD13032653391dB7e9544a6ad123E));
     IHypervisor hypervisor_gamma_ARBITRUM = IHypervisor(address(0xd7Ef5Ac7fd4AAA7994F3bc1D273eAb1d1013530E));
+
+    /* SPARK */
+
     IPSM3 psm3Pool_BASE = IPSM3(address(0x1601843c5E9bC251A3272907010AFa41Fa18347E));
+    IPSM3 psm3Pool_ARBITRUM = IPSM3(address(0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266));
+
+    /* LODESTAR */
+
+    CErc20 compound_lodestarUSDC_ARBITRUM = CErc20(address(0x4C9aAed3b8c443b4b634D1A189a5e25C604768dE));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(

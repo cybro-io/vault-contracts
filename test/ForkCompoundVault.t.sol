@@ -123,3 +123,38 @@ contract CompoundVaultBaseChainTest is AbstractBaseVaultTest {
         baseVaultTest(true);
     }
 }
+
+contract CompoundVaultArbitrumTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        super.setUp();
+        amount = 1e10;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = CompoundVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new CompoundVault(
+                            asset, compound_lodestarUSDC_ARBITRUM, IFeeProvider(feeProvider), feeRecipient
+                        )
+                    ),
+                    admin,
+                    abi.encodeCall(CompoundVault.initialize, (admin, name, symbol, admin))
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdc() public {
+        asset = usdc_ARBITRUM;
+        baseVaultTest(true);
+    }
+}

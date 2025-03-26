@@ -65,7 +65,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
     uint32 public constant feePrecision = 10000;
     address public constant feeRecipient = address(0x66E424337c0f888DCCbCf2e0730A00A526D716f6);
-    address public constant cybroWallet = address(0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6);
+    address public constant cybroWallet = address(0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB);
     address public constant cybroManager = address(0xD06Fd4465CdEdD4D8e01ec7ebd5F835cbb22cF01);
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -411,6 +411,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
 
+        // Juice WETH
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         vaults.push(
             address(
@@ -450,6 +451,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
 
+        // Yield Staking WETH (CYBRO WETH)
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         vaults.push(
             address(
@@ -469,7 +471,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[3]);
 
-        feeProvider = _deployFeeProvider(admin, 0, 30, 500, 0);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 500, 0);
         OneClickIndex fundLending = OneClickIndex(
             address(
                 new TransparentUpgradeableProxy(
@@ -1021,6 +1023,112 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
         _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
         _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+
+        vm.startBroadcast();
+        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
+        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLending.revokeRole(MANAGER_ROLE, admin);
+        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    /// @notice Deploy a OneClickIndex with AAVE + Compound (LODESTAR) + SPARK
+    function deployOneClick_ARBITRUM_USDC_ACS() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_ARBITRUM), "USDC");
+
+        // AAVE
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(aave_pool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave USDC",
+                        symbol: "cyaUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        // COMPOUND (LODESTAR)
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(compound_lodestarUSDC_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Compound USDC",
+                        symbol: "cymUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        // SPARK
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deploySparkVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(psm3Pool_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Spark USDC",
+                        symbol: "cysUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
+        
+        feeProvider = _deployFeeProvider(admin, 0, 0, 500, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_ARBITRUM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Index Arbitrum USDC", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(1500);
+        lendingShares.push(1500);
+        lendingShares.push(7000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(fundLending.STRATEGIST_ROLE(), admin));
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC Arbitrum", address(fundLending));
+        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
         _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
 
         vm.startBroadcast();

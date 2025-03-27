@@ -69,6 +69,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     address public constant cybroManager = address(0xD06Fd4465CdEdD4D8e01ec7ebd5F835cbb22cF01);
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
 
     address[] vaults;
     address[] vaults2;
@@ -1035,8 +1036,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
     }
 
-    /// @notice Deploy a OneClickIndex with AAVE + Compound (LODESTAR) + SPARK
-    function deployOneClick_ARBITRUM_USDC_ACS() public {
+    /// @notice Deploy a OneClickIndex with AAVE + SPARK
+    function deployOneClick_ARBITRUM_USDC_AC() public {
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();
 
@@ -1062,26 +1063,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
 
-        // COMPOUND (LODESTAR)
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
-        vaults.push(
-            address(
-                _deployCompoundVault(
-                    DeployVault({
-                        asset: usdc_ARBITRUM,
-                        pool: address(compound_lodestarUSDC_ARBITRUM),
-                        feeProvider: feeProvider,
-                        feeRecipient: feeRecipient,
-                        name: "Cybro Compound USDC",
-                        symbol: "cymUSDC",
-                        admin: admin,
-                        manager: cybroManager
-                    })
-                )
-            )
-        );
-        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
-
         // SPARK
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         vaults.push(
@@ -1100,8 +1081,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
                 )
             )
         );
-        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
-        
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
         feeProvider = _deployFeeProvider(admin, 0, 0, 500, 0);
         OneClickIndex fundLending = OneClickIndex(
             address(
@@ -1115,8 +1096,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
             )
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
-        lendingShares.push(1500);
-        lendingShares.push(1500);
+        lendingShares.push(3000);
         lendingShares.push(7000);
         fundLending.addLendingPools(vaults);
         fundLending.setLendingShares(vaults, lendingShares);
@@ -1128,7 +1108,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("OneClickIndex USDC Arbitrum", address(fundLending));
         _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
         _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
         _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
 
         vm.startBroadcast();
@@ -1438,11 +1417,16 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         for (uint256 i = 0; i < vaults.length; i++) {
             BaseVault vault_ = BaseVault(vaults[i]);
             vault_.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+            vault_.grantRole(MANAGER_ROLE, cybroWallet);
+            vault_.grantRole(STRATEGIST_ROLE, cybroWallet);
             vault_.revokeRole(MANAGER_ROLE, admin_);
             vault_.revokeRole(DEFAULT_ADMIN_ROLE, admin_);
             vm.assertTrue(vault_.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+            vm.assertTrue(vault_.hasRole(MANAGER_ROLE, cybroWallet));
+            vm.assertTrue(vault_.hasRole(STRATEGIST_ROLE, cybroWallet));
             vm.assertFalse(vault_.hasRole(DEFAULT_ADMIN_ROLE, admin_));
             vm.assertFalse(vault_.hasRole(MANAGER_ROLE, admin_));
+            vm.assertFalse(vault_.hasRole(STRATEGIST_ROLE, admin_));
         }
     }
 }

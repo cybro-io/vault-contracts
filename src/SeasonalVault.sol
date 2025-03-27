@@ -333,15 +333,11 @@ library VaultLogic {
         uint160 price1,
         uint160 price2,
         address tokenTreasure,
+        IUniswapV3Pool pool,
         Immutables memory immutables,
         OraclesLogic.Oracles storage oracles,
         PositionsLogic.Positions storage positions
     ) external {
-        IUniswapV3Pool pool;
-        {
-            IUniswapV3Factory factory = IUniswapV3Factory(immutables.positionManager.factory());
-            pool = IUniswapV3Pool(factory.getPool(address(immutables.token0), address(immutables.token1), fee));
-        }
         (uint160 currentPrice,,,,,,) = pool.slot0();
         if (price1 > price2) (price1, price2) = (price2, price1);
 
@@ -890,6 +886,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
             price1: price1,
             price2: price2,
             tokenTreasure: address(tokenTreasure),
+            pool: IUniswapV3Pool(_getOrUpdatePool(fee)),
             immutables: _getImmutables(),
             oracles: oracles,
             positions: positions

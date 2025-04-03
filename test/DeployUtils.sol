@@ -108,6 +108,10 @@ contract DeployUtils {
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
     IChainlinkOracle oracle_BTC_ARBITRUM = IChainlinkOracle(address(0x6ce185860a4963106506C203335A2910413708e9));
 
+    /* ETHEREUM */
+    IChainlinkOracle oracle_ETHUSD_ETHEREUM = IChainlinkOracle(address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419));
+    IChainlinkOracle oracle_USDTUSD_ETHEREUM = IChainlinkOracle(address(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D));
+
     /* ========== DEXES ========== */
 
     /* UNISWAP */

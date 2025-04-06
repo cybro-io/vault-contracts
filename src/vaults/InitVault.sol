@@ -9,7 +9,6 @@ import {IInitCore} from "../interfaces/init/IInitCore.sol";
 import {IERC20RebasingWrapper} from "../interfaces/init/IERC20RebasingWrapper.sol";
 import {IInitLendingPool} from "../interfaces/init/IInitLendingPool.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
-import {console} from "forge-std/console.sol";
 
 /**
  * @title InitVault

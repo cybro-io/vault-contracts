@@ -10,7 +10,6 @@ import {IHubPool} from "../interfaces/across/IHubPool.sol";
 import {IAcceleratingDistributor} from "../interfaces/across/IAcceleratingDistributor.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -18,7 +17,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title AcrossVault
  * @notice A vault contract for managing Across Protocol liquidity
  */
-contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
+contract AcrossVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== ERRORS ========== */
@@ -123,20 +122,14 @@ contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
 
     /**
      * @notice Claims and reinvests accumulated rewards
-     * @dev Withdraws ACX rewards from staking, swaps to asset and deposits back into the pool
-     * @param minAssets The minimum amount of assets expected after swap
-     * @return assets The amount of assets obtained after swapping rewards
+     * @dev Withdraws ACX rewards from staking
+     * @return assets The amount of assets reinvested
      */
-    function claimReinvest(uint256 minAssets) external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
-        _reinvest();
+    function claimReinvest() external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
+        assets = _reinvest();
 
         // Claim ACX rewards from staking contract
         staking.withdrawReward(address(lpToken));
-        // Swap ACX to the underlying asset
-        assets = _swapToAssets(acx.balanceOf(address(this)));
-
-        // Revert if slippage is too high
-        if (assets < minAssets) revert AcrossVault__slippage();
 
         reinvested = 0;
     }
@@ -144,17 +137,8 @@ contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
     /**
      * @notice Reinvests equal amount of assets as the amount of rewards
      */
-    function reinvest() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _reinvest();
-    }
-
-    /**
-     * @notice Quotes the amount of assets to reinvest
-     * @return assets The amount of assets to reinvest
-     */
-    function quoteReinvest() external view returns (uint256) {
-        uint256 rewards = staking.getOutstandingRewards(address(lpToken), address(this));
-        return _calculateACXInAsset(rewards - reinvested);
+    function reinvest() external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
+        assets = _reinvest();
     }
 
     /**
@@ -184,27 +168,21 @@ contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
      */
     function getACXPrice() public view returns (uint256) {
         // twap
-        uint32[] memory secondsAgos = new uint32[](4);
+        uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = 0;
-        secondsAgos[1] = 450;
-        secondsAgos[2] = 900;
-        secondsAgos[3] = 1800;
+        secondsAgos[1] = 1800;
 
         (int56[] memory tickCumulatives,) = acxWethPool.observe(secondsAgos);
-        uint256 sumPrice;
-        for (uint256 i = 1; i < secondsAgos.length; i++) {
-            int56 tickCumulativeDelta = tickCumulatives[0] - tickCumulatives[i];
-            int56 timeElapsed = int56(uint56(secondsAgos[i]));
+        int56 tickCumulativeDelta = tickCumulatives[0] - tickCumulatives[1];
+        int56 timeElapsed = int56(uint56(secondsAgos[1]));
 
-            int24 averageTick = int24(tickCumulativeDelta / timeElapsed);
-            if (tickCumulativeDelta < 0 && (tickCumulativeDelta % timeElapsed != 0)) {
-                averageTick--;
-            }
-
-            uint256 sqrtPrice = uint256(TickMath.getSqrtRatioAtTick(averageTick));
-            sumPrice += (sqrtPrice * sqrtPrice) >> 96;
+        int24 averageTick = int24(tickCumulativeDelta / timeElapsed);
+        if (tickCumulativeDelta < 0 && (tickCumulativeDelta % timeElapsed != 0)) {
+            averageTick--;
         }
-        return sumPrice / 3;
+
+        uint256 sqrtPrice = uint256(TickMath.getSqrtRatioAtTick(averageTick));
+        return (sqrtPrice * sqrtPrice) >> 96;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -212,10 +190,11 @@ contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
     /**
      * @notice Reinvests equal amount of assets as the amount of rewards
      */
-    function _reinvest() internal {
+    function _reinvest() internal returns (uint256 assets) {
         uint256 rewards = staking.getOutstandingRewards(address(lpToken), address(this));
         if (rewards > reinvested) {
-            _deposit(_calculateACXInAsset(rewards - reinvested));
+            assets = _calculateACXInAsset(rewards - reinvested);
+            _deposit(assets);
             reinvested = rewards;
         }
     }
@@ -308,65 +287,5 @@ contract AcrossVault is BaseVault, IUniswapV3SwapCallback {
     /// @inheritdoc BaseVault
     function _validateTokenToRecover(address) internal pure override returns (bool) {
         return true;
-    }
-
-    /**
-     * @notice Swaps ACX tokens to the vault's asset using Uniswap V3
-     * @dev First swaps ACX to WETH, then WETH to asset if needed
-     * @param amount The amount of ACX to swap
-     * @return assets The amount of assets received after the swap
-     */
-    function _swapToAssets(uint256 amount) internal returns (uint256 assets) {
-        // First swap: ACX to WETH
-        bool zeroForOne = address(acx) < address(weth);
-        (int256 amount0, int256 amount1) = acxWethPool.swap(
-            address(this),
-            zeroForOne,
-            int256(amount),
-            zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
-            zeroForOne ? abi.encode(acx, asset()) : abi.encode(asset(), acx)
-        );
-        assets = uint256(-(zeroForOne ? amount1 : amount0));
-
-        // Second swap: WETH to asset (if asset is not WETH)
-        if (asset() != address(weth)) {
-            zeroForOne = address(weth) < asset();
-            (amount0, amount1) = assetWethPool.swap(
-                address(this),
-                zeroForOne,
-                int256(assets),
-                zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1,
-                zeroForOne ? abi.encode(weth, asset()) : abi.encode(asset(), weth)
-            );
-            assets = uint256(-(zeroForOne ? amount1 : amount0));
-        }
-    }
-
-    /* ========== UNISWAP CALLBACK ========== */
-
-    /**
-     * @notice Uniswap V3 swap callback for providing required token amounts during swaps
-     * @dev Called by Uniswap pools during swap execution to request payment
-     * @param amount0Delta Amount of the first token delta
-     * @param amount1Delta Amount of the second token delta
-     * @param data Encoded data containing swap details
-     */
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        require(amount0Delta > 0 || amount1Delta > 0);
-        require(
-            msg.sender == address(acxWethPool) || msg.sender == address(assetWethPool),
-            "AcrossVault: invalid swap callback caller"
-        );
-
-        (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
-        (bool isExactInput, uint256 amountToPay) =
-            amount0Delta > 0 ? (tokenIn < tokenOut, uint256(amount0Delta)) : (tokenOut < tokenIn, uint256(amount1Delta));
-
-        // Transfer the required amount back to the pool
-        if (isExactInput) {
-            IERC20Metadata(tokenIn).safeTransfer(msg.sender, amountToPay);
-        } else {
-            IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
-        }
     }
 }

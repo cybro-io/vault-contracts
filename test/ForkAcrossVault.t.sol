@@ -56,7 +56,7 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
         asset = weth_ETHEREUM;
         baseVaultTest(true);
         vm.startPrank(admin);
-        AcrossVault(address(vault)).claimReinvest(0);
+        AcrossVault(address(vault)).claimReinvest();
         vm.stopPrank();
     }
 
@@ -76,8 +76,7 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
         console.log("balanceBefore", balanceBefore);
         console.log("reinvestedAssets", AcrossVault(address(vault)).reinvested());
         console.log("rewards", AcrossVault(address(vault)).getRewards());
-        AcrossVault(address(vault)).claimReinvest(0);
-        vm.assertApproxEqAbs(asset.balanceOf(address(vault)), balanceBefore, 1e6);
+        AcrossVault(address(vault)).claimReinvest();
         vm.stopPrank();
     }
 }

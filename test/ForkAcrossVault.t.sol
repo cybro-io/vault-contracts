@@ -30,7 +30,11 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
         );
         AcrossVault across = AcrossVault(address(vault));
         across.setOracles(oracle_ETHUSD_ETHEREUM, oracle_USDTUSD_ETHEREUM);
-        console.log("acxPrice", across.getACXPrice());
+        console.log("sqrt acxPrice", across.getACXPrice());
+        {
+            uint256 sqrtPrice_ = across.getACXPrice();
+            console.log("acxPrice", (uint256(sqrtPrice_) * uint256(sqrtPrice_)) >> 96);
+        }
         (uint160 sqrtPrice,,,,,,) = IUniswapV3Pool(across.acxWethPool()).slot0();
         console.log("pool price", (uint256(sqrtPrice) * uint256(sqrtPrice)) >> 96);
         vm.stopPrank();
@@ -56,7 +60,7 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
         asset = weth_ETHEREUM;
         baseVaultTest(true);
         vm.startPrank(admin);
-        AcrossVault(address(vault)).claimReinvest();
+        AcrossVault(address(vault)).claimReinvest(address(admin));
         vm.stopPrank();
     }
 
@@ -76,7 +80,7 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
         console.log("balanceBefore", balanceBefore);
         console.log("reinvestedAssets", AcrossVault(address(vault)).reinvested());
         console.log("rewards", AcrossVault(address(vault)).getRewards());
-        AcrossVault(address(vault)).claimReinvest();
+        AcrossVault(address(vault)).claimReinvest(address(admin));
         vm.stopPrank();
     }
 }

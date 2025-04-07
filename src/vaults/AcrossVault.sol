@@ -48,14 +48,17 @@ contract AcrossVault is BaseVault {
     /// @notice Uniswap V3 pool for asset/WETH pair
     IUniswapV3Pool public immutable assetWethPool;
 
+    /// @notice The oracle for the WETH
+    IChainlinkOracle public immutable wethOracle;
+
+    /// @notice The oracle for the asset
+    IChainlinkOracle public immutable assetOracle;
+
     /* ========== STORAGE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
 
     /// @notice The amount of rewards reinvested since last claim
     uint256 public reinvested;
-
-    /// @notice The oracles for the WETH and asset
-    mapping(address token => IChainlinkOracle oracle) public oracles;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -69,6 +72,8 @@ contract AcrossVault is BaseVault {
      * @param _acxWethPool The address of the ACX/WETH Uniswap V3 pool
      * @param _assetWethPool The address of the asset/WETH Uniswap V3 pool (or address(0) if asset is WETH)
      * @param _weth The address of the WETH token
+     * @param _wethOracle The oracle for the WETH
+     * @param _assetOracle The oracle for the asset
      */
     constructor(
         IERC20Metadata _asset,
@@ -78,7 +83,9 @@ contract AcrossVault is BaseVault {
         address _staking,
         address _acxWethPool,
         address _assetWethPool,
-        address _weth
+        address _weth,
+        IChainlinkOracle _wethOracle,
+        IChainlinkOracle _assetOracle
     ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         pool = IHubPool(payable(_pool));
         (address lpToken_,,,,,) = IHubPool(payable(_pool)).pooledTokens(address(_asset));
@@ -88,6 +95,8 @@ contract AcrossVault is BaseVault {
         acxWethPool = IUniswapV3Pool(_acxWethPool);
         assetWethPool = IUniswapV3Pool(_assetWethPool);
         weth = IERC20Metadata(_weth);
+        wethOracle = _wethOracle;
+        assetOracle = _assetOracle;
     }
 
     /* ========== INITIALIZER ========== */
@@ -109,16 +118,6 @@ contract AcrossVault is BaseVault {
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
-
-    /**
-     * @notice Sets oracles for weth and asset
-     * @param wethOracle The oracle for weth
-     * @param assetOracle The oracle for asset
-     */
-    function setOracles(IChainlinkOracle wethOracle, IChainlinkOracle assetOracle) external onlyRole(MANAGER_ROLE) {
-        oracles[address(weth)] = wethOracle;
-        oracles[asset()] = assetOracle;
-    }
 
     /**
      * @notice Claims and reinvests accumulated rewards
@@ -252,7 +251,7 @@ contract AcrossVault is BaseVault {
      * @return The latest price from the oracle
      */
     function _getPrice(address token) internal view returns (uint256) {
-        IChainlinkOracle oracle = oracles[token];
+        IChainlinkOracle oracle = token == address(weth) ? wethOracle : assetOracle;
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
 
         require(answeredInRound >= roundID, "Stale price");

@@ -139,7 +139,7 @@ contract AcrossVault is BaseVault {
     /**
      * @notice Reinvests equal amount of assets as the amount of rewards
      */
-    function reinvest() external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
+    function reinvest() external onlyRole(MANAGER_ROLE) returns (uint256 assets) {
         assets = _reinvest();
     }
 

@@ -125,11 +125,14 @@ contract AcrossVault is BaseVault {
      * @dev Withdraws ACX rewards from staking
      * @return assets The amount of assets reinvested
      */
-    function claimReinvest() external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
+    function claimReinvest(address _recipient) external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256 assets) {
         assets = _reinvest();
 
         // Claim ACX rewards from staking contract
         staking.withdrawReward(address(lpToken));
+
+        // Transfer acx rewards to recipient
+        acx.safeTransfer(_recipient, acx.balanceOf(address(this)));
 
         reinvested = 0;
     }
@@ -163,8 +166,8 @@ contract AcrossVault is BaseVault {
     }
 
     /**
-     * @notice Gets the price of ACX in WETH using the ACX/WETH Uniswap V3 pool
-     * @return price The price of ACX in WETH
+     * @notice Gets the sqrt price of ACX in WETH using the ACX/WETH Uniswap V3 pool
+     * @return price The sqrt price of ACX in WETH
      */
     function getACXPrice() public view returns (uint256) {
         // twap
@@ -181,8 +184,7 @@ contract AcrossVault is BaseVault {
             averageTick--;
         }
 
-        uint256 sqrtPrice = uint256(TickMath.getSqrtRatioAtTick(averageTick));
-        return (sqrtPrice * sqrtPrice) >> 96;
+        return uint256(TickMath.getSqrtRatioAtTick(averageTick));
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
@@ -234,8 +236,10 @@ contract AcrossVault is BaseVault {
      * @return acxInAsset The amount of asset
      */
     function _calculateACXInAsset(uint256 amount) internal view returns (uint256 acxInAsset) {
-        uint256 price = getACXPrice();
-        acxInAsset = acx < weth ? Math.mulDiv(amount, price, 2 ** 96) : Math.mulDiv(amount, 2 ** 96, price);
+        uint256 sqrtPrice = getACXPrice();
+        acxInAsset = acx < weth
+            ? Math.mulDiv(amount, sqrtPrice * sqrtPrice, 2 ** 192)
+            : Math.mulDiv(amount, 2 ** 192, sqrtPrice * sqrtPrice);
         if (asset() != address(weth)) {
             acxInAsset = (acxInAsset * _getPrice(address(weth)) / (10 ** IERC20Metadata(address(weth)).decimals()))
                 * (10 ** decimals()) / _getPrice(asset());

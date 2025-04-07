@@ -29,7 +29,6 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
             )
         );
         AcrossVault across = AcrossVault(address(vault));
-        across.setOracles(oracle_ETHUSD_ETHEREUM, oracle_USDTUSD_ETHEREUM);
         console.log("sqrt acxPrice", across.getACXPrice());
         {
             uint256 sqrtPrice_ = across.getACXPrice();

@@ -518,7 +518,11 @@ contract DeployUtils {
                                 address(across_acceleratingDistributor_ETHEREUM),
                                 address(pool_ACX_WETH_ETHEREUM),
                                 vaultData.asset == weth_ETHEREUM ? address(0) : address(pool_USDT_WETH_ETHEREUM),
-                                address(weth_ETHEREUM)
+                                address(weth_ETHEREUM),
+                                vaultData.asset == weth_ETHEREUM ? IChainlinkOracle(address(0)) : oracle_ETHUSD_ETHEREUM,
+                                vaultData.asset == weth_ETHEREUM
+                                    ? IChainlinkOracle(address(0))
+                                    : oracle_USDTUSD_ETHEREUM
                             )
                         ),
                         vaultData.admin,

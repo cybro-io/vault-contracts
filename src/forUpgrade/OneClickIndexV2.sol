@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.29;
+pragma solidity =0.8.26;
 
-import {IVault} from "./interfaces/IVault.sol";
+import {IVault} from "../interfaces/IVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
-import {BaseVault} from "./BaseVault.sol";
+import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {BaseVaultV2} from "./BaseVaultV2ForOneClick.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title OneClickIndex
  * @notice A contract for managing ERC20 token lending to multiple lending pools.
  */
-contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
+contract OneClickIndexV2 is BaseVaultV2, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -44,19 +45,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
-    error Slippage();
-    error InvalidSwapCallbackCaller();
-    error NoAvailablePools();
-    error DeviationNotPositive();
-    error DeviationNotNegative();
-    error InvalidFromPoolAddress();
-    error InvalidToPoolAddress();
-    error RebalanceFailedForFromPool();
-    error RebalanceFailedForToPool();
-    error StalePrice();
-    error RoundNotComplete();
-    error ChainlinkPriceReportingZero();
-
 
     /* ========== EVENTS ========== */
 
@@ -103,28 +91,149 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param _feeRecipient The address that receives the fees
      */
     constructor(IERC20Metadata _asset, IFeeProvider _feeProvider, address _feeRecipient)
-        BaseVault(_asset, _feeProvider, _feeRecipient)
+        BaseVaultV2(_asset, _feeProvider, _feeRecipient)
     {
         _disableInitializers();
     }
 
     /* ========== INITIALIZER ========== */
 
-    /**
-     * @notice Initializes the contract with admin
-     * @param admin The address of the admin
-     * @param name The name of the ERC20 token representing vault shares
-     * @param symbol The symbol of the ERC20 token representing vault shares
-     * @param strategist The address of the strategist
-     * @param manager The address of the manager
-     */
-    function initialize(address admin, string memory name, string memory symbol, address strategist, address manager)
-        public
-        initializer
-    {
-        __ERC20_init(name, symbol);
-        __BaseVault_init(admin, manager);
-        _grantRole(STRATEGIST_ROLE, strategist);
+    function initialize(address[] memory accountsToMigrate) public reinitializer(2) {
+        __BaseVault_init();
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        uint256 totalLendingShares_;
+        assembly {
+            totalLendingShares_ := sload(3)
+            sstore(3, 0)
+        }
+        $.totalLendingShares = totalLendingShares_;
+        console.log("totalLendingShares_", totalLendingShares_);
+
+        uint256 poolsCount;
+        assembly {
+            poolsCount := sload(1)
+        }
+        console.log("poolsCount", poolsCount);
+        address[] memory pools = new address[](poolsCount);
+
+        for (uint256 i = 0; i < poolsCount; i++) {
+            assembly {
+                mstore(0, 1)
+                let poolAddress := and(sload(add(keccak256(0, 32), i)), 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+                mstore(add(add(pools, 0x20), mul(i, 0x20)), poolAddress)
+            }
+        }
+        console.log("pools", pools[0], pools[1]);
+        {
+            bytes32 oldValuesArraySlot;
+            bytes32 newValuesArraySlot;
+            bytes32 oldPositionsMappingSlot;
+            bytes32 newPositionsMappingSlot;
+            bytes32 newSetSlot;
+
+            assembly {
+                // in slot 0 stored 1
+                oldValuesArraySlot := keccak256(0, 32)
+                oldPositionsMappingSlot := 2
+                newSetSlot := add(ONE_CLICK_INDEX_STORAGE_LOCATION, 1)
+                mstore(0, newSetSlot)
+                newValuesArraySlot := keccak256(0, 32)
+                newPositionsMappingSlot := add(newSetSlot, 1)
+                sstore(newSetSlot, poolsCount)
+            }
+            console.log("oldValuesArraySlot", uint256(oldValuesArraySlot));
+
+            for (uint256 i = 0; i < poolsCount; i++) {
+                address pool = pools[i];
+                bytes32 poolAsBytes32 = bytes32(uint256(uint160(pool)));
+
+                assembly {
+                    let elemValue := sload(add(oldValuesArraySlot, i))
+                    sstore(add(newValuesArraySlot, i), elemValue)
+                    sstore(add(oldValuesArraySlot, i), 0)
+
+                    mstore(0, poolAsBytes32)
+                    mstore(32, oldPositionsMappingSlot)
+                    let oldPositionSlot := keccak256(0, 64)
+                    let position := sload(oldPositionSlot)
+
+                    mstore(0, poolAsBytes32)
+                    mstore(32, newPositionsMappingSlot)
+                    let newPositionSlot := keccak256(0, 64)
+                    sstore(newPositionSlot, position)
+
+                    sstore(oldPositionSlot, 0)
+                }
+            }
+        }
+
+        bytes32 oldSharesSlot;
+        bytes32 newSharesSlot;
+
+        assembly {
+            oldSharesSlot := 0
+            newSharesSlot := ONE_CLICK_INDEX_STORAGE_LOCATION
+        }
+
+        for (uint256 i = 0; i < pools.length; i++) {
+            address pool = pools[i];
+            uint256 share;
+
+            assembly {
+                mstore(0, pool)
+                mstore(32, oldSharesSlot)
+                let valueSlot := keccak256(0, 64)
+
+                share := sload(valueSlot)
+                sstore(valueSlot, 0)
+
+                mstore(0, pool)
+                mstore(32, newSharesSlot)
+                let newValueSlot := keccak256(0, 64)
+                sstore(newValueSlot, share)
+            }
+        }
+
+        {
+            bytes32 oldBalancesSlot;
+            bytes32 baseVaultStorageLocation;
+
+            assembly {
+                oldBalancesSlot := 4
+                baseVaultStorageLocation := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
+            }
+
+            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                address account = accountsToMigrate[i];
+                uint256 balance_;
+
+                assembly {
+                    mstore(0, account)
+                    mstore(32, oldBalancesSlot)
+                    let valueSlot := keccak256(0, 64)
+                    balance_ := sload(valueSlot)
+
+                    if balance_ {
+                        sstore(valueSlot, 0)
+
+                        mstore(0, account)
+                        mstore(32, baseVaultStorageLocation)
+                        let newValueSlot := keccak256(0, 64)
+                        sstore(newValueSlot, balance_)
+                    }
+                }
+                console.log("account", account);
+                console.log("balance_", balance_);
+                console.log();
+            }
+        }
+
+        assembly {
+            sstore(1, 0)
+            sstore(2, 0)
+        }
+
+        console.log("lendingPoolAddresses", $.lendingPoolAddresses.at(0), $.lendingPoolAddresses.at(1));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -158,7 +267,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
             delete $.lendingShares[poolAddresses[i]];
 
-            require(lendingPoolAddresses.remove(poolAddresses[i]), InvalidPoolAddress());
+            require($.lendingPoolAddresses.remove(poolAddresses[i]));
 
             // Revoke approval for the lending pool
             IERC20Metadata(IVault(poolAddresses[i]).asset()).forceApprove(poolAddresses[i], 0);
@@ -178,11 +287,12 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         public
         onlyRole(MANAGER_ROLE)
     {
-        require(poolAddresses.length == newLendingShares.length, ArraysLengthMismatch());
+        if (poolAddresses.length != newLendingShares.length) revert ArraysLengthMismatch();
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            require(lendingPoolAddresses.contains(poolAddresses[i]), InvalidPoolAddress());
-            totalLendingShares = totalLendingShares - lendingShares[poolAddresses[i]] + newLendingShares[i];
-            lendingShares[poolAddresses[i]] = newLendingShares[i];
+            if (!$.lendingPoolAddresses.contains(poolAddresses[i])) revert InvalidPoolAddress();
+            $.totalLendingShares = $.totalLendingShares - $.lendingShares[poolAddresses[i]] + newLendingShares[i];
+            $.lendingShares[poolAddresses[i]] = newLendingShares[i];
 
             emit LendingPoolUpdated(poolAddresses[i], newLendingShares[i]);
         }
@@ -255,14 +365,15 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
      */
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
-        require(lendingPoolAddresses.contains(from), InvalidFromPoolAddress());
-        require(lendingPoolAddresses.contains(to), InvalidToPoolAddress());
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        require($.lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
+        require($.lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
 
         int256 deviationFrom = _computeDeviation(from);
         int256 deviationTo = _computeDeviation(to);
 
-        require(deviationFrom > 0, DeviationNotPositive());
-        require(deviationTo <= 0, DeviationNotNegative());
+        require(deviationFrom > 0, "OneClickIndex: Pool 'from' not deviated positively");
+        require(deviationTo <= 0, "OneClickIndex: Pool 'to' not deviated negatively");
 
         IVault(to).deposit(
             _swap(
@@ -277,8 +388,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
 
-        require(deviationFrom >= 0, RebalanceFailedForFromPool());
-        require(deviationTo <= 0, RebalanceFailedForToPool());
+        require(deviationFrom >= 0, "OneClickIndex: Rebalance failed for 'from' pool");
+        require(deviationTo <= 0, "OneClickIndex: Rebalance failed for 'to' pool");
     }
 
     /**
@@ -526,7 +637,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        require(lendingPoolAddresses.length() > 0, NoAvailablePools());
+        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
+        require($.lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
 
         for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
             address poolAddress = $.lendingPoolAddresses.at(i);
@@ -580,7 +692,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
         uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
-        require(amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision, Slippage());
+        require(
+            amountOutUsd >= amountInUsd * (slippagePrecision - $.maxSlippage) / slippagePrecision,
+            "OneClickIndex: Slippage"
+        );
     }
 
     /**
@@ -593,9 +708,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         IChainlinkOracle oracle = $.oracles[token];
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
 
-        require(answeredInRound >= roundID, StalePrice());
-        require(timestamp != 0, RoundNotComplete());
-        require(price > 0, ChainlinkPriceReportingZero());
+        require(answeredInRound >= roundID, "Stale price");
+        require(timestamp != 0, "Round not complete");
+        require(price > 0, "Chainlink price reporting 0");
 
         // returns price in the vault decimals
         return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
@@ -615,7 +730,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         return amount;
     }
 
-    /// @inheritdoc BaseVault
+    /// @inheritdoc BaseVaultV2
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
         OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         return !$.lendingPoolAddresses.contains(token);
@@ -632,7 +747,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
-        require(address(swapPools[tokenIn][tokenOut]) == msg.sender, InvalidSwapCallbackCaller());
+        require(address($.swapPools[tokenIn][tokenOut]) == msg.sender, "OneClickIndex: invalid swap callback caller");
 
         // Transfer the required amount back to the pool
         if (amount0Delta > 0) {

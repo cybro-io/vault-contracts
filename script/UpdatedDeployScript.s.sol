@@ -113,7 +113,11 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(feeProvider.getWithdrawalFee(admin), withdrawalFee);
         vm.assertEq(feeProvider.getPerformanceFee(admin), performanceFee);
         console.log("FeeProvider", address(feeProvider), "feePrecision", feePrecision);
-        console.log("  with fees", depositFee, withdrawalFee, performanceFee);
+        console.log("  with fees:");
+        console.log("    depositFee", depositFee);
+        console.log("    withdrawalFee", withdrawalFee);
+        console.log("    performanceFee", performanceFee);
+        console.log("    managementFee", managementFee);
         return feeProvider;
     }
 
@@ -1374,6 +1378,199 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
         _testVaultWorks(BaseVault(address(vaults[0])), 1e10, false);
         vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    function deploySeasonalBase() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_BASE), "USDC");
+        vm.label(address(cbwbtc_BASE), "CBWBTC");
+
+        // BUFFER
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults2.push(
+            address(
+                _deployBufferVault(
+                    DeployVault({
+                        asset: cbwbtc_BASE,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Buffer CBWBTC",
+                        symbol: "cyCBWBTC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[0]);
+
+        console.log("\n================================================\n");
+
+        // AAVE
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdc_BASE,
+                        pool: address(aave_pool_BASE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave USDC",
+                        symbol: "cyaUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        console.log("\n================================================\n");
+
+        // MOONWELL (COMPOUND)
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: usdc_BASE,
+                        pool: address(compound_moonwellUSDC_BASE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Moonwell USDC",
+                        symbol: "cymUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        console.log("\n================================================\n");
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        OneClickIndex fundLendingCBWbtc = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(cbwbtc_BASE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index", "cbwbtcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLendingCBWbtc));
+        lendingShares.push(10000);
+        fundLendingCBWbtc.addLendingPools(vaults2);
+        fundLendingCBWbtc.setLendingShares(vaults2, lendingShares);
+
+        tokens.push(address(usdc_BASE));
+        oracles.push(oracle_USDC_BASE);
+        tokens.push(address(cbwbtc_BASE));
+        oracles.push(oracle_BTC_BASE);
+
+        fundLendingCBWbtc.setOracles(tokens, oracles);
+        vm.assertTrue(fundLendingCBWbtc.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLendingCBWbtc.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLendingCBWbtc.hasRole(fundLendingCBWbtc.STRATEGIST_ROLE(), admin));
+        console.log("OneClickIndex CBWBTC Base", address(fundLendingCBWbtc));
+
+        console.log("\n================================================\n");
+
+        delete lendingShares;
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_BASE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(OneClickIndex.initialize, (admin, "Lending Index", "usdcLendingIndex", admin, admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(5000);
+        lendingShares.push(5000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        fundLending.setOracles(tokens, oracles);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, admin));
+        vm.assertTrue(fundLending.hasRole(fundLending.STRATEGIST_ROLE(), admin));
+        console.log("OneClickIndex USDC Base", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 500, 100);
+        SeasonalVault seasonal = SeasonalVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new SeasonalVault(
+                            payable(address(positionManager_UNI_BASE)),
+                            usdc_BASE,
+                            address(cbwbtc_BASE),
+                            address(usdc_BASE),
+                            feeProvider,
+                            feeRecipient,
+                            fundLendingCBWbtc,
+                            fundLending
+                        )
+                    ),
+                    admin,
+                    abi.encodeCall(SeasonalVault.initialize, (admin, "Cybro Seasonal Vault", "cySEAS", admin))
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(seasonal));
+        seasonal.setTickDiff(1823); // approximately equals to 20% of price diff
+        seasonal.setFeeForSwaps(500); // biggest tvl
+        seasonal.setOracles(tokens, oracles);
+        seasonal.setTreasureToken(address(cbwbtc_BASE));
+        seasonal.setMaxSlippage(100);
+        vm.stopBroadcast();
+
+        console.log("Seasonal Vault USDC/CBWBTC Base", address(seasonal));
+        console.log("\n================================================\n");
+        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+        _testVaultWorks(BaseVault(vaults2[0]), 1e10, false);
+        _testVaultWorks(BaseVault(address(fundLendingCBWbtc)), 1e10, true);
+        _testVaultWorks(BaseVault(address(seasonal)), 1e10, false);
+        vm.startBroadcast();
+        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLending.grantRole(MANAGER_ROLE, cybroManager);
+        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLending.revokeRole(MANAGER_ROLE, admin);
+        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, cybroManager));
+        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+
+        fundLendingCBWbtc.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        fundLendingCBWbtc.grantRole(MANAGER_ROLE, cybroManager);
+        fundLendingCBWbtc.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
+        fundLendingCBWbtc.revokeRole(MANAGER_ROLE, admin);
+        fundLendingCBWbtc.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        vm.assertTrue(fundLendingCBWbtc.hasRole(MANAGER_ROLE, cybroManager));
+        vm.assertTrue(fundLendingCBWbtc.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+
+        seasonal.grantRole(MANAGER_ROLE, cybroManager);
+        vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
+        vaults.push(address(seasonal));
+        vaults.push(vaults2[0]);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }

@@ -65,6 +65,8 @@ contract DeployUtils {
     IERC20Metadata weth_ARBITRUM = IERC20Metadata(address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1));
     IERC20Metadata usdc_ARBITRUM = IERC20Metadata(address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831));
     IERC20Metadata wbtc_ARBITRUM = IERC20Metadata(address(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f));
+    IERC20Metadata dai_ARBITRUM = IERC20Metadata(address(0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1));
+    IERC20Metadata weeth_ARBITRUM = IERC20Metadata(address(0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe));
 
     /* BASE */
     IERC20Metadata weth_BASE = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
@@ -92,6 +94,7 @@ contract DeployUtils {
     IChainlinkOracle oracle_USDT_BASE = IChainlinkOracle(address(0xf19d560eB8d2ADf07BD6D13ed03e1D11215721F9));
     IChainlinkOracle oracle_USDC_BASE = IChainlinkOracle(address(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B));
     IChainlinkOracle oracle_BTC_BASE = IChainlinkOracle(address(0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F));
+    IChainlinkOracle oracle_CBWBTC_BASE = IChainlinkOracle(address(0x07DA0E54543a844a80ABE69c8A12F22B3aA59f9D));
 
     /* ARBITRUM */
     IChainlinkOracle oracle_ETH_ARBITRUM = IChainlinkOracle(address(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612));
@@ -127,6 +130,8 @@ contract DeployUtils {
     address assetProvider_USDC_ARBITRUM = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
     address assetProvider_WETH_ARBITRUM = address(0x70d95587d40A2caf56bd97485aB3Eec10Bee6336);
     address assetProvider_WBTC_ARBITRUM = address(0x078f358208685046a11C85e8ad32895DED33A249);
+    address assetProvider_DAI_ARBITRUM = address(0x82E64f49Ed5EC1bC6e43DAD4FC8Af9bb3A2312EE);
+    address assetProvider_WEETH_ARBITRUM = address(0x8437d7C167dFB82ED4Cb79CD44B7a32A1dd95c77);
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
@@ -202,10 +207,12 @@ contract DeployUtils {
 
     ICamelotMultiPositionLiquidityManager steer_wethusdc_ARBITRUM =
         ICamelotMultiPositionLiquidityManager(address(0x801B4184de0CDF298ce933b042911500FADA1de6));
-
+    ICamelotMultiPositionLiquidityManager steer_usdcdai_ARBITRUM =
+        ICamelotMultiPositionLiquidityManager(address(0x5f033d4d786eC5592FDbb5B289000A2B9A466D32));
     /* JONES */
 
     ICompounder compounder_jones_ARBITRUM = ICompounder(address(0xEE1ACCcf0d92814BECF74773B466Db68A0752d10));
+    IAlgebraPool pool_jones_weethWeth_ARBITRUM = IAlgebraPool(address(0x293DFD996d5cd72Bed712B0EEAb96DBE400c0416));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -457,8 +464,8 @@ contract DeployUtils {
                             vaultData.asset,
                             vaultData.feeRecipient,
                             IFeeProvider(vaultData.feeProvider),
-                            vaultData.pool,
-                            address(0x293DFD996d5cd72Bed712B0EEAb96DBE400c0416)
+                            vaultData.pool, // compounder
+                            address(pool_jones_weethWeth_ARBITRUM) // pool
                         )
                     ),
                     vaultData.admin,

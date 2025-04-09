@@ -10,7 +10,7 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
     address pool;
 
     function setUp() public override {
-        forkId = vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
+        forkId = vm.createSelectFork("arbitrum", 324543342);
         super.setUp();
     }
 
@@ -47,7 +47,21 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
     function test_usdcweth() public {
         asset = usdc_ARBITRUM;
         pool = address(steer_wethusdc_ARBITRUM);
-        amount = 1e10;
+        amount = 1e9;
+        baseVaultTest(true);
+    }
+
+    function test_daiusdc() public {
+        asset = dai_ARBITRUM;
+        pool = address(steer_usdcdai_ARBITRUM);
+        amount = 1e20;
+        baseVaultTest(true);
+    }
+
+    function test_usdcdai() public {
+        asset = usdc_ARBITRUM;
+        pool = address(steer_usdcdai_ARBITRUM);
+        amount = 1e9;
         baseVaultTest(true);
     }
 }

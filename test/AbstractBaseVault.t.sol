@@ -146,6 +146,10 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 assetProvider_ = assetProvider_WETH_ARBITRUM;
             } else if (asset_ == wbtc_ARBITRUM) {
                 assetProvider_ = assetProvider_WBTC_ARBITRUM;
+            } else if (asset_ == dai_ARBITRUM) {
+                assetProvider_ = assetProvider_DAI_ARBITRUM;
+            } else if (asset_ == weeth_ARBITRUM) {
+                assetProvider_ = assetProvider_WEETH_ARBITRUM;
             }
         } else if (block.chainid == 8453) {
             if (asset_ == usdc_BASE) {

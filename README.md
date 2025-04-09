@@ -52,3 +52,13 @@ To deploy seasonal vault on the arbitrum chain, run the following command:
 ```bash
 forge script UpdatedDeployScript --sig "deploySeasonalArbitrum()"  --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
 ```
+
+To deploy seasonal vault on the base chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deploySeasonalBase()"  --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
+```
+
+To deploy steer and jones vaults on the arbitrum chain, run the following command:
+```bash
+forge script UpdatedDeployScript --sig "deploySteerJonesArbitrum()"  --private-key <your_private_key> --rpc-url <your_arbitrum_rpc_url>
+```

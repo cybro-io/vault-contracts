@@ -35,6 +35,8 @@ import {DeployUtils, SparkVault} from "../test/DeployUtils.sol";
 import {SeasonalVault} from "../src/SeasonalVault.sol";
 import {BufferVault} from "../src/vaults/BufferVault.sol";
 import {GammaAlgebraVault} from "../src/vaults/GammaAlgebraVault.sol";
+import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
+import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     struct DeployVault {
@@ -362,6 +364,50 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("SparkVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
+
+    function _deploySteerCamelotVault(DeployVault memory vaultData) internal returns (SteerCamelotVault vault) {
+        vault = SteerCamelotVault(
+            address(
+                _deploySteerCamelot(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("SteerCamelotVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
+
+    function _deployJonesCamelotVault(DeployVault memory vaultData) internal returns (JonesCamelotVault vault) {
+        vault = JonesCamelotVault(
+            address(
+                _deployJonesCamelot(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("JonesCamelotVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
 
@@ -1571,6 +1617,66 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
         vaults.push(address(seasonal));
         vaults.push(vaults2[0]);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    function deploySteerJonesArbitrum() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_ARBITRUM), "USDC");
+        vm.label(address(weth_ARBITRUM), "WETH");
+        vm.label(address(weeth_ARBITRUM), "WEETH");
+        vm.label(address(dai_ARBITRUM), "DAI");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deploySteerCamelotVault(
+                    DeployVault({
+                        asset: usdc_ARBITRUM,
+                        pool: address(steer_usdcdai_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Steer USDC/DAI",
+                        symbol: "cystUSDCDAI",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        console.log("\n================================================\n");
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployJonesCamelotVault(
+                    DeployVault({
+                        asset: weth_ARBITRUM,
+                        pool: address(compounder_jones_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Jones WETH/WEETH",
+                        symbol: "cyjoWETHWEETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        vm.stopBroadcast();
+
+        console.log("\n================================================\n");
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
+        vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }

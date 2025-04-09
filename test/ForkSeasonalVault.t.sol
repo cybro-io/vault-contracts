@@ -309,6 +309,8 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             oracles.push(oracle_ETH_BASE);
             tokens.push(address(wbtc_BASE));
             oracles.push(oracle_BTC_BASE);
+            tokens.push(address(cbwbtc_BASE));
+            oracles.push(oracle_CBWBTC_BASE);
 
             if (asset_ == usdc_BASE) {
                 vaults.push(
@@ -615,6 +617,24 @@ contract ForkSeasonalVaultTestBaseChainWeth is ForkSeasonalVaultBaseTest {
         console.log("amount1", amount1);
         tokenTreasure = address(weth_BASE);
         poolFee = 3000;
+    }
+}
+
+contract ForkSeasonalVaultTestBaseChainCBwbtcUSDC is ForkSeasonalVaultBaseTest {
+    function setUp() public override(ForkSeasonalVaultBaseTest) {
+        forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
+        super.setUp();
+        positionManager = positionManager_UNI_BASE;
+        token0 = cbwbtc_BASE;
+        token1 = usdc_BASE;
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+        vm.label(address(token0), "token0");
+        vm.label(address(token1), "token1");
+        (amount0, amount1) = token0 == usdc_BASE ? (uint256(1e9), wbtcAmount) : (wbtcAmount, uint256(1e9));
+        console.log("amount0", amount0);
+        console.log("amount1", amount1);
+        tokenTreasure = address(cbwbtc_BASE);
+        poolFee = 500;
     }
 }
 

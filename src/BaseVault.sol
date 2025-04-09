@@ -147,6 +147,34 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
+    function __BaseVault_ownableToAccessControl(address admin, address manager) internal onlyInitializing {
+        // clear ownableUpgradeable storage slot
+        assembly {
+            sstore(0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300, 0)
+        }
+        __BaseVault_init(admin, manager);
+    }
+
+    function __BaseVault_insideOneClickIndex() internal onlyInitializing {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
+        address oneClick = address(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9);
+        uint256 balance_;
+        assembly {
+            mstore(0, oneClick)
+            mstore(32, 0)
+            let valueSlot := keccak256(0, 64)
+            balance_ := sload(valueSlot)
+            sstore(valueSlot, 0)
+        }
+        $.waterline[oneClick] = balance_;
+    }
+
+    function __BaseVault_addManagementFee() internal onlyInitializing {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
+    }
+
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /**

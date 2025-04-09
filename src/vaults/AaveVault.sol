@@ -34,6 +34,14 @@ contract AaveVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    function initialize_ownableToAccessControl() public reinitializer(2) {
+        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+    }
+
+    function initialize_insideOneClickIndex() public reinitializer(2) {
+        __BaseVault_insideOneClickIndex();
+    }
+
     /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         return aToken.balanceOf(address(this));

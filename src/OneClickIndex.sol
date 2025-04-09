@@ -20,28 +20,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @custom:storage-location erc7201:cybro.storage.OneClickIndex
-    struct OneClickIndexStorage {
-        /// @notice Mapping of lending pool addresses to their respective lending shares (in scaled units)
-        mapping(address pool => uint256 lendingShares) lendingShares;
-        /// @notice Set of lending pool addresses
-        EnumerableSet.AddressSet lendingPoolAddresses;
-        /// @notice Total lending shares across all pools
-        uint256 totalLendingShares;
-        /// @notice Mapping of token pairs to Uniswap V3 pools for swapping
-        mapping(address from => mapping(address to => IUniswapV3Pool pool)) swapPools;
-        /// @notice Mapping of tokens to their oracles
-        mapping(address token => IChainlinkOracle oracle) oracles;
-        /// @notice Maximum slippage tolerance
-        uint32 maxSlippage;
-    }
-
-    function _getOneClickIndexStorage() private pure returns (OneClickIndexStorage storage $) {
-        assembly {
-            $.slot := ONE_CLICK_INDEX_STORAGE_LOCATION
-        }
-    }
-
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
     error Slippage();
@@ -81,10 +59,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== CONSTANTS ========== */
 
-    // keccak256(abi.encode(uint256(keccak256("cybro.storage.OneClickIndex")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ONE_CLICK_INDEX_STORAGE_LOCATION =
-        0xdec11856be6f87e880ddd635f39a64318725d466249220963e77dbb029744600;
-
     /// @notice Role identifier for strategists
     bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
 
@@ -93,6 +67,26 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     /// @notice Precision for slippage
     uint32 public constant slippagePrecision = 10000;
+
+    /* ========== STATE VARIABLES ========== */
+
+    /// @notice Mapping of lending pool addresses to their respective lending shares (in scaled units)
+    mapping(address => uint256) public lendingShares;
+
+    /// @notice Set of lending pool addresses
+    EnumerableSet.AddressSet private lendingPoolAddresses;
+
+    /// @notice Total lending shares across all pools
+    uint256 public totalLendingShares;
+
+    /// @notice Mapping of token pairs to Uniswap V3 pools for swapping
+    mapping(address from => mapping(address to => IUniswapV3Pool pool)) public swapPools;
+
+    /// @notice Mapping of tokens to their oracles
+    mapping(address token => IChainlinkOracle oracle) public oracles;
+
+    /// @notice Maximum slippage tolerance
+    uint32 public maxSlippage;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -127,6 +121,39 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         _grantRole(STRATEGIST_ROLE, strategist);
     }
 
+    function initialize_upgradeStorage(address[] memory accountsToMigrate) public reinitializer(2) {
+        __BaseVault_addManagementFee();
+
+        {
+            bytes32 oldBalancesSlot;
+            BaseVault.BaseVaultStorage storage $;
+
+            assembly {
+                oldBalancesSlot := 4
+                $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
+            }
+
+            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                address account = accountsToMigrate[i];
+                uint256 balance_;
+                bytes32 valueSlot;
+
+                assembly {
+                    mstore(0, account)
+                    mstore(32, oldBalancesSlot)
+                    valueSlot := keccak256(0, 64)
+                    balance_ := sload(valueSlot)
+                }
+                if (balance_ > 0) {
+                    $.waterline[account] = balance_;
+                    assembly {
+                        sstore(valueSlot, 0)
+                    }
+                }
+            }
+        }
+    }
+
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /**
@@ -134,9 +161,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param poolAddresses Array of lending pool addresses
      */
     function addLendingPools(address[] memory poolAddresses) public onlyRole(STRATEGIST_ROLE) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            if ($.lendingPoolAddresses.add(poolAddresses[i])) {
+            if (lendingPoolAddresses.add(poolAddresses[i])) {
                 // Approve the lending pool to use the asset
                 IERC20Metadata(IVault(poolAddresses[i]).asset()).forceApprove(poolAddresses[i], type(uint256).max);
 
@@ -152,11 +178,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * Reduces the total lending shares and revokes asset approval for each pool.
      */
     function removeLendingPools(address[] memory poolAddresses) external onlyRole(STRATEGIST_ROLE) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < poolAddresses.length; i++) {
-            $.totalLendingShares -= $.lendingShares[poolAddresses[i]];
+            totalLendingShares -= lendingShares[poolAddresses[i]];
 
-            delete $.lendingShares[poolAddresses[i]];
+            delete lendingShares[poolAddresses[i]];
 
             require(lendingPoolAddresses.remove(poolAddresses[i]), InvalidPoolAddress());
 
@@ -193,8 +218,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param _maxSlippage Slippage value
      */
     function setMaxSlippage(uint32 _maxSlippage) external onlyRole(MANAGER_ROLE) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        $.maxSlippage = _maxSlippage;
+        maxSlippage = _maxSlippage;
     }
 
     /**
@@ -207,12 +231,11 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         external
         onlyRole(MANAGER_ROLE)
     {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < _swapPools.length; i++) {
             if (from[i] < to[i]) {
-                $.swapPools[from[i]][to[i]] = _swapPools[i];
+                swapPools[from[i]][to[i]] = _swapPools[i];
             } else {
-                $.swapPools[to[i]][from[i]] = _swapPools[i];
+                swapPools[to[i]][from[i]] = _swapPools[i];
             }
         }
     }
@@ -223,12 +246,11 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param to Array of target tokens
      */
     function removeSwapPools(address[] memory from, address[] memory to) external onlyRole(MANAGER_ROLE) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < from.length; i++) {
             if (from[i] < to[i]) {
-                $.swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
+                swapPools[from[i]][to[i]] = IUniswapV3Pool(address(0));
             } else {
-                $.swapPools[to[i]][from[i]] = IUniswapV3Pool(address(0));
+                swapPools[to[i]][from[i]] = IUniswapV3Pool(address(0));
             }
         }
     }
@@ -242,9 +264,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         external
         onlyRole(MANAGER_ROLE)
     {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         for (uint256 i = 0; i < tokens.length; i++) {
-            $.oracles[tokens[i]] = oracles_[i];
+            oracles[tokens[i]] = oracles_[i];
         }
     }
 
@@ -285,18 +306,16 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @notice Automatically rebalances assets across all lending pools
      */
     function rebalanceAuto() external onlyRole(MANAGER_ROLE) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 totalAssetsToRedistribute;
         uint256 totalAssetsToDeposit;
         address[maxPools] memory poolsToDeposit;
         uint256[maxPools] memory amountsToDeposit;
         uint256 count;
 
-        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
-            address pool = $.lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address pool = lendingPoolAddresses.at(i);
             uint256 poolBalance = _getBalance(pool);
-            int256 deviation =
-                int256(poolBalance) - int256(totalAssets() * $.lendingShares[pool] / $.totalLendingShares);
+            int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
 
             if (deviation > 0) {
                 uint256 redeemedAmount = IVault(pool).redeem(
@@ -339,55 +358,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     /* ========== VIEW FUNCTIONS ========== */
 
     /**
-     * @notice Returns the maximum slippage tolerance
-     * @return The maximum slippage tolerance
-     */
-    function maxSlippage() external view returns (uint32) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.maxSlippage;
-    }
-
-    /**
-     * @notice Returns the total lending shares across all pools
-     * @return The total lending shares
-     */
-    function totalLendingShares() external view returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.totalLendingShares;
-    }
-
-    /**
-     * @notice Returns the lending shares for a pool
-     * @param pool The address of the lending pool
-     * @return The lending shares for the pool
-     */
-    function lendingShares(address pool) external view returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.lendingShares[pool];
-    }
-
-    /**
-     * @notice Returns the oracle for a token
-     * @param token The address of the token
-     * @return The oracle for the token
-     */
-    function oracles(address token) external view returns (IChainlinkOracle) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.oracles[token];
-    }
-
-    /**
-     * @notice Returns the swap pool for a token pair
-     * @param from The address of the token to swap from
-     * @param to The address of the token to swap to
-     * @return The swap pool for the token pair
-     */
-    function swapPools(address from, address to) external view returns (IUniswapV3Pool) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.swapPools[from][to];
-    }
-
-    /**
      * @notice Returns the share price of a lending pool
      * @param pool The address of the lending pool
      * @return The share price of the pool
@@ -410,8 +380,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return Array of lending pools
      */
     function getPools() external view returns (address[] memory) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.lendingPoolAddresses.values();
+        return lendingPoolAddresses.values();
     }
 
     /**
@@ -419,8 +388,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return The number of lending pools
      */
     function getLendingPoolCount() external view returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return $.lendingPoolAddresses.length();
+        return lendingPoolAddresses.length();
     }
 
     /**
@@ -429,10 +397,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return The total assets
      */
     function totalAssets() public view override returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 totalBalance = 0;
-        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
-            address poolAddress = $.lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address poolAddress = lendingPoolAddresses.at(i);
             totalBalance += _getBalance(poolAddress);
         }
         return totalBalance;
@@ -451,13 +418,12 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return tvl The weighted average underlying TVL across all lending pools
      */
     function underlyingTVL() external view override returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 tvl;
-        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
-            address poolAddress = $.lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address poolAddress = lendingPoolAddresses.at(i);
             tvl += _getInUnderlyingAsset(
                 IVault(poolAddress).asset(),
-                IVault(poolAddress).underlyingTVL() * $.lendingShares[poolAddress] / $.totalLendingShares
+                IVault(poolAddress).underlyingTVL() * lendingShares[poolAddress] / totalLendingShares
             );
         }
         return tvl;
@@ -471,8 +437,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return deviation The deviation of the pool's balance
      */
     function _computeDeviation(address pool) internal view returns (int256 deviation) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        uint256 amount = (totalAssets() * $.lendingShares[pool]) / $.totalLendingShares;
+        uint256 amount = (totalAssets() * lendingShares[pool]) / totalLendingShares;
         deviation = int256(_getBalance(pool)) - int256(amount);
     }
 
@@ -494,18 +459,17 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param assets The amount of assets to deposit
      */
     function _deposit(uint256 assets) internal override {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 leftAssets = assets;
-        uint256 leftShares = $.totalLendingShares;
-        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
-            address poolAddress = $.lendingPoolAddresses.at(i);
-            leftShares -= $.lendingShares[poolAddress];
+        uint256 leftShares = totalLendingShares;
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address poolAddress = lendingPoolAddresses.at(i);
+            leftShares -= lendingShares[poolAddress];
 
             uint256 amountToDeposit;
             if (leftShares == 0) {
                 amountToDeposit = leftAssets;
             } else {
-                amountToDeposit = assets * $.lendingShares[poolAddress] / $.totalLendingShares;
+                amountToDeposit = assets * lendingShares[poolAddress] / totalLendingShares;
             }
             leftAssets -= amountToDeposit;
 
@@ -528,8 +492,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
         require(lendingPoolAddresses.length() > 0, NoAvailablePools());
 
-        for (uint256 i = 0; i < $.lendingPoolAddresses.length(); i++) {
-            address poolAddress = $.lendingPoolAddresses.at(i);
+        for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
+            address poolAddress = lendingPoolAddresses.at(i);
             uint256 poolShareToRedeem = (shares * IVault(poolAddress).balanceOf(address(this))) / totalSupply();
             if (poolShareToRedeem > 0) {
                 assets += _swap(
@@ -553,9 +517,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _swap(address from, address to, uint256 amountIn) internal returns (uint256 amountOut) {
         // If the tokens are the same, return the input amount
         if (from == to) return amountIn;
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         bool zeroForOne = from < to;
-        IUniswapV3Pool pool = zeroForOne ? $.swapPools[from][to] : $.swapPools[to][from];
+        IUniswapV3Pool pool = zeroForOne ? swapPools[from][to] : swapPools[to][from];
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
             zeroForOne,
@@ -577,7 +540,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * Ensures that the price impact of the swap doesn't exceed the permitted slippage.
      */
     function _checkSlippage(address from, address to, uint256 amountIn, uint256 amountOut) internal view {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
         uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
         require(amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision, Slippage());
@@ -589,8 +551,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return The latest price from the oracle
      */
     function _getPrice(address token) internal view returns (uint256) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        IChainlinkOracle oracle = $.oracles[token];
+        IChainlinkOracle oracle = oracles[token];
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
 
         require(answeredInRound >= roundID, StalePrice());
@@ -617,8 +578,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
-        return !$.lendingPoolAddresses.contains(token);
+        return !lendingPoolAddresses.contains(token);
     }
 
     /**
@@ -629,7 +589,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      */
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         require(amount0Delta > 0 || amount1Delta > 0);
-        OneClickIndexStorage storage $ = _getOneClickIndexStorage();
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
         require(address(swapPools[tokenIn][tokenOut]) == msg.sender, InvalidSwapCallbackCaller());

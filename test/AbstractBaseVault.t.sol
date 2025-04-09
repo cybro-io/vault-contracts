@@ -54,6 +54,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     uint8[] discountTiers;
     uint32[] discounts;
     uint256[] minAmounts;
+    uint256 specialWarpTime;
 
     function setUp() public virtual {
         adminPrivateKey = baseAdminPrivateKey;
@@ -80,6 +81,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         vm.startPrank(admin);
         testToken = new ERC20Mock("Test Token", "TEST", 18);
         testTokenAmount = 5e18;
+        specialWarpTime = 120 days;
 
         discountTiers.push(0);
         discounts.push(0);
@@ -293,6 +295,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         vm.assertEq(vault.balanceOf(_user), shares);
         vm.assertApproxEqAbs(shares * vault.sharePrice() / (10 ** vault.decimals()), amountWithFee, amount / 100);
         vm.assertApproxEqAbs(vault.totalAssets() - tvlBefore, amountWithFee, amount / 100);
+        if (tvlBefore == 0) {
+            vm.assertApproxEqAbs(vault.totalAssets(), amountWithFee, amountWithFee / 10);
+        }
 
         if (feeProvider != IFeeProvider(address(0))) {
             signature = _getSignature(_user, 0, deadline);
@@ -405,8 +410,10 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
         uint256 shares1 = _deposit(user, amount);
         console.log("shares user", shares1);
+        console.log("totalAssets", vault.totalAssets());
         uint256 shares2 = _deposit(user2, amount);
         console.log("shares user2", shares2);
+        console.log("totalAssets", vault.totalAssets());
 
         _middleInteractions();
 
@@ -431,7 +438,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             users[0] = admin;
             vault.collectPerformanceFee(users);
             assert(vault.getWaterline(admin) >= depositedBalanceBefore);
-            vm.warp(block.timestamp + 120 days);
+            vm.warp(block.timestamp + specialWarpTime);
             uint256 totalSupplyBefore = vault.totalSupply();
             vault.collectManagementFee();
             vm.assertGt(vault.totalSupply(), totalSupplyBefore);

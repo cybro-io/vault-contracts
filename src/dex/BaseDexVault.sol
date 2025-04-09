@@ -65,6 +65,27 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         _updateSqrtPricesLowerAndUpper();
     }
 
+    function __BaseDexVault_upgradeStorage(
+        uint256 positionTokenId_,
+        int24 tickLower_,
+        int24 tickUpper_,
+        uint160 sqrtPriceLower_,
+        uint160 sqrtPriceUpper_
+    ) internal onlyInitializing {
+        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+        assembly {
+            sstore(0, 0)
+            sstore(1, 0)
+            sstore(2, 0)
+        }
+        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
+        $.positionTokenId = positionTokenId_;
+        $.tickLower = tickLower_;
+        $.tickUpper = tickUpper_;
+        $.sqrtPriceLower = sqrtPriceLower_;
+        $.sqrtPriceUpper = sqrtPriceUpper_;
+    }
+
     /* ========== VIEW FUNCTIONS ========== */
 
     function positionTokenId() public view returns (uint256) {

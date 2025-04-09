@@ -6,6 +6,7 @@ auto_detect_solc = true
 evm_version = 'cancun'
 optimizer = true
 optimizer_runs = 450
+fs_permissions = [{ access = "read", path = "./"}]
 
 [rpc_endpoints]
 blast = "${BLAST_RPC}"

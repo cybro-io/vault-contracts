@@ -67,6 +67,10 @@ contract InitVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    function initialize_insideOneClickIndex() public reinitializer(2) {
+        __BaseVault_insideOneClickIndex();
+    }
+
     /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         if (asset() == address(underlying)) {

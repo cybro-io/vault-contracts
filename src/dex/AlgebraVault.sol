@@ -61,6 +61,16 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         __BaseDexVault_init(admin, manager);
     }
 
+    function initialize_upgradeStorage(
+        uint256 positionTokenId_,
+        int24 tickLower_,
+        int24 tickUpper_,
+        uint160 sqrtPriceLower_,
+        uint160 sqrtPriceUpper_
+    ) public reinitializer(2) {
+        __BaseDexVault_upgradeStorage(positionTokenId_, tickLower_, tickUpper_, sqrtPriceLower_, sqrtPriceUpper_);
+    }
+
     /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint256) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();

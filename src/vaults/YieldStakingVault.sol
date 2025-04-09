@@ -33,6 +33,10 @@ contract YieldStakingVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
+    function initialize_ownableToAccessControl() public reinitializer(2) {
+        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+    }
+
     /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
         (uint256 balance, uint256 rewards) = staking.balanceAndRewards(asset(), address(this));

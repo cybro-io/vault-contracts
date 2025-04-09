@@ -72,6 +72,10 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         __BaseDexUniformVault_init(admin, manager);
     }
 
+    function initialize_ownableToAccessControl() public reinitializer(2) {
+        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+    }
+
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault

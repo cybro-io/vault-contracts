@@ -3,41 +3,21 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
-import {IAavePool} from "../src/interfaces/aave/IPool.sol";
 import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
 import {InitVault} from "../src/vaults/InitVault.sol";
 import {CompoundVaultETH} from "../src/vaults/CompoundVaultEth.sol";
 import {CompoundVault} from "../src/vaults/CompoundVaultErc20.sol";
 import {JuiceVault} from "../src/vaults/JuiceVault.sol";
 import {YieldStakingVault} from "../src/vaults/YieldStakingVault.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {CEth} from "../src/interfaces/compound/IcETH.sol";
-import {CErc20} from "../src/interfaces/compound/IcERC.sol";
-import {IJuicePool} from "../src/interfaces/juice/IJuicePool.sol";
-import {IYieldStaking} from "../src/interfaces/blastup/IYieldStacking.sol";
-import {WETHMock, ERC20Mock} from "../src/mocks/WETHMock.sol";
-import {IInitCore} from "../src/interfaces/init/IInitCore.sol";
-import {IInitLendingPool} from "../src/interfaces/init/IInitLendingPool.sol";
 import {OneClickIndex} from "../src/OneClickIndex.sol";
-import {IStargatePool} from "../src/interfaces/stargate/IStargatePool.sol";
-import {IStargateStaking} from "../src/interfaces/stargate/IStargateStaking.sol";
-import {StargateVault} from "../src/vaults/StargateVault.sol";
-import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {BaseVault} from "../src/BaseVault.sol";
 import {
     TransparentUpgradeableProxy,
-    ProxyAdmin
+    ProxyAdmin,
+    ITransparentUpgradeableProxy
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
-import {IChainlinkOracle} from "../src/interfaces/IChainlinkOracle.sol";
-import {DeployUtils, SparkVault} from "../test/DeployUtils.sol";
-import {SeasonalVault} from "../src/SeasonalVault.sol";
-import {BufferVault} from "../src/vaults/BufferVault.sol";
-import {GammaAlgebraVault} from "../src/vaults/GammaAlgebraVault.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-import {IVault} from "../src/interfaces/IVault.sol";
 import {AlgebraVault} from "../src/dex/AlgebraVault.sol";
 import {BaseDexVault} from "../src/dex/BaseDexVault.sol";
 import {BaseDexUniformVault} from "../src/dex/BaseDexUniformVault.sol";
@@ -49,10 +29,6 @@ contract Upgrade is Script {
         string fund_name;
         uint256 id;
         address investor_address;
-    }
-
-    struct FromJson {
-        AccountsToMigrate[] query;
     }
 
     struct DeployVault {
@@ -111,24 +87,31 @@ contract Upgrade is Script {
         feeProvider_.setWhitelistedContracts(whitelistedContracts, isWhitelisted);
     }
 
-    function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin, address admin) {
+    function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin, address admin_) {
         proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
-        admin = proxyAdmin.owner();
+        admin_ = proxyAdmin.owner();
     }
 
     function upgradeBlast() public {
-        vm.createSelectFork("blast");
         // upgrade 0x3DB2bD838c2bEd431DCFA012c3419b7e94D78456
         // YieldStakingVault CYBRO WETH
 
+        // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
+        address admin = vm.rememberKey(vm.envUint("ADMIN_PK"));
+        console.log("\nREADED ADMIN ADDRESS:", admin, "\n");
+
         YieldStakingVault vault = YieldStakingVault(0x3DB2bD838c2bEd431DCFA012c3419b7e94D78456);
         console.log("Upgrading YieldStakingVault CYBRO WETH\n  ", address(vault), "\n");
-        (ProxyAdmin proxyAdmin, address admin) = _getProxyAdmin(address(vault));
+        (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(address(vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+        if (admin_ != admin) {
+            revert("ADMIN ADDRESS MISMATCH");
+        }
 
-        // vm.startBroadcast();
-        vm.startPrank(admin);
-        IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vm.startBroadcast(admin);
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(vault)));
         YieldStakingVault newImpl =
             new YieldStakingVault(IERC20Metadata(vault.asset()), vault.staking(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(newImpl));
@@ -137,9 +120,8 @@ contract Upgrade is Script {
             address(newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -148,11 +130,13 @@ contract Upgrade is Script {
 
         vault = YieldStakingVault(0xDB5E7d5AC4E09206fED80efD7AbD9976357e1c03);
         console.log("Upgrading YieldStakingVault CYBRO USDB\n  ", address(vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(vault)));
         newImpl = new YieldStakingVault(IERC20Metadata(vault.asset()), vault.staking(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(newImpl));
         proxyAdmin.upgradeAndCall(
@@ -160,9 +144,8 @@ contract Upgrade is Script {
             address(newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -171,11 +154,13 @@ contract Upgrade is Script {
 
         BlasterSwapV2Vault blaster_vault = BlasterSwapV2Vault(0xBFb18Eda8961ee33e38678caf2BcEB2D23aEdfea);
         console.log("Upgrading BlasterSwap  USDB/WETH\n  ", address(blaster_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(blaster_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(blaster_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(blaster_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(blaster_vault)));
         BlasterSwapV2Vault blaster_newImpl = new BlasterSwapV2Vault(
             payable(address(blaster_vault.router())),
             blaster_vault.token0(),
@@ -190,9 +175,8 @@ contract Upgrade is Script {
             address(blaster_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(blaster_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -201,11 +185,13 @@ contract Upgrade is Script {
 
         JuiceVault juice_vault = JuiceVault(0x18E22f3f9a9652ee3A667d78911baC55bC2249Af);
         console.log("Upgrading Juice WETH Lending\n  ", address(juice_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(juice_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(juice_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(juice_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(juice_vault)));
         JuiceVault juice_newImpl =
             new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(juice_newImpl));
@@ -214,9 +200,8 @@ contract Upgrade is Script {
             address(juice_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -225,11 +210,13 @@ contract Upgrade is Script {
 
         juice_vault = JuiceVault(0xD58826d2C0bAbf1A60d8b508160b52E9C19AFf07);
         console.log("Upgrading Juice USDB Lending\n  ", address(juice_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(juice_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(juice_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(juice_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(juice_vault)));
         juice_newImpl =
             new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(juice_newImpl));
@@ -238,9 +225,8 @@ contract Upgrade is Script {
             address(juice_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -249,11 +235,13 @@ contract Upgrade is Script {
 
         CompoundVault compound_vault = CompoundVault(0x567103a40C408B2B8f766016C57A092A180397a1);
         console.log("Upgrading Aso Finance USDB Lending (Compound)\n  ", address(compound_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(compound_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(compound_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(compound_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(compound_vault)));
         CompoundVault compound_newImpl =
             new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(compound_newImpl));
@@ -262,9 +250,8 @@ contract Upgrade is Script {
             address(compound_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -273,11 +260,13 @@ contract Upgrade is Script {
 
         CompoundVaultETH compoundETH_vault = CompoundVaultETH(payable(0x9cc62EF691E869C05FD2eC41839889d4E74c3a3f));
         console.log("Upgrading Aso Finance WETH Lending (CompoundETH)\n  ", address(compoundETH_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(compoundETH_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(compoundETH_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(compoundETH_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(compoundETH_vault)));
         CompoundVaultETH compoundETH_newImpl = new CompoundVaultETH(
             IERC20Metadata(compoundETH_vault.asset()), compoundETH_vault.pool(), feeProvider, feeRecipient
         );
@@ -287,9 +276,8 @@ contract Upgrade is Script {
             address(compoundETH_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compoundETH_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -298,11 +286,13 @@ contract Upgrade is Script {
 
         compound_vault = CompoundVault(0xDCCDe9C6800BeA86E2e91cF54a870BA3Ff6FAF9f);
         console.log("Upgrading Aso Finance WeETH Lending (Compound)\n  ", address(compound_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(compound_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(compound_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(compound_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(compound_vault)));
         compound_newImpl =
             new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(compound_newImpl));
@@ -311,9 +301,8 @@ contract Upgrade is Script {
             address(compound_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -322,11 +311,13 @@ contract Upgrade is Script {
 
         compound_vault = CompoundVault(0x0667ac28015ED7146f19B2d218f81218abf32951);
         console.log("Upgrading Aso Finance WBTC Lending (Compound)\n  ", address(compound_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(compound_vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(compound_vault));
+        console.log(" ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(compound_vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(compound_vault)));
         compound_newImpl =
             new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(compound_newImpl));
@@ -335,23 +326,29 @@ contract Upgrade is Script {
             address(compound_newImpl),
             abi.encodeWithSignature("initialize_ownableToAccessControl()")
         );
-        vm.stopPrank();
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
-        // vm.stopBroadcast();
     }
 
     function upgradeDEX() public {
         // upgrade 0xE9041d3483A760c7D5F8762ad407ac526fbe144f
         // BladeSwap USDB/WETH
-        vm.createSelectFork("blast");
+
+        // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
+        address admin = vm.rememberKey(vm.envUint("ADMIN_PK"));
+        console.log("\nREADED ADMIN ADDRESS:", admin, "\n");
 
         AlgebraVault vault = AlgebraVault(0xE9041d3483A760c7D5F8762ad407ac526fbe144f);
         console.log("\nUpgrading BladeSwap USDB/WETH\n  ", address(vault), "\n");
-        (ProxyAdmin proxyAdmin, address admin) = _getProxyAdmin(address(vault));
-        // vm.startBroadcast();
-        vm.startPrank(admin);
-        IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(address(vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
+        if (admin_ != admin) {
+            revert("ADMIN ADDRESS MISMATCH");
+        }
+        vm.startBroadcast(admin);
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(vault)));
         AlgebraVault newImpl = new AlgebraVault(
             payable(address(vault.positionManager())),
             vault.token0(),
@@ -377,10 +374,8 @@ contract Upgrade is Script {
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
-
+        vm.stopBroadcast();
         _checkDexUpgrade(vault, admin);
-        vm.stopPrank();
-        // vm.stopBroadcast();
 
         console.log("\n==============================================\n");
 
@@ -388,10 +383,13 @@ contract Upgrade is Script {
         // Fenix Finance Blast/WETH
         vault = AlgebraVault(0x370498c028564de4491B8aA2df437fb772a39EC5);
         console.log("Upgrading Fenix Finance Blast/WETH\n  ", address(vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(vault));
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(vault)));
         newImpl = new AlgebraVault(
             payable(address(vault.positionManager())),
             vault.token0(),
@@ -417,8 +415,8 @@ contract Upgrade is Script {
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
+        vm.stopBroadcast();
         _checkDexUpgrade(vault, admin);
-        vm.stopPrank();
 
         console.log("\n==============================================\n");
 
@@ -426,10 +424,13 @@ contract Upgrade is Script {
         // Fenix Finance WeETH/WETH
         vault = AlgebraVault(0x66E1BEA0a5a934B96E2d7d54Eddd6580c485521b);
         console.log("Upgrading Fenix Finance WeETH/WETH\n  ", address(vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(vault));
-        vm.startPrank(admin);
+        (proxyAdmin, admin_) = _getProxyAdmin(address(vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
+
+        vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
         _updateFeeProviderWhitelisted(feeProvider, address(vault));
+        vm.assertTrue(feeProvider.whitelistedContracts(address(vault)));
         newImpl = new AlgebraVault(
             payable(address(vault.positionManager())),
             vault.token0(),
@@ -455,12 +456,11 @@ contract Upgrade is Script {
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
+        vm.stopBroadcast();
         _checkDexUpgrade(vault, admin);
-        vm.stopPrank();
     }
 
     function upgradeOneClick_Base() public {
-        vm.createSelectFork("base");
         {
             string memory root = vm.projectRoot();
             string memory path = string.concat(root, "/script/current_investors.json");
@@ -480,46 +480,67 @@ contract Upgrade is Script {
             console.log("\naccountsToMigrate", accountsToMigrate.length);
         }
 
+        // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
+        address admin = vm.rememberKey(vm.envUint("ADMIN_PK"));
+        // ADMIN473 ACCOUNT IS 0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6
+        address admin473 = vm.rememberKey(vm.envUint("ADMIN473_PK"));
+        console.log("\nREADED ADMIN ADDRESS:", admin, "\n");
+        console.log("READED FEE PROVIDER OWNER ADDRESS:", admin473, "\n");
+
         // upgrade 0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9
         // Base Index USDC
 
-        OneClickIndex vault = OneClickIndex(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9);
-        console.log("\nUpgrading Base Index USDC\n  ", address(vault), "\n");
-        (ProxyAdmin proxyAdmin, address admin) = _getProxyAdmin(address(vault));
-        console.log("admin", admin);
+        OneClickIndex oneClick = OneClickIndex(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9);
+        console.log("\nUpgrading Base Index USDC\n  ", address(oneClick), "\n");
+        (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(address(oneClick));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
+        if (admin_ != admin) {
+            revert("ADMIN ADDRESS MISMATCH");
+        }
 
         FeeProvider feeProvider = FeeProvider(0x815E9a686467Ec2CB7a7C185c565731730A5aF7e);
         (ProxyAdmin feeProviderProxyAdmin, address feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
 
-        vm.startPrank(admin);
+        vm.startBroadcast(admin);
         IFeeProvider feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
-        vm.stopPrank();
-        vm.startPrank(feeProvider.owner());
-        _updateFeeProviderWhitelisted(feeProvider, address(vault));
-        vm.stopPrank();
+        vm.stopBroadcast();
 
-        vm.startPrank(admin);
-        OneClickIndex newImpl = new OneClickIndex(IERC20Metadata(vault.asset()), feeProvider, feeRecipient);
-        console.log("\n  new impl", address(newImpl));
+        vm.startBroadcast(admin473);
+        _updateFeeProviderWhitelisted(feeProvider, address(oneClick));
+        vm.stopBroadcast();
+
+        vm.assertTrue(feeProvider.whitelistedContracts(address(oneClick)));
+
+        vm.startBroadcast(admin);
+        OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
+        console.log("\n  new impl", address(oneClick_newImpl));
         {
             bytes memory data = abi.encodeWithSignature("initialize_upgradeStorage(address[])", accountsToMigrate);
-            proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
+            proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(oneClick)), address(oneClick_newImpl), data);
         }
-        vm.stopPrank();
-        _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
-        console.log("totalLendingShares", vault.totalLendingShares());
+        vm.stopBroadcast();
+        _checkBaseVaultUpgrade(BaseVault(address(oneClick)), admin);
+        console.log("totalLendingShares", oneClick.totalLendingShares());
         {
-            address[] memory lendingPoolAddresses = vault.getPools();
-            console.log("lendingShares1", vault.lendingShares(lendingPoolAddresses[0]));
-            console.log("lendingShares2", vault.lendingShares(lendingPoolAddresses[1]));
-            console.log("count", vault.getLendingPoolCount());
-            console.log("maxSlippage", vault.maxSlippage());
+            address[] memory lendingPoolAddresses = oneClick.getPools();
+            console.log("lendingShares1", oneClick.lendingShares(lendingPoolAddresses[0]));
+            console.log("lendingShares2", oneClick.lendingShares(lendingPoolAddresses[1]));
+            console.log("count", oneClick.getLendingPoolCount());
+            console.log("maxSlippage", oneClick.maxSlippage());
+            if (accountsToMigrate.length > 0) {
+                console.log(
+                    "\nCheck waterline\n  address:",
+                    accountsToMigrate[0],
+                    "\n  balance:",
+                    oneClick.getWaterline(accountsToMigrate[0])
+                );
+            }
         }
 
         console.log("\n==============================================\n");
@@ -529,33 +550,42 @@ contract Upgrade is Script {
 
         CompoundVault compound_vault = CompoundVault(0x9cABCb97C0EDF8910B433188480287B8323ee0FA);
         console.log("\nUpgrading Compound (inside oneClickIndex)\n  ", address(compound_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(compound_vault));
+        (proxyAdmin, admin_) = _getProxyAdmin(address(compound_vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
 
         feeProvider = FeeProvider(0xd549D76E43c4B0Fb5282590361F9c035F20402E9);
         (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
+
+        vm.startBroadcast(admin);
         feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
-        vm.stopPrank();
-        vm.startPrank(feeProvider.owner());
-        _updateFeeProviderWhitelisted(feeProvider, address(vault));
-        vm.stopPrank();
+        vm.stopBroadcast();
 
-        vm.startPrank(admin);
+        vm.startBroadcast(admin473);
+        _updateFeeProviderWhitelisted(feeProvider, address(compound_vault));
+        vm.stopBroadcast();
+
+        vm.assertTrue(feeProvider.whitelistedContracts(address(compound_vault)));
+
+        vm.startBroadcast(admin);
         CompoundVault compound_newImpl =
             new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(compound_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(compound_vault)),
-            address(compound_newImpl),
-            abi.encodeWithSignature("initialize_insideOneClickIndex()")
-        );
-        vm.stopPrank();
+        {
+            address[] memory accountsToMigrate_ = new address[](1);
+            accountsToMigrate_[0] = address(oneClick);
+            proxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(compound_vault)),
+                address(compound_newImpl),
+                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+            );
+        }
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
 
         console.log("\n==============================================\n");
@@ -565,33 +595,42 @@ contract Upgrade is Script {
 
         AaveVault aave_vault = AaveVault(0x9fe836AB706Aec38fc4e1CaB758011fC59E730Bc);
         console.log("\nUpgrading AAVE (inside oneClickIndex)\n  ", address(aave_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(aave_vault));
+        (proxyAdmin, admin_) = _getProxyAdmin(address(aave_vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
 
         feeProvider = FeeProvider(0xB1246DbE910376954d15ebf89abCA3007002Af38);
         (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
+
+        vm.startBroadcast(admin);
         feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
-        vm.stopPrank();
-        vm.startPrank(feeProvider.owner());
-        _updateFeeProviderWhitelisted(feeProvider, address(aave_vault));
-        vm.stopPrank();
+        vm.stopBroadcast();
 
-        vm.startPrank(admin);
+        vm.startBroadcast(admin473);
+        _updateFeeProviderWhitelisted(feeProvider, address(aave_vault));
+        vm.stopBroadcast();
+
+        vm.assertTrue(feeProvider.whitelistedContracts(address(aave_vault)));
+
+        vm.startBroadcast(admin);
         AaveVault aave_newImpl =
             new AaveVault(IERC20Metadata(aave_vault.asset()), aave_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(aave_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(aave_vault)),
-            address(aave_newImpl),
-            abi.encodeWithSignature("initialize_insideOneClickIndex()")
-        );
-        vm.stopPrank();
+        {
+            address[] memory accountsToMigrate_ = new address[](1);
+            accountsToMigrate_[0] = address(oneClick);
+            proxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(aave_vault)),
+                address(aave_newImpl),
+                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+            );
+        }
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(aave_vault)), admin);
     }
 
@@ -617,49 +656,69 @@ contract Upgrade is Script {
             console.log("\naccountsToMigrate", accountsToMigrate.length);
         }
 
+        address admin = vm.rememberKey(vm.envUint("ADMIN_PK"));
+        address admin473 = vm.rememberKey(vm.envUint("ADMIN473_PK"));
+        console.log("\nREADED ADMIN ADDRESS:", admin, "\n");
+        console.log("READED FEE PROVIDER OWNER ADDRESS:", admin473, "\n");
+
         // upgrade 0xb3E2099b135B12139C4eB774F84a5808FB25c67d
         // Blast Index USDB
 
-        OneClickIndex vault = OneClickIndex(0xb3E2099b135B12139C4eB774F84a5808FB25c67d);
-        console.log("\nUpgrading Blast Index USDB\n  ", address(vault), "\n");
-        (ProxyAdmin proxyAdmin, address admin) = _getProxyAdmin(address(vault));
-        console.log("lendingShares2 BEFORE", vault.lendingShares(address(0xe394Ab698279502577A071A37022430af068Bb0c)));
+        OneClickIndex oneClick = OneClickIndex(0xb3E2099b135B12139C4eB774F84a5808FB25c67d);
+        console.log("\nUpgrading Blast Index USDB\n  ", address(oneClick), "\n");
+        (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(address(oneClick));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
+        if (admin_ != admin) {
+            revert("ADMIN ADDRESS MISMATCH");
+        }
 
         FeeProvider feeProvider = FeeProvider(0x3049f8Eee32eB335f98CF3EF69987e4Efd192647);
         (ProxyAdmin feeProviderProxyAdmin, address feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
-        console.log("admin", admin);
-        vm.startPrank(feeProviderAdmin);
+        if (feeProviderAdmin != admin473) {
+            revert("ADMIN473 ADDRESS MISMATCH");
+        }
+
+        vm.startBroadcast(admin473);
         FeeProvider feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
-        _updateFeeProviderWhitelisted(feeProvider, address(vault));
-        vm.stopPrank();
+        _updateFeeProviderWhitelisted(feeProvider, address(oneClick));
+        vm.stopBroadcast();
+        vm.assertTrue(feeProvider.whitelistedContracts(address(oneClick)));
 
-        vm.startPrank(admin);
-        OneClickIndex newImpl = new OneClickIndex(IERC20Metadata(vault.asset()), feeProvider, feeRecipient);
-        console.log("\n  new impl", address(newImpl));
+        vm.startBroadcast(admin);
+        OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
+        console.log("\n  new impl", address(oneClick_newImpl));
         {
             bytes memory data = abi.encodeWithSignature("initialize_upgradeStorage(address[])", accountsToMigrate);
-            proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
+            proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(oneClick)), address(oneClick_newImpl), data);
         }
-        vm.stopPrank();
-        _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
+        vm.stopBroadcast();
+        _checkBaseVaultUpgrade(BaseVault(address(oneClick)), admin);
         {
-            address[] memory lendingPoolAddresses = vault.getPools();
-            console.log("lendingShares1", vault.lendingShares(lendingPoolAddresses[0]));
-            console.log("lendingShares2", vault.lendingShares(lendingPoolAddresses[1]));
-            console.log("lendingShares3", vault.lendingShares(lendingPoolAddresses[2]));
-            console.log("lendingShares4", vault.lendingShares(lendingPoolAddresses[3]));
+            address[] memory lendingPoolAddresses = oneClick.getPools();
+            console.log("lendingShares1", oneClick.lendingShares(lendingPoolAddresses[0]));
+            console.log("lendingShares2", oneClick.lendingShares(lendingPoolAddresses[1]));
+            console.log("lendingShares3", oneClick.lendingShares(lendingPoolAddresses[2]));
+            console.log("lendingShares4", oneClick.lendingShares(lendingPoolAddresses[3]));
             console.log("pool4", lendingPoolAddresses[3]);
             console.log("pool3", lendingPoolAddresses[2]);
             console.log("pool2", lendingPoolAddresses[1]);
             console.log("pool1", lendingPoolAddresses[0]);
-            console.log("count", vault.getLendingPoolCount());
-            console.log("maxSlippage", vault.maxSlippage());
+            console.log("count", oneClick.getLendingPoolCount());
+            console.log("maxSlippage", oneClick.maxSlippage());
+            if (accountsToMigrate.length > 0) {
+                console.log(
+                    "\nCheck waterline\n  address:",
+                    accountsToMigrate[0],
+                    "\n  balance:",
+                    oneClick.getWaterline(accountsToMigrate[10])
+                );
+            }
         }
 
         console.log("\n==============================================\n");
@@ -669,33 +728,35 @@ contract Upgrade is Script {
 
         AaveVault aave_vault = AaveVault(0x346d73AcdE2a319B17CECb5bf95C49107598dF34);
         console.log("\nUpgrading Zerolend (AAVE inside oneClickIndex)\n  ", address(aave_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(aave_vault));
+        (proxyAdmin, admin_) = _getProxyAdmin(address(aave_vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
 
         feeProvider = FeeProvider(0x2E395062497dc014Be9c55E03174e89bA4Afec30);
         (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
+
+        vm.startBroadcast(admin473);
         feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
-        vm.stopPrank();
-        vm.startPrank(feeProviderAdmin);
         _updateFeeProviderWhitelisted(feeProvider, address(aave_vault));
-        vm.stopPrank();
-
-        vm.startPrank(admin);
+        vm.assertTrue(feeProvider.whitelistedContracts(address(aave_vault)));
         AaveVault aave_newImpl =
             new AaveVault(IERC20Metadata(aave_vault.asset()), aave_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(aave_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(aave_vault)),
-            address(aave_newImpl),
-            abi.encodeWithSignature("initialize_insideOneClickIndex()")
-        );
-        vm.stopPrank();
+        {
+            address[] memory accountsToMigrate_ = new address[](1);
+            accountsToMigrate_[0] = address(oneClick);
+            proxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(aave_vault)),
+                address(aave_newImpl),
+                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+            );
+        }
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(aave_vault)), admin);
 
         console.log("\n==============================================\n");
@@ -703,70 +764,76 @@ contract Upgrade is Script {
         // upgrade 0xe394Ab698279502577A071A37022430af068Bb0c
         // INIT (inside oneClickIndex)
         // WARNING: ZERO lending shares/totalSupply
+        {
+            InitVault init_vault = InitVault(0xe394Ab698279502577A071A37022430af068Bb0c);
+            console.log("\nUpgrading INIT (inside oneClickIndex)\n  ", address(init_vault), "\n");
+            (proxyAdmin, admin_) = _getProxyAdmin(address(init_vault));
+            console.log("ADMIN ADDRESS:", admin_, "\n");
 
-        InitVault init_vault = InitVault(0xe394Ab698279502577A071A37022430af068Bb0c);
-        console.log("\nUpgrading INIT (inside oneClickIndex)\n  ", address(init_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(init_vault));
+            feeProvider = FeeProvider(0x3049f8Eee32eB335f98CF3EF69987e4Efd192647);
+            (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
+            console.log("feeProviderAdmin", feeProviderAdmin);
+            console.log("feeProvider owner", feeProvider.owner());
 
-        feeProvider = FeeProvider(0x3049f8Eee32eB335f98CF3EF69987e4Efd192647);
-        (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
-        console.log("feeProviderAdmin", feeProviderAdmin);
-        console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
-        feeProviderImpl = new FeeProvider(feePrecision);
-        console.log("\n  new impl FeeProvider", address(feeProviderImpl));
-        feeProviderProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
-        );
-        _updateFeeProviderWhitelisted(feeProvider, address(init_vault));
-        vm.stopPrank();
+            vm.startBroadcast(admin473);
+            feeProviderImpl = new FeeProvider(feePrecision);
+            console.log("\n  new impl FeeProvider", address(feeProviderImpl));
+            feeProviderProxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
+            );
+            _updateFeeProviderWhitelisted(feeProvider, address(init_vault));
+            {
+                InitVault init_newImpl =
+                    new InitVault(IERC20Metadata(init_vault.asset()), init_vault.pool(), feeProvider, feeRecipient);
+                console.log("\n  new impl", address(init_newImpl));
 
-        vm.startPrank(admin);
-        InitVault init_newImpl =
-            new InitVault(IERC20Metadata(init_vault.asset()), init_vault.pool(), feeProvider, feeRecipient);
-        console.log("\n  new impl", address(init_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(init_vault)),
-            address(init_newImpl),
-            abi.encodeWithSignature("initialize_insideOneClickIndex()")
-        );
-        vm.stopPrank();
-        _checkBaseVaultUpgrade(BaseVault(address(init_vault)), admin);
-
+                proxyAdmin.upgradeAndCall(
+                    ITransparentUpgradeableProxy(address(init_vault)),
+                    address(init_newImpl),
+                    abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", new address[](0))
+                );
+            }
+            vm.stopBroadcast();
+            _checkBaseVaultUpgrade(BaseVault(address(init_vault)), admin);
+        }
         console.log("\n==============================================\n");
 
         // upgrade 0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D
         // Juice (inside oneClickIndex)
+        {
+            JuiceVault juice_vault = JuiceVault(0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D);
+            console.log("\nUpgrading Juice (inside oneClickIndex)\n  ", address(juice_vault), "\n");
+            (proxyAdmin, admin_) = _getProxyAdmin(address(juice_vault));
+            console.log("ADMIN ADDRESS:", admin_, "\n");
 
-        JuiceVault juice_vault = JuiceVault(0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D);
-        console.log("\nUpgrading Juice (inside oneClickIndex)\n  ", address(juice_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(juice_vault));
+            feeProvider = FeeProvider(0xC899EfA7863d755A6186a2EFa06a8Fc7e8c5BA42);
+            (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
+            console.log("feeProviderAdmin", feeProviderAdmin);
+            console.log("feeProvider owner", feeProvider.owner());
 
-        feeProvider = FeeProvider(0xC899EfA7863d755A6186a2EFa06a8Fc7e8c5BA42);
-        (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
-        console.log("feeProviderAdmin", feeProviderAdmin);
-        console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
-        feeProviderImpl = new FeeProvider(feePrecision);
-        console.log("\n  new impl FeeProvider", address(feeProviderImpl));
-        feeProviderProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
-        );
-        _updateFeeProviderWhitelisted(feeProvider, address(juice_vault));
-        vm.stopPrank();
+            vm.startBroadcast(admin473);
+            feeProviderImpl = new FeeProvider(feePrecision);
+            console.log("\n  new impl FeeProvider", address(feeProviderImpl));
+            feeProviderProxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
+            );
+            _updateFeeProviderWhitelisted(feeProvider, address(juice_vault));
 
-        vm.startPrank(admin);
-        JuiceVault juice_newImpl =
-            new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
-        console.log("\n  new impl", address(juice_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(juice_vault)),
-            address(juice_newImpl),
-            abi.encodeWithSignature("initialize_insideOneClickIndex()")
-        );
-        vm.stopPrank();
-        _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
-
+            {
+                JuiceVault juice_newImpl =
+                    new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
+                console.log("\n  new impl", address(juice_newImpl));
+                address[] memory accountsToMigrate_ = new address[](1);
+                accountsToMigrate_[0] = address(oneClick);
+                proxyAdmin.upgradeAndCall(
+                    ITransparentUpgradeableProxy(address(juice_vault)),
+                    address(juice_newImpl),
+                    abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                );
+            }
+            vm.stopBroadcast();
+            _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
+        }
         console.log("\n==============================================\n");
 
         // upgrade 0x0c0a0CcC5685974B8ab411E44e2fC70F07ce4E3d
@@ -775,31 +842,35 @@ contract Upgrade is Script {
 
         CompoundVault orbit_vault = CompoundVault(0x0c0a0CcC5685974B8ab411E44e2fC70F07ce4E3d);
         console.log("\nUpgrading Orbit (inside oneClickIndex)\n  ", address(orbit_vault), "\n");
-        (proxyAdmin, admin) = _getProxyAdmin(address(orbit_vault));
+        (proxyAdmin, admin_) = _getProxyAdmin(address(orbit_vault));
+        console.log("ADMIN ADDRESS:", admin_, "\n");
 
         feeProvider = FeeProvider(0xf01e01cb6E20dc9E98380bAaAA899eed18A95d36);
         (feeProviderProxyAdmin, feeProviderAdmin) = _getProxyAdmin(address(feeProvider));
         console.log("feeProviderAdmin", feeProviderAdmin);
         console.log("feeProvider owner", feeProvider.owner());
-        vm.startPrank(admin);
+
+        vm.startBroadcast(admin473);
         feeProviderImpl = new FeeProvider(feePrecision);
         console.log("\n  new impl FeeProvider", address(feeProviderImpl));
         feeProviderProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(feeProvider)), address(feeProviderImpl), new bytes(0)
         );
         _updateFeeProviderWhitelisted(feeProvider, address(orbit_vault));
-        vm.stopPrank();
-
-        vm.startPrank(admin);
+        vm.assertTrue(feeProvider.whitelistedContracts(address(orbit_vault)));
         CompoundVault orbit_newImpl =
             new CompoundVault(IERC20Metadata(orbit_vault.asset()), orbit_vault.pool(), feeProvider, feeRecipient);
         console.log("\n  new impl", address(orbit_newImpl));
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(address(orbit_vault)),
-            address(orbit_newImpl),
-            abi.encodeWithSignature("initialize_orbit()")
-        );
-        vm.stopPrank();
+        {
+            address[] memory accountsToMigrate_ = new address[](1);
+            accountsToMigrate_[0] = address(0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6);
+            proxyAdmin.upgradeAndCall(
+                ITransparentUpgradeableProxy(address(orbit_vault)),
+                address(orbit_newImpl),
+                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+            );
+        }
+        vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(orbit_vault)), admin);
     }
 

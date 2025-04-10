@@ -35,6 +35,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     error RoundNotComplete();
     error ChainlinkPriceReportingZero();
 
+    struct OldVaultStorage {
+        mapping(address => uint256) waterline;
+    }
 
     /* ========== EVENTS ========== */
 
@@ -122,35 +125,19 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     }
 
     function initialize_upgradeStorage(address[] memory accountsToMigrate) public reinitializer(2) {
-        __BaseVault_addManagementFee();
+        __BaseVault_upgradeStorage(new address[](0));
 
-        {
-            bytes32 oldBalancesSlot;
-            BaseVault.BaseVaultStorage storage $;
+        BaseVault.BaseVaultStorage storage $;
+        OldVaultStorage storage oldVaultStorage;
 
-            assembly {
-                oldBalancesSlot := 4
-                $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
-            }
+        assembly {
+            oldVaultStorage.slot := 4
+            $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
+        }
 
-            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
-                address account = accountsToMigrate[i];
-                uint256 balance_;
-                bytes32 valueSlot;
-
-                assembly {
-                    mstore(0, account)
-                    mstore(32, oldBalancesSlot)
-                    valueSlot := keccak256(0, 64)
-                    balance_ := sload(valueSlot)
-                }
-                if (balance_ > 0) {
-                    $.waterline[account] = balance_;
-                    assembly {
-                        sstore(valueSlot, 0)
-                    }
-                }
-            }
+        for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+            $.waterline[accountsToMigrate[i]] = oldVaultStorage.waterline[accountsToMigrate[i]];
+            delete oldVaultStorage.waterline[accountsToMigrate[i]];
         }
     }
 

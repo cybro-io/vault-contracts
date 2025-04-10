@@ -38,8 +38,8 @@ contract AaveVault is BaseVault {
         __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
     }
 
-    function initialize_insideOneClickIndex() public reinitializer(2) {
-        __BaseVault_insideOneClickIndex();
+    function initialize_insideOneClickIndex(address[] memory accountsToMigrate) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate);
     }
 
     /// @inheritdoc BaseVault

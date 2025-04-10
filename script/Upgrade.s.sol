@@ -118,7 +118,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(vault)),
             address(newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(YieldStakingVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
@@ -142,7 +142,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(vault)),
             address(newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(YieldStakingVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(vault)), admin);
@@ -173,7 +173,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(blaster_vault)),
             address(blaster_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(BlasterSwapV2Vault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(blaster_vault)), admin);
@@ -198,7 +198,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(juice_vault)),
             address(juice_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(JuiceVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
@@ -223,7 +223,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(juice_vault)),
             address(juice_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(JuiceVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(juice_vault)), admin);
@@ -248,7 +248,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(compound_vault)),
             address(compound_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(CompoundVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
@@ -274,7 +274,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(compoundETH_vault)),
             address(compoundETH_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(CompoundVaultETH.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compoundETH_vault)), admin);
@@ -299,7 +299,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(compound_vault)),
             address(compound_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(CompoundVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
@@ -324,7 +324,7 @@ contract Upgrade is Script {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(address(compound_vault)),
             address(compound_newImpl),
-            abi.encodeWithSignature("initialize_ownableToAccessControl()")
+            abi.encodeCall(CompoundVault.initialize_ownableToAccessControl, ())
         );
         vm.stopBroadcast();
         _checkBaseVaultUpgrade(BaseVault(address(compound_vault)), admin);
@@ -364,13 +364,9 @@ contract Upgrade is Script {
             int24 tickUpper_ = vault.tickUpper();
             uint160 sqrtPriceLower_ = vault.sqrtPriceLower();
             uint160 sqrtPriceUpper_ = vault.sqrtPriceUpper();
-            bytes memory data = abi.encodeWithSignature(
-                "initialize_upgradeStorage(uint256,int24,int24,uint160,uint160)",
-                positionTokenId_,
-                tickLower_,
-                tickUpper_,
-                sqrtPriceLower_,
-                sqrtPriceUpper_
+            bytes memory data = abi.encodeCall(
+                AlgebraVault.initialize_upgradeStorage,
+                (positionTokenId_, tickLower_, tickUpper_, sqrtPriceLower_, sqrtPriceUpper_)
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
@@ -405,13 +401,9 @@ contract Upgrade is Script {
             int24 tickUpper_ = vault.tickUpper();
             uint160 sqrtPriceLower_ = vault.sqrtPriceLower();
             uint160 sqrtPriceUpper_ = vault.sqrtPriceUpper();
-            bytes memory data = abi.encodeWithSignature(
-                "initialize_upgradeStorage(uint256,int24,int24,uint160,uint160)",
-                positionTokenId_,
-                tickLower_,
-                tickUpper_,
-                sqrtPriceLower_,
-                sqrtPriceUpper_
+            bytes memory data = abi.encodeCall(
+                AlgebraVault.initialize_upgradeStorage,
+                (positionTokenId_, tickLower_, tickUpper_, sqrtPriceLower_, sqrtPriceUpper_)
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
@@ -446,13 +438,9 @@ contract Upgrade is Script {
             int24 tickUpper_ = vault.tickUpper();
             uint160 sqrtPriceLower_ = vault.sqrtPriceLower();
             uint160 sqrtPriceUpper_ = vault.sqrtPriceUpper();
-            bytes memory data = abi.encodeWithSignature(
-                "initialize_upgradeStorage(uint256,int24,int24,uint160,uint160)",
-                positionTokenId_,
-                tickLower_,
-                tickUpper_,
-                sqrtPriceLower_,
-                sqrtPriceUpper_
+            bytes memory data = abi.encodeCall(
+                AlgebraVault.initialize_upgradeStorage,
+                (positionTokenId_, tickLower_, tickUpper_, sqrtPriceLower_, sqrtPriceUpper_)
             );
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), data);
         }
@@ -521,7 +509,7 @@ contract Upgrade is Script {
         OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
         console.log("\n  new impl", address(oneClick_newImpl));
         {
-            bytes memory data = abi.encodeWithSignature("initialize_upgradeStorage(address[])", accountsToMigrate);
+            bytes memory data = abi.encodeCall(OneClickIndex.initialize_upgradeStorage, (accountsToMigrate));
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(oneClick)), address(oneClick_newImpl), data);
         }
         vm.stopBroadcast();
@@ -582,7 +570,7 @@ contract Upgrade is Script {
             proxyAdmin.upgradeAndCall(
                 ITransparentUpgradeableProxy(address(compound_vault)),
                 address(compound_newImpl),
-                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                abi.encodeCall(CompoundVault.initialize_insideOneClickIndex, (accountsToMigrate_))
             );
         }
         vm.stopBroadcast();
@@ -627,7 +615,7 @@ contract Upgrade is Script {
             proxyAdmin.upgradeAndCall(
                 ITransparentUpgradeableProxy(address(aave_vault)),
                 address(aave_newImpl),
-                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                abi.encodeCall(AaveVault.initialize_insideOneClickIndex, (accountsToMigrate_))
             );
         }
         vm.stopBroadcast();
@@ -694,7 +682,7 @@ contract Upgrade is Script {
         OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
         console.log("\n  new impl", address(oneClick_newImpl));
         {
-            bytes memory data = abi.encodeWithSignature("initialize_upgradeStorage(address[])", accountsToMigrate);
+            bytes memory data = abi.encodeCall(OneClickIndex.initialize_upgradeStorage, (accountsToMigrate));
             proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(oneClick)), address(oneClick_newImpl), data);
         }
         vm.stopBroadcast();
@@ -753,7 +741,7 @@ contract Upgrade is Script {
             proxyAdmin.upgradeAndCall(
                 ITransparentUpgradeableProxy(address(aave_vault)),
                 address(aave_newImpl),
-                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                abi.encodeCall(AaveVault.initialize_insideOneClickIndex, (accountsToMigrate_))
             );
         }
         vm.stopBroadcast();
@@ -790,7 +778,7 @@ contract Upgrade is Script {
                 proxyAdmin.upgradeAndCall(
                     ITransparentUpgradeableProxy(address(init_vault)),
                     address(init_newImpl),
-                    abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", new address[](0))
+                    abi.encodeCall(InitVault.initialize_insideOneClickIndex, (new address[](0)))
                 );
             }
             vm.stopBroadcast();
@@ -828,7 +816,7 @@ contract Upgrade is Script {
                 proxyAdmin.upgradeAndCall(
                     ITransparentUpgradeableProxy(address(juice_vault)),
                     address(juice_newImpl),
-                    abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                    abi.encodeCall(JuiceVault.initialize_insideOneClickIndex, (accountsToMigrate_))
                 );
             }
             vm.stopBroadcast();
@@ -867,7 +855,7 @@ contract Upgrade is Script {
             proxyAdmin.upgradeAndCall(
                 ITransparentUpgradeableProxy(address(orbit_vault)),
                 address(orbit_newImpl),
-                abi.encodeWithSignature("initialize_insideOneClickIndex(address[])", accountsToMigrate_)
+                abi.encodeCall(CompoundVault.initialize_insideOneClickIndex, (accountsToMigrate_))
             );
         }
         vm.stopBroadcast();

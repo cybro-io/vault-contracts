@@ -29,6 +29,8 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         }
     }
 
+    error FailedToSendETH();
+
     /* ========== EVENTS ========== */
 
     /**
@@ -151,24 +153,20 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         __BaseVault_init(admin, manager);
     }
 
-    function __BaseVault_insideOneClickIndex() internal onlyInitializing {
+    function __BaseVault_upgradeStorage(address[] memory accountsToMigrate) internal onlyInitializing {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         $.lastTimeManagementFeeCollected = block.timestamp;
-        address oneClick = address(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9);
-        uint256 balance_;
-        assembly {
-            mstore(0, oneClick)
-            mstore(32, 0)
-            let valueSlot := keccak256(0, 64)
-            balance_ := sload(valueSlot)
-            sstore(valueSlot, 0)
+        if (accountsToMigrate.length > 0) {
+            BaseVaultStorage storage oldVaultStorage;
+            assembly {
+                oldVaultStorage.slot := 0
+            }
+            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                address account = accountsToMigrate[i];
+                $.waterline[account] = oldVaultStorage.waterline[account];
+                delete oldVaultStorage.waterline[account];
+            }
         }
-        $.waterline[oneClick] = balance_;
-    }
-
-    function __BaseVault_addManagementFee() internal onlyInitializing {
-        BaseVaultStorage storage $ = _getBaseVaultStorage();
-        $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
@@ -329,7 +327,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
+            if (!success) revert FailedToSendETH();
         } else if (_validateTokenToRecover(token)) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
         } else {

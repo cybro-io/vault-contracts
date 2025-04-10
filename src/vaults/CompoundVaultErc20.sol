@@ -36,26 +36,8 @@ contract CompoundVault is BaseVault {
         __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
     }
 
-    function initialize_insideOneClickIndex() public reinitializer(2) {
-        __BaseVault_insideOneClickIndex();
-    }
-
-    function initialize_orbit() public reinitializer(2) {
-        __BaseVault_insideOneClickIndex();
-        bytes32 baseVaultStorageLocation = 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00;
-        address account = 0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6;
-        assembly {
-            mstore(0, account)
-            mstore(32, 0)
-            let valueSlot := keccak256(0, 64)
-            let balance_ := sload(valueSlot)
-
-            sstore(valueSlot, 0)
-
-            mstore(0, account)
-            mstore(32, baseVaultStorageLocation)
-            sstore(keccak256(0, 64), balance_)
-        }
+    function initialize_insideOneClickIndex(address[] memory accountsToMigrate) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate);
     }
 
     /// @inheritdoc BaseVault

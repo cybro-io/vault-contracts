@@ -22,6 +22,20 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
+    error Slippage();
+    error InvalidSwapCallbackCaller();
+    error NoAvailablePools();
+    error DeviationNotPositive();
+    error DeviationNotNegative();
+    error InvalidFromPoolAddress();
+    error InvalidToPoolAddress();
+    error RebalanceFailedForFromPool();
+    error RebalanceFailedForToPool();
+
+    struct OldVaultStorage {
+        mapping(address => uint256) waterline;
+    }
+
     /* ========== EVENTS ========== */
 
     /**
@@ -108,35 +122,19 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     }
 
     function initialize_upgradeStorage(address[] memory accountsToMigrate) public reinitializer(2) {
-        __BaseVault_addManagementFee();
+        __BaseVault_upgradeStorage(new address[](0));
 
-        {
-            bytes32 oldBalancesSlot;
-            BaseVault.BaseVaultStorage storage $;
+        BaseVault.BaseVaultStorage storage $;
+        OldVaultStorage storage oldVaultStorage;
 
-            assembly {
-                oldBalancesSlot := 4
-                $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
-            }
+        assembly {
+            oldVaultStorage.slot := 4
+            $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
+        }
 
-            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
-                address account = accountsToMigrate[i];
-                uint256 balance_;
-                bytes32 valueSlot;
-
-                assembly {
-                    mstore(0, account)
-                    mstore(32, oldBalancesSlot)
-                    valueSlot := keccak256(0, 64)
-                    balance_ := sload(valueSlot)
-                }
-                if (balance_ > 0) {
-                    $.waterline[account] = balance_;
-                    assembly {
-                        sstore(valueSlot, 0)
-                    }
-                }
-            }
+        for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+            $.waterline[accountsToMigrate[i]] = oldVaultStorage.waterline[accountsToMigrate[i]];
+            delete oldVaultStorage.waterline[accountsToMigrate[i]];
         }
     }
 
@@ -262,14 +260,14 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
      */
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
-        require(lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
-        require(lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
+        if (!lendingPoolAddresses.contains(from)) revert InvalidFromPoolAddress();
+        if (!lendingPoolAddresses.contains(to)) revert InvalidToPoolAddress();
 
         int256 deviationFrom = _computeDeviation(from);
         int256 deviationTo = _computeDeviation(to);
 
-        require(deviationFrom > 0, "OneClickIndex: Pool 'from' not deviated positively");
-        require(deviationTo <= 0, "OneClickIndex: Pool 'to' not deviated negatively");
+        if (deviationFrom <= 0) revert DeviationNotPositive();
+        if (deviationTo > 0) revert DeviationNotNegative();
 
         IVault(to).deposit(
             _swap(
@@ -284,8 +282,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
 
-        require(deviationFrom >= 0, "OneClickIndex: Rebalance failed for 'from' pool");
-        require(deviationTo <= 0, "OneClickIndex: Rebalance failed for 'to' pool");
+        if (deviationFrom < 0) revert RebalanceFailedForFromPool();
+        if (deviationTo > 0) revert RebalanceFailedForToPool();
     }
 
     /**
@@ -476,7 +474,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        require(lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
+        if (lendingPoolAddresses.length() == 0) revert NoAvailablePools();
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
@@ -528,10 +526,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _checkSlippage(address from, address to, uint256 amountIn, uint256 amountOut) internal view {
         uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
         uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
-        require(
-            amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
-            "OneClickIndex: Slippage"
-        );
+        if (amountOutUsd < amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision) {
+            revert Slippage();
+        }
     }
 
     /**
@@ -580,7 +577,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         require(amount0Delta > 0 || amount1Delta > 0);
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
-        require(address(swapPools[tokenIn][tokenOut]) == msg.sender, "OneClickIndex: invalid swap callback caller");
+        if (address(swapPools[tokenIn][tokenOut]) != msg.sender) revert InvalidSwapCallbackCaller();
 
         // Transfer the required amount back to the pool
         if (amount0Delta > 0) {

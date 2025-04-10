@@ -67,8 +67,8 @@ contract InitVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
-    function initialize_insideOneClickIndex() public reinitializer(2) {
-        __BaseVault_insideOneClickIndex();
+    function initialize_insideOneClickIndex(address[] memory accountsToMigrate) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate);
     }
 
     /// @inheritdoc BaseVault

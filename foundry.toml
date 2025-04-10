@@ -5,7 +5,7 @@ libs = ["lib"]
 auto_detect_solc = true
 evm_version = 'cancun'
 optimizer = true
-optimizer_runs = 450
+optimizer_runs = 400
 fs_permissions = [{ access = "read", path = "./"}]
 
 [rpc_endpoints]

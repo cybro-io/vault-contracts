@@ -147,26 +147,39 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
-    function __BaseVault_ownableToAccessControl(address admin, address manager) internal onlyInitializing {
-        // clear ownableUpgradeable storage slot
-        assembly {
-            sstore(0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300, 0)
-        }
-        __BaseVault_init(admin, manager);
-    }
-
-    function __BaseVault_upgradeStorage(address[] memory accountsToMigrate) internal onlyInitializing {
+    function __BaseVault_upgradeStorage(
+        address[] memory accountsToMigrate,
+        bool ownableToAccessControl,
+        bool moveOrSetCurrentBalance,
+        bytes32 slot_
+    ) internal onlyInitializing {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         $.lastTimeManagementFeeCollected = block.timestamp;
-        if (accountsToMigrate.length > 0) {
-            BaseVaultStorage storage oldVaultStorage;
+        if (ownableToAccessControl) {
             assembly {
-                oldVaultStorage.slot := 0
+                sstore(0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300, 0)
             }
-            for (uint256 i = 0; i < accountsToMigrate.length; i++) {
-                address account = accountsToMigrate[i];
-                $.waterline[account] = oldVaultStorage.waterline[account];
-                delete oldVaultStorage.waterline[account];
+            __Pausable_init();
+            _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+            _grantRole(MANAGER_ROLE, msg.sender);
+        }
+        if (accountsToMigrate.length > 0) {
+            if (moveOrSetCurrentBalance) {
+                BaseVaultStorage storage oldVaultStorage;
+                assembly {
+                    oldVaultStorage.slot := slot_
+                }
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    address account = accountsToMigrate[i];
+                    $.waterline[account] = oldVaultStorage.waterline[account];
+                    delete oldVaultStorage.waterline[account];
+                }
+            } else {
+                uint256 sharePrice_ = sharePrice();
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    $.waterline[accountsToMigrate[i]] =
+                        balanceOf(accountsToMigrate[i]) * sharePrice_ / (10 ** decimals());
+                }
             }
         }
     }

@@ -124,21 +124,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         _grantRole(STRATEGIST_ROLE, strategist);
     }
 
-    function initialize_upgradeStorage(address[] memory accountsToMigrate) public reinitializer(2) {
-        __BaseVault_upgradeStorage(new address[](0));
-
-        BaseVault.BaseVaultStorage storage $;
-        OldVaultStorage storage oldVaultStorage;
-
-        assembly {
-            oldVaultStorage.slot := 4
-            $.slot := 0x3723283c6c153be31b346222d4cdfc82d474472705dbc1bceef0b3066f389b00
-        }
-
-        for (uint256 i = 0; i < accountsToMigrate.length; i++) {
-            $.waterline[accountsToMigrate[i]] = oldVaultStorage.waterline[accountsToMigrate[i]];
-            delete oldVaultStorage.waterline[accountsToMigrate[i]];
-        }
+    function initialize_upgrade(address[] memory accountsToMigrate, bool, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, false, true, bytes32(uint256(4)));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */

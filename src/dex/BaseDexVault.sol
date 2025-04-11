@@ -70,9 +70,10 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         int24 tickLower_,
         int24 tickUpper_,
         uint160 sqrtPriceLower_,
-        uint160 sqrtPriceUpper_
+        uint160 sqrtPriceUpper_,
+        address[] memory accountsToMigrate
     ) internal onlyInitializing {
-        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+        __BaseVault_upgradeStorage(accountsToMigrate, true, false, bytes32(uint256(0)));
         assembly {
             sstore(0, 0)
             sstore(1, 0)

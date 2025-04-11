@@ -33,8 +33,8 @@ contract YieldStakingVault is BaseVault {
         __BaseVault_init(admin, manager);
     }
 
-    function initialize_ownableToAccessControl() public reinitializer(2) {
-        __BaseVault_ownableToAccessControl(msg.sender, msg.sender);
+    function initialize_upgrade(address[] memory accountsToMigrate, bool, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, true, false, bytes32(uint256(0)));
     }
 
     /// @inheritdoc BaseVault

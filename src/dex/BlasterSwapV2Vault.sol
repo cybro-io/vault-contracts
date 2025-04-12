@@ -76,8 +76,8 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         __BaseDexUniformVault_init(admin, manager);
     }
 
-    function initialize_upgrade(address[] memory accountsToMigrate, bool, bool) public reinitializer(2) {
-        __BaseVault_upgradeStorage(accountsToMigrate, true, false, bytes32(uint256(0)));
+    function initialize_upgrade(address[] memory accountsToMigrate, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, false, bytes32(uint256(0)));
     }
 
     /* ========== VIEW FUNCTIONS ========== */

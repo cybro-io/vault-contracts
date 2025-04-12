@@ -124,8 +124,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         _grantRole(STRATEGIST_ROLE, strategist);
     }
 
-    function initialize_upgrade(address[] memory accountsToMigrate, bool, bool) public reinitializer(2) {
-        __BaseVault_upgradeStorage(accountsToMigrate, false, true, bytes32(uint256(4)));
+    function initialize_upgrade(address[] memory accountsToMigrate, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, true, bytes32(uint256(4)));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */

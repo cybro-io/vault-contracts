@@ -73,7 +73,6 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         uint160 sqrtPriceUpper_,
         address[] memory accountsToMigrate
     ) internal onlyInitializing {
-        __BaseVault_upgradeStorage(accountsToMigrate, true, false, bytes32(uint256(0)));
         assembly {
             sstore(0, 0)
             sstore(1, 0)
@@ -85,6 +84,7 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         $.tickUpper = tickUpper_;
         $.sqrtPriceLower = sqrtPriceLower_;
         $.sqrtPriceUpper = sqrtPriceUpper_;
+        __BaseVault_upgradeStorage(accountsToMigrate, false, bytes32(uint256(0)));
     }
 
     /* ========== VIEW FUNCTIONS ========== */

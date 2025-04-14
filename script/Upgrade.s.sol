@@ -39,7 +39,6 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         address vault;
         address newImpl;
         bool recalculateWaterline;
-        address[] accountsToMigrate;
     }
 
     uint32 public constant feePrecision = 10000;
@@ -50,12 +49,11 @@ contract Upgrade is Script, StdCheats, DeployUtils {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant STRATEGIST_ROLE = keccak256("STRATEGIST_ROLE");
 
-    address[] public fromJson_accountsToMigrate;
     AccountsToMigrate[] public parsedAccountsToMigrate;
-    uint256[] public waterlines;
     IERC20Metadata public asset_;
     uint256 public snapshotId;
-    bool public isOneClickIndex;
+    mapping(address vault => address[]) public realAccountsToMigrate;
+    mapping(address vault => mapping(address account => uint256 waterline)) public waterlines;
 
     function _testCanRedeem(IVault vault, address user_) internal {
         uint256 sharesOfUserBefore = vault.balanceOf(user_);
@@ -72,7 +70,11 @@ contract Upgrade is Script, StdCheats, DeployUtils {
                     );
                     (success, returnData) = address(vault).call(data);
                     if (!success) {
-                        revert("ERROR redeeming");
+                        data = abi.encodeWithSignature("redeem(uint256,address)", sharesOfUserBefore, user_);
+                        (success, returnData) = address(vault).call(data);
+                        if (!success) {
+                            revert("ERROR redeeming");
+                        }
                     }
                 }
                 vm.assertGt(abi.decode(returnData, (uint256)), 0);
@@ -87,30 +89,31 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         vm.revertToState(snapshotId);
     }
 
-    function _checkItem(UpgradeParams memory params, address investor_address, uint256 sharePrice, uint256 decimals)
-        internal
-    {
-        uint256 balance = IERC20Metadata(params.vault).balanceOf(investor_address);
+    function _checkItem(
+        address vault,
+        bool recalculateWaterline,
+        address investor_address,
+        uint256 sharePrice,
+        uint256 decimals
+    ) internal {
+        uint256 balance = IERC20Metadata(vault).balanceOf(investor_address);
         if (balance > 0) {
             console.log("investor_address", investor_address, "balanceOf", balance);
-            fromJson_accountsToMigrate.push(investor_address);
-            if (!params.recalculateWaterline) {
+            if (!recalculateWaterline) {
                 balance = balance * sharePrice / 10 ** decimals;
             } else {
-                (bool success, bytes memory returnData) = address(params.vault).call(
-                    abi.encodeWithSignature("getDepositedBalance(address)", investor_address)
-                );
+                (bool success, bytes memory returnData) =
+                    address(vault).call(abi.encodeWithSignature("getDepositedBalance(address)", investor_address));
                 if (success) {
                     balance = abi.decode(returnData, (uint256));
                 } else {
                     revert("ERROR getting deposited balance");
                 }
             }
-            waterlines.push(balance);
-            if (!isOneClickIndex) {
-                snapshotId = vm.snapshotState();
-                _testCanRedeem(IVault(params.vault), investor_address);
-            }
+            realAccountsToMigrate[vault].push(investor_address);
+            waterlines[vault][investor_address] = balance;
+            snapshotId = vm.snapshotState();
+            _testCanRedeem(IVault(vault), investor_address);
         }
     }
 
@@ -128,34 +131,43 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         }
     }
 
-    function _updateAccountsToMigrate(UpgradeParams memory params) internal {
-        _parse();
-        delete fromJson_accountsToMigrate;
-        delete waterlines;
-        uint256 sharePrice;
-        uint256 decimals = IERC20Metadata(params.vault).decimals();
-        (bool success, bytes memory returnData) = address(params.vault).call(abi.encodeWithSignature("sharePrice()"));
+    function _getSharePrice(address vault) internal returns (uint256 sharePrice) {
+        (bool success, bytes memory returnData) = address(vault).call(abi.encodeWithSignature("sharePrice()"));
         if (success) {
             sharePrice = abi.decode(returnData, (uint256));
         } else {
-            (uint256 amount0, uint256 amount1) = BaseDexVault(params.vault).getPositionAmounts();
-            uint256 sqrtPrice = BaseDexUniformVault(params.vault).getCurrentSqrtPrice();
+            (uint256 amount0, uint256 amount1) = BaseDexVault(vault).getPositionAmounts();
+            uint256 sqrtPrice = BaseDexUniformVault(vault).getCurrentSqrtPrice();
             sharePrice = (
-                address(asset_) == BaseDexUniformVault(params.vault).token0()
+                address(asset_) == BaseDexUniformVault(vault).token0()
                     ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
                     : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1
-            ) * (10 ** decimals) / IVault(params.vault).totalSupply();
+            ) * (10 ** IERC20Metadata(vault).decimals()) / IVault(vault).totalSupply();
         }
-        for (uint256 i = 0; i < parsedAccountsToMigrate.length; i++) {
-            AccountsToMigrate memory item = parsedAccountsToMigrate[i];
-            if (item.fund_address == params.vault) {
-                _checkItem(params, item.investor_address, sharePrice, decimals);
+    }
+
+    function _updateWaterlinesForVault(address vault, bool recalculateWaterline, address[] memory accountsToMigrate_)
+        internal
+        returns (address)
+    {
+        _parse();
+        uint256 sharePrice = _getSharePrice(vault);
+        uint256 decimals = IERC20Metadata(vault).decimals();
+        console.log("Updating waterlines for vault:", vault, "\n");
+        if (accountsToMigrate_.length == 0) {
+            for (uint256 i = 0; i < parsedAccountsToMigrate.length; i++) {
+                AccountsToMigrate memory item = parsedAccountsToMigrate[i];
+                if (item.fund_address == vault) {
+                    _checkItem(vault, recalculateWaterline, item.investor_address, sharePrice, decimals);
+                }
+            }
+        } else {
+            for (uint256 i = 0; i < accountsToMigrate_.length; i++) {
+                _checkItem(vault, recalculateWaterline, accountsToMigrate_[i], sharePrice, decimals);
             }
         }
-        for (uint256 i = 0; i < params.accountsToMigrate.length; i++) {
-            _checkItem(params, params.accountsToMigrate[i], sharePrice, decimals);
-        }
-        console.log("\naccountsToMigrate", fromJson_accountsToMigrate.length);
+        console.log("\naccountsToMigrate", realAccountsToMigrate[vault].length, "\n");
+        return vault;
     }
 
     function _deployFeeProvider(
@@ -211,10 +223,10 @@ contract Upgrade is Script, StdCheats, DeployUtils {
 
     function _beforeUpgrade(UpgradeParams memory params)
         internal
+        view
         returns (ProxyAdmin, uint256, uint256, address, address)
     {
         console.log("\n New implementation", params.newImpl, "\n");
-        _updateAccountsToMigrate(params);
         (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(params.vault);
         uint256 totalSupplyBefore = IERC20Metadata(params.vault).totalSupply();
         uint256 tvlBefore;
@@ -237,29 +249,22 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             vm.assertTrue(BaseVault(params.vault).hasRole(DEFAULT_ADMIN_ROLE, owner_));
             vm.assertTrue(BaseVault(params.vault).hasRole(MANAGER_ROLE, owner_));
         }
-        _checkMigratedAccounts(params);
+        _checkMigratedAccounts(params.vault);
         _testVaultWorks(BaseVault(params.vault), 10 ** IERC20Metadata(params.vault).decimals());
         vm.assertEq(IERC20Metadata(params.vault).totalSupply(), totalSupplyBefore);
         console.log("\nTESTS PASSED");
         console.log("\n==============================================\n");
     }
 
-    function _checkMigratedAccounts(UpgradeParams memory params) internal {
-        if (params.accountsToMigrate.length == 0) {
-            if (fromJson_accountsToMigrate.length == 0) {
-                return;
-            } else {
-                for (uint256 i = 0; i < fromJson_accountsToMigrate.length; i++) {
-                    vm.assertEq(IVault(params.vault).getWaterline(fromJson_accountsToMigrate[i]), waterlines[i]);
-                    snapshotId = vm.snapshotState();
-                    _testCanRedeem(IVault(params.vault), fromJson_accountsToMigrate[i]);
-                }
-            }
+    function _checkMigratedAccounts(address vault) internal {
+        if (realAccountsToMigrate[vault].length == 0) {
+            return;
         } else {
-            for (uint256 i = 0; i < params.accountsToMigrate.length; i++) {
-                vm.assertEq(IVault(params.vault).getWaterline(params.accountsToMigrate[i]), waterlines[i]);
+            for (uint256 i = 0; i < realAccountsToMigrate[vault].length; i++) {
+                address account = realAccountsToMigrate[vault][i];
+                vm.assertEq(IVault(vault).getWaterline(account), waterlines[vault][account]);
                 snapshotId = vm.snapshotState();
-                _testCanRedeem(IVault(params.vault), params.accountsToMigrate[i]);
+                _testCanRedeem(IVault(vault), account);
             }
         }
     }
@@ -272,11 +277,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             ITransparentUpgradeableProxy(params.vault),
             address(params.newImpl),
             abi.encodeCall(
-                AaveVault.initialize_upgrade,
-                (
-                    params.accountsToMigrate.length == 0 ? fromJson_accountsToMigrate : params.accountsToMigrate,
-                    params.recalculateWaterline
-                )
+                AaveVault.initialize_upgrade, (realAccountsToMigrate[params.vault], params.recalculateWaterline)
             )
         );
         vm.stopBroadcast();
@@ -297,7 +298,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
                 BaseDexVault(params.vault).tickUpper(),
                 BaseDexVault(params.vault).sqrtPriceLower(),
                 BaseDexVault(params.vault).sqrtPriceUpper(),
-                fromJson_accountsToMigrate
+                realAccountsToMigrate[params.vault]
             )
         );
         proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(params.vault), params.newImpl, data);
@@ -323,46 +324,57 @@ contract Upgrade is Script, StdCheats, DeployUtils {
     }
 
     function upgradeBlast() public {
+        // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
+
         // upgrade 0x3DB2bD838c2bEd431DCFA012c3419b7e94D78456
         // YieldStakingVault CYBRO WETH
 
-        // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
+        YieldStakingVault yieldStaking_weth_vault = YieldStakingVault(
+            _updateWaterlinesForVault(0x3DB2bD838c2bEd431DCFA012c3419b7e94D78456, false, new address[](0))
+        );
+        console.log("Upgrading YieldStakingVault CYBRO WETH\n  ", address(yieldStaking_weth_vault), "\n");
 
-        YieldStakingVault vault = YieldStakingVault(0x3DB2bD838c2bEd431DCFA012c3419b7e94D78456);
-        console.log("Upgrading YieldStakingVault CYBRO WETH\n  ", address(vault), "\n");
-
-        address admin = _getAdmin(address(vault));
+        address admin = _getAdmin(address(yieldStaking_weth_vault));
         vm.startBroadcast(admin);
-        IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
-        YieldStakingVault newImpl =
-            new YieldStakingVault(IERC20Metadata(vault.asset()), vault.staking(), feeProvider, feeRecipient);
+        IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(yieldStaking_weth_vault));
+        YieldStakingVault newImpl = new YieldStakingVault(
+            IERC20Metadata(yieldStaking_weth_vault.asset()),
+            yieldStaking_weth_vault.staking(),
+            feeProvider,
+            feeRecipient
+        );
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(vault),
+                vault: address(yieldStaking_weth_vault),
                 newImpl: address(newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
         // upgrade 0xDB5E7d5AC4E09206fED80efD7AbD9976357e1c03
         // YieldStakingVault CYBRO USDB
 
-        vault = YieldStakingVault(0xDB5E7d5AC4E09206fED80efD7AbD9976357e1c03);
-        console.log("Upgrading YieldStakingVault CYBRO USDB\n  ", address(vault), "\n");
+        YieldStakingVault yieldStaking_usdb_vault = YieldStakingVault(
+            _updateWaterlinesForVault(0xDB5E7d5AC4E09206fED80efD7AbD9976357e1c03, false, new address[](0))
+        );
+        console.log("Upgrading YieldStakingVault CYBRO USDB\n  ", address(yieldStaking_usdb_vault), "\n");
 
-        admin = _getAdmin(address(vault));
+        admin = _getAdmin(address(yieldStaking_usdb_vault));
         vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
-        newImpl = new YieldStakingVault(IERC20Metadata(vault.asset()), vault.staking(), feeProvider, feeRecipient);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(yieldStaking_usdb_vault));
+        newImpl = new YieldStakingVault(
+            IERC20Metadata(yieldStaking_usdb_vault.asset()),
+            yieldStaking_usdb_vault.staking(),
+            feeProvider,
+            feeRecipient
+        );
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(vault),
+                vault: address(yieldStaking_usdb_vault),
                 newImpl: address(newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
@@ -373,6 +385,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         console.log("Upgrading BlasterSwap  USDB/WETH\n  ", address(blaster_vault), "\n");
 
         asset_ = IERC20Metadata(blaster_vault.token0()); // USDB
+        _updateWaterlinesForVault(address(blaster_vault), false, new address[](0));
         admin = _getAdmin(address(blaster_vault));
         vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(blaster_vault));
@@ -389,135 +402,140 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             UpgradeParams({
                 vault: address(blaster_vault),
                 newImpl: address(blaster_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
         // upgrade 0x18E22f3f9a9652ee3A667d78911baC55bC2249Af
         // Juice WETH Lending
 
-        JuiceVault juice_vault = JuiceVault(0x18E22f3f9a9652ee3A667d78911baC55bC2249Af);
-        console.log("Upgrading Juice WETH Lending\n  ", address(juice_vault), "\n");
+        JuiceVault juice_weth_vault =
+            JuiceVault(_updateWaterlinesForVault(0x18E22f3f9a9652ee3A667d78911baC55bC2249Af, false, new address[](0)));
+        console.log("Upgrading Juice WETH Lending\n  ", address(juice_weth_vault), "\n");
 
-        admin = _getAdmin(address(juice_vault));
+        admin = _getAdmin(address(juice_weth_vault));
         vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(juice_vault));
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(juice_weth_vault));
         JuiceVault juice_newImpl =
-            new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
+            new JuiceVault(IERC20Metadata(juice_weth_vault.asset()), juice_weth_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(juice_vault),
+                vault: address(juice_weth_vault),
                 newImpl: address(juice_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
         // upgrade 0xD58826d2C0bAbf1A60d8b508160b52E9C19AFf07
         // Juice USDB Lending
+        JuiceVault juice_usdb_vault =
+            JuiceVault(_updateWaterlinesForVault(0xD58826d2C0bAbf1A60d8b508160b52E9C19AFf07, false, new address[](0)));
+        console.log("Upgrading Juice USDB Lending\n  ", address(juice_usdb_vault), "\n");
 
-        juice_vault = JuiceVault(0xD58826d2C0bAbf1A60d8b508160b52E9C19AFf07);
-        console.log("Upgrading Juice USDB Lending\n  ", address(juice_vault), "\n");
-
-        admin = _getAdmin(address(juice_vault));
+        admin = _getAdmin(address(juice_usdb_vault));
         vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(juice_vault));
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(juice_usdb_vault));
         juice_newImpl =
-            new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
+            new JuiceVault(IERC20Metadata(juice_usdb_vault.asset()), juice_usdb_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(juice_vault),
+                vault: address(juice_usdb_vault),
                 newImpl: address(juice_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
         // upgrade 0x567103a40C408B2B8f766016C57A092A180397a1
         // Aso Finance USDB Lending (Compound)
+        CompoundVault compound_usdb_vault = CompoundVault(
+            _updateWaterlinesForVault(0x567103a40C408B2B8f766016C57A092A180397a1, false, new address[](0))
+        );
+        console.log("Upgrading Aso Finance USDB Lending (Compound)\n  ", address(compound_usdb_vault), "\n");
 
-        CompoundVault compound_vault = CompoundVault(0x567103a40C408B2B8f766016C57A092A180397a1);
-        console.log("Upgrading Aso Finance USDB Lending (Compound)\n  ", address(compound_vault), "\n");
-
-        admin = _getAdmin(address(compound_vault));
+        admin = _getAdmin(address(compound_usdb_vault));
         vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_vault));
-        CompoundVault compound_newImpl =
-            new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_usdb_vault));
+        CompoundVault compound_newImpl = new CompoundVault(
+            IERC20Metadata(compound_usdb_vault.asset()), compound_usdb_vault.pool(), feeProvider, feeRecipient
+        );
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(compound_vault),
+                vault: address(compound_usdb_vault),
                 newImpl: address(compound_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
 
         // upgrade 0x9cc62EF691E869C05FD2eC41839889d4E74c3a3f
         // Aso Finance WETH Lending (CompoundETH)
+        {
+            CompoundVaultETH compound_eth_vault = CompoundVaultETH(
+                payable(_updateWaterlinesForVault(0x9cc62EF691E869C05FD2eC41839889d4E74c3a3f, false, new address[](0)))
+            );
+            console.log("Upgrading Aso Finance WETH Lending (CompoundETH)\n  ", address(compound_eth_vault), "\n");
 
-        CompoundVaultETH compoundETH_vault = CompoundVaultETH(payable(0x9cc62EF691E869C05FD2eC41839889d4E74c3a3f));
-        console.log("Upgrading Aso Finance WETH Lending (CompoundETH)\n  ", address(compoundETH_vault), "\n");
-
-        admin = _getAdmin(address(compoundETH_vault));
-        vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compoundETH_vault));
-        CompoundVaultETH compoundETH_newImpl = new CompoundVaultETH(
-            IERC20Metadata(compoundETH_vault.asset()), compoundETH_vault.pool(), feeProvider, feeRecipient
-        );
-        vm.stopBroadcast();
-        _upgradeVault(
-            UpgradeParams({
-                vault: address(compoundETH_vault),
-                newImpl: address(compoundETH_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
-        );
+            admin = _getAdmin(address(compound_eth_vault));
+            vm.startBroadcast(admin);
+            feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_eth_vault));
+            CompoundVaultETH compoundETH_newImpl = new CompoundVaultETH(
+                IERC20Metadata(compound_eth_vault.asset()), compound_eth_vault.pool(), feeProvider, feeRecipient
+            );
+            vm.stopBroadcast();
+            _upgradeVault(
+                UpgradeParams({
+                    vault: address(compound_eth_vault),
+                    newImpl: address(compoundETH_newImpl),
+                    recalculateWaterline: false
+                })
+            );
+        }
 
         // upgrade 0xDCCDe9C6800BeA86E2e91cF54a870BA3Ff6FAF9f
         // Aso Finance WeETH Lending (Compound)
+        {
+            CompoundVault compound_weeth_vault = CompoundVault(
+                _updateWaterlinesForVault(0xDCCDe9C6800BeA86E2e91cF54a870BA3Ff6FAF9f, false, new address[](0))
+            );
+            console.log("Upgrading Aso Finance WeETH Lending (Compound)\n  ", address(compound_weeth_vault), "\n");
 
-        compound_vault = CompoundVault(0xDCCDe9C6800BeA86E2e91cF54a870BA3Ff6FAF9f);
-        console.log("Upgrading Aso Finance WeETH Lending (Compound)\n  ", address(compound_vault), "\n");
-
-        admin = _getAdmin(address(compound_vault));
-        vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_vault));
-        compound_newImpl =
-            new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
-        vm.stopBroadcast();
-        _upgradeVault(
-            UpgradeParams({
-                vault: address(compound_vault),
-                newImpl: address(compound_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
-        );
-
+            admin = _getAdmin(address(compound_weeth_vault));
+            vm.startBroadcast(admin);
+            feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_weeth_vault));
+            compound_newImpl = new CompoundVault(
+                IERC20Metadata(compound_weeth_vault.asset()), compound_weeth_vault.pool(), feeProvider, feeRecipient
+            );
+            vm.stopBroadcast();
+            _upgradeVault(
+                UpgradeParams({
+                    vault: address(compound_weeth_vault),
+                    newImpl: address(compound_newImpl),
+                    recalculateWaterline: false
+                })
+            );
+        }
         // upgrade 0x0667ac28015ED7146f19B2d218f81218abf32951
         // Aso Finance WBTC Lending (Compound)
 
-        compound_vault = CompoundVault(0x0667ac28015ED7146f19B2d218f81218abf32951);
-        console.log("Upgrading Aso Finance WBTC Lending (Compound)\n  ", address(compound_vault), "\n");
+        CompoundVault compound_wbtc_vault = CompoundVault(
+            _updateWaterlinesForVault(0x0667ac28015ED7146f19B2d218f81218abf32951, false, new address[](0))
+        );
+        console.log("Upgrading Aso Finance WBTC Lending (Compound)\n  ", address(compound_wbtc_vault), "\n");
 
-        admin = _getAdmin(address(compound_vault));
+        admin = _getAdmin(address(compound_wbtc_vault));
         vm.startBroadcast(admin);
-        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_vault));
-        compound_newImpl =
-            new CompoundVault(IERC20Metadata(compound_vault.asset()), compound_vault.pool(), feeProvider, feeRecipient);
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(compound_wbtc_vault));
+        compound_newImpl = new CompoundVault(
+            IERC20Metadata(compound_wbtc_vault.asset()), compound_wbtc_vault.pool(), feeProvider, feeRecipient
+        );
         vm.stopBroadcast();
         _upgradeVault(
             UpgradeParams({
-                vault: address(compound_vault),
+                vault: address(compound_wbtc_vault),
                 newImpl: address(compound_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
+                recalculateWaterline: false
             })
         );
     }
@@ -533,20 +551,14 @@ contract Upgrade is Script, StdCheats, DeployUtils {
 
         address admin = _getAdmin(address(vault));
         asset_ = IERC20Metadata(vault.token0()); // USDB
+        _updateWaterlinesForVault(address(vault), false, new address[](0));
         vm.startBroadcast(admin);
         IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
         AlgebraVault newImpl = new AlgebraVault(
             payable(address(vault.positionManager())), vault.token0(), vault.token1(), asset_, feeProvider, feeRecipient
         );
         vm.stopBroadcast();
-        _upgradeDexVault(
-            UpgradeParams({
-                vault: address(vault),
-                newImpl: address(newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
-        );
+        _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
 
         // upgrade 0x370498c028564de4491B8aA2df437fb772a39EC5
         // Fenix Finance Blast/WETH
@@ -556,20 +568,14 @@ contract Upgrade is Script, StdCheats, DeployUtils {
 
         admin = _getAdmin(address(vault));
         asset_ = IERC20Metadata(vault.token0()); // WETH
+        _updateWaterlinesForVault(address(vault), false, new address[](0));
         vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
         newImpl = new AlgebraVault(
             payable(address(vault.positionManager())), vault.token0(), vault.token1(), asset_, feeProvider, feeRecipient
         );
         vm.stopBroadcast();
-        _upgradeDexVault(
-            UpgradeParams({
-                vault: address(vault),
-                newImpl: address(newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
-        );
+        _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
 
         // upgrade 0x66E1BEA0a5a934B96E2d7d54Eddd6580c485521b
         // Fenix Finance WeETH/WETH
@@ -579,6 +585,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
 
         admin = _getAdmin(address(vault));
         asset_ = IERC20Metadata(vault.token1()); // WETH
+        _updateWaterlinesForVault(address(vault), false, new address[](0));
         vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
         newImpl = new AlgebraVault(
@@ -590,28 +597,24 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             feeRecipient
         );
         vm.stopBroadcast();
-        _upgradeDexVault(
-            UpgradeParams({
-                vault: address(vault),
-                newImpl: address(newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
-        );
+        _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
     }
 
     function upgradeOneClick_Base() public {
         // ADMIN ACCOUNT IS 0xEFCFA8a86970fD14Ea9AB593716C2544cedC4Ff7
         // ADMIN473 ACCOUNT IS 0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6
 
-        OneClickIndex oneClick = OneClickIndex(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9);
+        OneClickIndex oneClick =
+            OneClickIndex(_updateWaterlinesForVault(0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9, true, new address[](0)));
         address[] memory accountsToMigrate_ = new address[](1);
         accountsToMigrate_[0] = address(oneClick);
 
         // upgrade 0x9cABCb97C0EDF8910B433188480287B8323ee0FA
         // Compound (inside oneClickIndex)
 
-        CompoundVault compound_vault = CompoundVault(0x9cABCb97C0EDF8910B433188480287B8323ee0FA);
+        CompoundVault compound_vault = CompoundVault(
+            _updateWaterlinesForVault(0x9cABCb97C0EDF8910B433188480287B8323ee0FA, true, accountsToMigrate_)
+        );
         console.log("\nUpgrading Compound (inside oneClickIndex)\n  ", address(compound_vault), "\n");
 
         IFeeProvider feeProvider = compound_vault.feeProvider();
@@ -625,15 +628,15 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             UpgradeParams({
                 vault: address(compound_vault),
                 newImpl: address(compound_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: accountsToMigrate_
+                recalculateWaterline: true
             })
         );
 
         // upgrade 0x9fe836AB706Aec38fc4e1CaB758011fC59E730Bc
         // AAVE (inside oneClickIndex)
 
-        AaveVault aave_vault = AaveVault(0x9fe836AB706Aec38fc4e1CaB758011fC59E730Bc);
+        AaveVault aave_vault =
+            AaveVault(_updateWaterlinesForVault(0x9fe836AB706Aec38fc4e1CaB758011fC59E730Bc, true, accountsToMigrate_));
         console.log("\nUpgrading AAVE (inside oneClickIndex)\n  ", address(aave_vault), "\n");
 
         feeProvider = aave_vault.feeProvider();
@@ -644,19 +647,13 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             new AaveVault(IERC20Metadata(aave_vault.asset()), aave_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
-            UpgradeParams({
-                vault: address(aave_vault),
-                newImpl: address(aave_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: accountsToMigrate_
-            })
+            UpgradeParams({vault: address(aave_vault), newImpl: address(aave_newImpl), recalculateWaterline: true})
         );
 
         // upgrade 0x0655e391e0c6e0b8cBe8C2747Ae15c67c37583B9
         // Base Index USDC
 
         console.log("\nUpgrading Base Index USDC\n  ", address(oneClick), "\n");
-        isOneClickIndex = true;
         feeProvider = oneClick.feeProvider();
         _upgradeFeeProvider(feeProvider, address(oneClick));
 
@@ -664,12 +661,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
-            UpgradeParams({
-                vault: address(oneClick),
-                newImpl: address(oneClick_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: new address[](0)
-            })
+            UpgradeParams({vault: address(oneClick), newImpl: address(oneClick_newImpl), recalculateWaterline: true})
         );
     }
 
@@ -677,14 +669,16 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         // ADMIN ACCOUNT IS 0xE1066Cb8c18c408525Ca98C7B0ad70be8D5608CB
         // ADMIN473 ACCOUNT IS 0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6
 
-        OneClickIndex oneClick = OneClickIndex(0xb3E2099b135B12139C4eB774F84a5808FB25c67d);
+        OneClickIndex oneClick =
+            OneClickIndex(_updateWaterlinesForVault(0xb3E2099b135B12139C4eB774F84a5808FB25c67d, true, new address[](0)));
         address[] memory accountsToMigrate_ = new address[](1);
         accountsToMigrate_[0] = address(oneClick);
 
         // upgrade 0x346d73AcdE2a319B17CECb5bf95C49107598dF34
         // Zerolend (AAVE inside oneClickIndex)
 
-        AaveVault aave_vault = AaveVault(0x346d73AcdE2a319B17CECb5bf95C49107598dF34);
+        AaveVault aave_vault =
+            AaveVault(_updateWaterlinesForVault(0x346d73AcdE2a319B17CECb5bf95C49107598dF34, true, accountsToMigrate_));
         console.log("\nUpgrading Zerolend (AAVE inside oneClickIndex)\n  ", address(aave_vault), "\n");
 
         IFeeProvider feeProvider = aave_vault.feeProvider();
@@ -695,19 +689,15 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             new AaveVault(IERC20Metadata(aave_vault.asset()), aave_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
-            UpgradeParams({
-                vault: address(aave_vault),
-                newImpl: address(aave_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: accountsToMigrate_
-            })
+            UpgradeParams({vault: address(aave_vault), newImpl: address(aave_newImpl), recalculateWaterline: true})
         );
 
         // upgrade 0xe394Ab698279502577A071A37022430af068Bb0c
         // INIT (inside oneClickIndex)
         // WARNING: ZERO lending shares/totalSupply
 
-        InitVault init_vault = InitVault(0xe394Ab698279502577A071A37022430af068Bb0c);
+        InitVault init_vault =
+            InitVault(_updateWaterlinesForVault(0xe394Ab698279502577A071A37022430af068Bb0c, false, new address[](0)));
         console.log("\nUpgrading INIT (inside oneClickIndex)\n  ", address(init_vault), "\n");
 
         feeProvider = init_vault.feeProvider();
@@ -718,18 +708,15 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             new InitVault(IERC20Metadata(init_vault.asset()), init_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
-            UpgradeParams({
-                vault: address(init_vault),
-                newImpl: address(init_newImpl),
-                recalculateWaterline: false,
-                accountsToMigrate: new address[](0)
-            })
+            UpgradeParams({vault: address(init_vault), newImpl: address(init_newImpl), recalculateWaterline: false})
         );
 
         // upgrade 0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D
         // Juice (inside oneClickIndex)
         {
-            JuiceVault juice_vault = JuiceVault(0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D);
+            JuiceVault juice_vault = JuiceVault(
+                _updateWaterlinesForVault(0x3fE57b59cb9f3DdE249745E6D562aA8841BC1b2D, true, accountsToMigrate_)
+            );
             console.log("\nUpgrading Juice (inside oneClickIndex)\n  ", address(juice_vault), "\n");
 
             feeProvider = juice_vault.feeProvider();
@@ -740,12 +727,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
                 new JuiceVault(IERC20Metadata(juice_vault.asset()), juice_vault.pool(), feeProvider, feeRecipient);
             vm.stopBroadcast();
             _upgradeVault(
-                UpgradeParams({
-                    vault: address(juice_vault),
-                    newImpl: address(juice_newImpl),
-                    recalculateWaterline: true,
-                    accountsToMigrate: accountsToMigrate_
-                })
+                UpgradeParams({vault: address(juice_vault), newImpl: address(juice_newImpl), recalculateWaterline: true})
             );
         }
 
@@ -753,7 +735,10 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         // Orbit (inside oneClickIndex)
         // WARNING: ZERO balanceOf oneClick
 
-        CompoundVault orbit_vault = CompoundVault(0x0c0a0CcC5685974B8ab411E44e2fC70F07ce4E3d);
+        accountsToMigrate_[0] = address(0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6);
+        CompoundVault orbit_vault = CompoundVault(
+            _updateWaterlinesForVault(0x0c0a0CcC5685974B8ab411E44e2fC70F07ce4E3d, true, accountsToMigrate_)
+        );
         console.log("\nUpgrading Orbit (inside oneClickIndex)\n  ", address(orbit_vault), "\n");
 
         feeProvider = orbit_vault.feeProvider();
@@ -763,21 +748,14 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         CompoundVault orbit_newImpl =
             new CompoundVault(IERC20Metadata(orbit_vault.asset()), orbit_vault.pool(), feeProvider, feeRecipient);
         vm.stopBroadcast();
-        accountsToMigrate_[0] = address(0x4739fEFA6949fcB90F56a9D6defb3e8d3Fd282F6);
         _upgradeVault(
-            UpgradeParams({
-                vault: address(orbit_vault),
-                newImpl: address(orbit_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: accountsToMigrate_
-            })
+            UpgradeParams({vault: address(orbit_vault), newImpl: address(orbit_newImpl), recalculateWaterline: true})
         );
 
         // upgrade 0xb3E2099b135B12139C4eB774F84a5808FB25c67d
         // Blast Index USDB
 
         console.log("\nUpgrading Blast Index USDB\n  ", address(oneClick), "\n");
-        isOneClickIndex = true;
         feeProvider = oneClick.feeProvider();
         _upgradeFeeProvider(feeProvider, address(oneClick));
 
@@ -785,12 +763,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         OneClickIndex oneClick_newImpl = new OneClickIndex(IERC20Metadata(oneClick.asset()), feeProvider, feeRecipient);
         vm.stopBroadcast();
         _upgradeVault(
-            UpgradeParams({
-                vault: address(oneClick),
-                newImpl: address(oneClick_newImpl),
-                recalculateWaterline: true,
-                accountsToMigrate: new address[](0)
-            })
+            UpgradeParams({vault: address(oneClick), newImpl: address(oneClick_newImpl), recalculateWaterline: true})
         );
     }
 

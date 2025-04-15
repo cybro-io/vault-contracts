@@ -57,27 +57,34 @@ contract Upgrade is Script, StdCheats, DeployUtils {
 
     function _testCanRedeem(IVault vault, address user_) internal {
         uint256 sharesOfUserBefore = vault.balanceOf(user_);
+        uint256 balanceInAssets = sharesOfUserBefore * _getSharePrice(address(vault)) / 10 ** vault.decimals();
         vm.startPrank(user_);
-        try vault.redeem(sharesOfUserBefore, user_, user_, 0) {}
-        catch (bytes memory reason) {
+        try vault.redeem(sharesOfUserBefore, user_, user_, 0) returns (uint256 assets) {
+            vm.assertApproxEqAbs(assets, balanceInAssets, balanceInAssets / 3);
+        } catch (bytes memory reason) {
             if (reason.length == 0) {
                 bytes memory data =
                     abi.encodeWithSignature("redeem(uint256,address,address)", sharesOfUserBefore, user_, user_);
                 (bool success, bytes memory returnData) = address(vault).call(data);
                 if (!success) {
-                    data = abi.encodeWithSignature(
-                        "redeem(bool,uint256,address,address,uint256)", true, sharesOfUserBefore, user_, user_, 0
-                    );
+                    data = abi.encodeWithSignature("redeem(uint256,address)", sharesOfUserBefore, user_);
                     (success, returnData) = address(vault).call(data);
                     if (!success) {
-                        data = abi.encodeWithSignature("redeem(uint256,address)", sharesOfUserBefore, user_);
+                        data = abi.encodeWithSignature(
+                            "redeem(bool,uint256,address,address,uint256)",
+                            _isToken0(address(vault)),
+                            sharesOfUserBefore,
+                            user_,
+                            user_,
+                            0
+                        );
                         (success, returnData) = address(vault).call(data);
                         if (!success) {
                             revert("ERROR redeeming");
                         }
                     }
                 }
-                vm.assertGt(abi.decode(returnData, (uint256)), 0);
+                vm.assertApproxEqAbs(abi.decode(returnData, (uint256)), balanceInAssets, balanceInAssets / 3);
             } else {
                 assembly {
                     revert(add(reason, 32), mload(reason))
@@ -87,6 +94,13 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         vm.stopPrank();
         vm.assertEq(vault.balanceOf(user_), 0);
         vm.revertToState(snapshotId);
+    }
+
+    function _isToken0(address vault) internal view returns (bool isToken0) {
+        vm.assertTrue(
+            address(asset_) == BaseDexVault(vault).token0() || address(asset_) == BaseDexVault(vault).token1()
+        );
+        isToken0 = address(asset_) == BaseDexVault(vault).token0();
     }
 
     function _checkItem(
@@ -139,7 +153,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             (uint256 amount0, uint256 amount1) = BaseDexVault(vault).getPositionAmounts();
             uint256 sqrtPrice = BaseDexUniformVault(vault).getCurrentSqrtPrice();
             sharePrice = (
-                address(asset_) == BaseDexUniformVault(vault).token0()
+                _isToken0(vault)
                     ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
                     : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1
             ) * (10 ** IERC20Metadata(vault).decimals()) / IVault(vault).totalSupply();

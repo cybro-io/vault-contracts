@@ -29,6 +29,11 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         }
     }
 
+    error FailedToSendETH();
+    error MinAssets();
+    error MinShares();
+    error TransferNotAllowed();
+
     /* ========== EVENTS ========== */
 
     /**
@@ -143,6 +148,45 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
+    function __BaseVault_upgradeStorage(address[] memory accountsToMigrate, bool recalculateWaterline, bytes32 slot_)
+        internal
+        onlyInitializing
+    {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
+        bytes32 ownableSlot = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
+        address owner_;
+        assembly {
+            owner_ := sload(ownableSlot)
+        }
+        if (owner_ != address(0)) {
+            assembly {
+                sstore(ownableSlot, 0)
+            }
+            _grantRole(DEFAULT_ADMIN_ROLE, owner_);
+            _grantRole(MANAGER_ROLE, owner_);
+        }
+        if (accountsToMigrate.length > 0) {
+            if (recalculateWaterline) {
+                BaseVaultStorage storage oldVaultStorage;
+                assembly {
+                    oldVaultStorage.slot := slot_
+                }
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    address account = accountsToMigrate[i];
+                    $.waterline[account] = oldVaultStorage.waterline[account];
+                    delete oldVaultStorage.waterline[account];
+                }
+            } else {
+                uint256 sharePrice_ = sharePrice();
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    $.waterline[accountsToMigrate[i]] =
+                        balanceOf(accountsToMigrate[i]) * sharePrice_ / (10 ** decimals());
+                }
+            }
+        }
+    }
+
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /**
@@ -190,7 +234,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
             ? increase
             : totalSupplyBefore * increase / totalAssetsBefore;
 
-        require(shares >= minShares, "minShares");
+        if (shares < minShares) revert MinShares();
 
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         $.waterline[receiver] += increase;
@@ -239,7 +283,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
             _spendAllowance(owner, _msgSender(), shares);
         }
         assets = _redeemBaseVault(shares, receiver, owner);
-        require(assets >= minAssets, "CYBRO: minAssets");
+        if (assets < minAssets) revert MinAssets();
     }
 
     /**
@@ -301,7 +345,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
+            if (!success) revert FailedToSendETH();
         } else if (_validateTokenToRecover(token)) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
         } else {
@@ -555,7 +599,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      */
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
-            revert("CYBRO: Transfer not allowed");
+            revert TransferNotAllowed();
         }
         super._update(from, to, value);
     }

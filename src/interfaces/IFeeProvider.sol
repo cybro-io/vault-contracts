@@ -19,4 +19,7 @@ interface IFeeProvider {
         external;
     function setTiers(uint8[] memory discountTiers, uint32[] memory discounts, uint256[] memory minAmounts) external;
     function setSigners(address[] memory signers, bool[] memory isSigner) external;
+    function whitelistedContracts(address contractAddress) external view returns (bool isWhitelisted);
+    function signers(address signer) external view returns (bool isSigner);
+    function tiersData(uint8 tier) external view returns (uint32 discount, uint256 minAmount);
 }

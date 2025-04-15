@@ -9,7 +9,6 @@ import {IInitCore} from "../interfaces/init/IInitCore.sol";
 import {IERC20RebasingWrapper} from "../interfaces/init/IERC20RebasingWrapper.sol";
 import {IInitLendingPool} from "../interfaces/init/IInitLendingPool.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
-import {console} from "forge-std/console.sol";
 
 /**
  * @title InitVault
@@ -66,6 +65,10 @@ contract InitVault is BaseVault {
         IERC20Metadata(asset()).forceApprove(address(underlying), type(uint256).max);
         __ERC20_init(name, symbol);
         __BaseVault_init(admin, manager);
+    }
+
+    function initialize_upgrade(address[] memory accountsToMigrate, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, false, bytes32(uint256(0)));
     }
 
     /// @inheritdoc BaseVault

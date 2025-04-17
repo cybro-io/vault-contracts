@@ -65,5 +65,5 @@ forge script UpdatedDeployScript --sig "deploySteerJonesArbitrum()"  --private-k
 
 To deploy across vault on the ethereum chain, run the following command:
 ```bash
-forge script UpdatedDeployScript --sig "deployAcross()"  --private-key <your_private_key> --rpc-url <your_ethereum_rpc_url>
+forge script UpdatedDeployScript --sig "deployEthereumAcross()"  --private-key <your_private_key> --rpc-url <your_ethereum_rpc_url>
 ```

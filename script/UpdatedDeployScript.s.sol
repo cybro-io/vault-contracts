@@ -1661,7 +1661,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
     }
 
-    function deployAcross() public {
+    function deployEthereumAcross() public {
         vm.startBroadcast();
         (, address admin,) = vm.readCallers();
 
@@ -1715,7 +1715,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         // ACROSS USDC (inside OneClickIndex)
-        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        FeeProvider feeProvider_across_usdc = _deployFeeProvider(admin, 0, 30, 0, 0);
         vaults2.push(
             address(
                 _deployAcrossVault(
@@ -1732,12 +1732,11 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
                 )
             )
         );
-        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[0]);
 
         console.log("\n================================================\n");
 
         // ACROSS USDT (inside OneClickIndex)
-        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        FeeProvider feeProvider_across_usdt = _deployFeeProvider(admin, 0, 30, 0, 0);
         vaults2.push(
             address(
                 _deployAcrossVault(
@@ -1754,7 +1753,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
                 )
             )
         );
-        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[1]);
 
         console.log("\n================================================\n");
 
@@ -1774,9 +1772,14 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         address[] memory users_ = new address[](1);
         users_[0] = address(fundLending);
         uint32[] memory fees_ = new uint32[](1);
-        feeProvider.setFeesForUsers(users_, fees_, fees_, fees_);
-        vm.assertEq(feeProvider.getWithdrawalFee(address(fundLending)), 0);
-        vm.assertEq(feeProvider.getWithdrawalFee(address(100)), 30);
+        feeProvider_across_usdc.setFeesForUsers(users_, fees_, fees_, fees_);
+        feeProvider_across_usdt.setFeesForUsers(users_, fees_, fees_, fees_);
+        vm.assertEq(feeProvider_across_usdc.getWithdrawalFee(address(fundLending)), 0);
+        vm.assertEq(feeProvider_across_usdt.getWithdrawalFee(address(fundLending)), 0);
+        vm.assertEq(feeProvider_across_usdc.getWithdrawalFee(address(100)), 30);
+        vm.assertEq(feeProvider_across_usdt.getWithdrawalFee(address(100)), 30);
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider_across_usdc, cybroWallet, vaults2[0]);
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider_across_usdt, cybroWallet, vaults2[1]);
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
         lendingShares.push(3000);
         lendingShares.push(7000);

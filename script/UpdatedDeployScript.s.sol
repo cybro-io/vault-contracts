@@ -1771,6 +1771,12 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
                 )
             )
         );
+        address[] memory users_ = new address[](1);
+        users_[0] = address(fundLending);
+        uint32[] memory fees_ = new uint32[](1);
+        feeProvider.setFeesForUsers(users_, fees_, fees_, fees_);
+        vm.assertEq(feeProvider.getWithdrawalFee(address(fundLending)), 0);
+        vm.assertEq(feeProvider.getWithdrawalFee(address(100)), 30);
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
         lendingShares.push(3000);
         lendingShares.push(7000);
@@ -1834,6 +1840,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log(vault.name());
         console.log(" balance of user before", amount);
         console.log(" Shares after deposit", shares, "Redeemed assets", assets);
+        console.log();
     }
 
     function _grantAndRevokeRoles(address admin_) internal {

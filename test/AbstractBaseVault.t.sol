@@ -9,6 +9,7 @@ import {FeeProvider, IFeeProvider} from "../src/FeeProvider.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 import {ERC20Mock} from "../src/mocks/ERC20Mock.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {DeployUtils} from "./DeployUtils.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -159,6 +160,16 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             } else if (asset_ == cbwbtc_BASE) {
                 assetProvider_ = assetProvider_CBWBTC_BASE;
             }
+        } else if (block.chainid == 1) {
+            if (asset_ == usdt_ETHEREUM) {
+                assetProvider_ = assetProvider_USDT_ETHEREUM;
+            } else if (asset_ == weth_ETHEREUM) {
+                assetProvider_ = assetProvider_WETH_ETHEREUM;
+            } else if (asset_ == usdc_ETHEREUM) {
+                assetProvider_ = assetProvider_USDC_ETHEREUM;
+            } else if (asset_ == wbtc_ETHEREUM) {
+                assetProvider_ = assetProvider_WBTC_ETHEREUM;
+            }
         }
     }
 
@@ -170,11 +181,11 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         if (needToProvide) {
             address assetProvider_ = _getAssetProvider(asset_);
             vm.startPrank(assetProvider_);
-            asset_.transfer(user, amount_);
-            asset_.transfer(user2, amount_);
-            asset_.transfer(user3, amount_);
-            asset_.transfer(user4, amount_);
-            asset_.transfer(admin, amount_);
+            asset_.safeTransfer(user, amount_);
+            asset_.safeTransfer(user2, amount_);
+            asset_.safeTransfer(user3, amount_);
+            asset_.safeTransfer(user4, amount_);
+            asset_.safeTransfer(admin, amount_);
             vm.stopPrank();
         }
         vm.startPrank(user);

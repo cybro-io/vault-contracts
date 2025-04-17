@@ -37,8 +37,12 @@ import {BufferVault} from "../src/vaults/BufferVault.sol";
 import {GammaAlgebraVault} from "../src/vaults/GammaAlgebraVault.sol";
 import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
 import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
+import {AcrossVault} from "../src/vaults/AcrossVault.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
+    using SafeERC20 for IERC20Metadata;
+
     struct DeployVault {
         IERC20Metadata asset;
         address pool;
@@ -411,6 +415,28 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
     }
 
+    function _deployAcrossVault(DeployVault memory vaultData) internal returns (AcrossVault vault) {
+        vault = AcrossVault(
+            address(
+                _deployAcross(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("AcrossVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+    }
+
     // Examples for deploying other vaults
 
     // feeProvider = _deployFeeProvider(admin, 0, 0, 0);
@@ -546,18 +572,14 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("OneClickIndex WETH", address(fundLending));
-        _testVaultWorks(BaseVault(vaults[0]), 1e19, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e19, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e19, false);
-        _testVaultWorks(BaseVault(vaults[3]), 1e19, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e19, true);
+        _testVaultWorks(BaseVault(vaults[0]), 1e19);
+        _testVaultWorks(BaseVault(vaults[1]), 1e19);
+        _testVaultWorks(BaseVault(vaults[2]), 1e19);
+        _testVaultWorks(BaseVault(vaults[3]), 1e19);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e19);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(fundLending.MANAGER_ROLE(), cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
@@ -587,7 +609,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
         vm.stopBroadcast();
 
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
 
         vm.startBroadcast();
         _grantAndRevokeRoles(admin);
@@ -688,17 +710,13 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("OneClickIndex USDB", address(fundLending));
-        _testVaultWorks(BaseVault(vaults[0]), 1e19, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e19, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e19, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e19, true);
+        _testVaultWorks(BaseVault(vaults[0]), 1e19);
+        _testVaultWorks(BaseVault(vaults[1]), 1e19);
+        _testVaultWorks(BaseVault(vaults[2]), 1e19);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e19);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
@@ -771,9 +789,9 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[2]);
         vm.stopBroadcast();
-        _testVaultWorks(BaseVault(address(vaults[0])), 1e18, false);
-        _testVaultWorks(BaseVault(address(vaults[1])), 1e18, false);
-        _testVaultWorks(BaseVault(address(vaults[2])), 1e18, false);
+        _testVaultWorks(BaseVault(address(vaults[0])), 1e18);
+        _testVaultWorks(BaseVault(address(vaults[1])), 1e18);
+        _testVaultWorks(BaseVault(address(vaults[2])), 1e18);
         vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
@@ -826,8 +844,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
         vm.stopBroadcast();
-        _testVaultWorks(BaseVault(address(vaults[0])), 1e18, false);
-        _testVaultWorks(BaseVault(address(vaults[1])), 1e18, false);
+        _testVaultWorks(BaseVault(address(vaults[0])), 1e18);
+        _testVaultWorks(BaseVault(address(vaults[1])), 1e18);
         vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
@@ -939,18 +957,14 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("OneClickIndex USDC Base", address(fundLending));
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
+        _testVaultWorks(BaseVault(vaults[2]), 1e10);
+        _testVaultWorks(BaseVault(vaults[3]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
@@ -1070,18 +1084,14 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("OneClickIndex USDC Arbitrum", address(fundLending));
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
+        _testVaultWorks(BaseVault(vaults[2]), 1e10);
+        _testVaultWorks(BaseVault(vaults[3]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
@@ -1156,16 +1166,12 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("OneClickIndex USDC Arbitrum", address(fundLending));
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
+        _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
@@ -1361,31 +1367,18 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
 
         console.log("Seasonal Vault USDC/WBTC Arbitrum", address(seasonal));
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[2]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[3]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
-        _testVaultWorks(BaseVault(vaults2[0]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLendingWbtc)), 1e10, true);
-        _testVaultWorks(BaseVault(address(seasonal)), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
+        _testVaultWorks(BaseVault(vaults[2]), 1e10);
+        _testVaultWorks(BaseVault(vaults[3]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10);
+        _testVaultWorks(BaseVault(vaults2[0]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLendingWbtc)), 1e10);
+        _testVaultWorks(BaseVault(address(seasonal)), 1e10);
 
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, cybroManager));
-        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
-
-        fundLendingWbtc.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLendingWbtc.grantRole(MANAGER_ROLE, cybroManager);
-        fundLendingWbtc.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLendingWbtc.revokeRole(MANAGER_ROLE, admin);
-        fundLendingWbtc.revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        vm.assertTrue(fundLendingWbtc.hasRole(MANAGER_ROLE, cybroManager));
-        vm.assertTrue(fundLendingWbtc.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+        _setOneClickIndexRoles(admin, fundLending);
+        _setOneClickIndexRoles(admin, fundLendingWbtc);
 
         seasonal.grantRole(MANAGER_ROLE, cybroManager);
         vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
@@ -1422,7 +1415,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
 
         vm.stopBroadcast();
-        _testVaultWorks(BaseVault(address(vaults[0])), 1e10, false);
+        _testVaultWorks(BaseVault(address(vaults[0])), 1e10);
         vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
@@ -1590,28 +1583,15 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         console.log("Seasonal Vault USDC/CBWBTC Base", address(seasonal));
         console.log("\n================================================\n");
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLending)), 1e10, true);
-        _testVaultWorks(BaseVault(vaults2[0]), 1e10, false);
-        _testVaultWorks(BaseVault(address(fundLendingCBWbtc)), 1e10, true);
-        _testVaultWorks(BaseVault(address(seasonal)), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e10);
+        _testVaultWorks(BaseVault(vaults2[0]), 1e10);
+        _testVaultWorks(BaseVault(address(fundLendingCBWbtc)), 1e10);
+        _testVaultWorks(BaseVault(address(seasonal)), 1e10);
         vm.startBroadcast();
-        fundLending.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLending.grantRole(MANAGER_ROLE, cybroManager);
-        fundLending.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLending.revokeRole(MANAGER_ROLE, admin);
-        fundLending.revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        vm.assertTrue(fundLending.hasRole(MANAGER_ROLE, cybroManager));
-        vm.assertTrue(fundLending.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
-
-        fundLendingCBWbtc.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-        fundLendingCBWbtc.grantRole(MANAGER_ROLE, cybroManager);
-        fundLendingCBWbtc.revokeRole(fundLending.STRATEGIST_ROLE(), admin);
-        fundLendingCBWbtc.revokeRole(MANAGER_ROLE, admin);
-        fundLendingCBWbtc.revokeRole(DEFAULT_ADMIN_ROLE, admin);
-        vm.assertTrue(fundLendingCBWbtc.hasRole(MANAGER_ROLE, cybroManager));
-        vm.assertTrue(fundLendingCBWbtc.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+        _setOneClickIndexRoles(admin, fundLending);
+        _setOneClickIndexRoles(admin, fundLendingCBWbtc);
 
         seasonal.grantRole(MANAGER_ROLE, cybroManager);
         vm.assertTrue(seasonal.hasRole(MANAGER_ROLE, cybroManager));
@@ -1674,14 +1654,164 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         console.log("\n================================================\n");
 
-        _testVaultWorks(BaseVault(vaults[0]), 1e10, false);
-        _testVaultWorks(BaseVault(vaults[1]), 1e10, false);
+        _testVaultWorks(BaseVault(vaults[0]), 1e10);
+        _testVaultWorks(BaseVault(vaults[1]), 1e10);
         vm.startBroadcast();
         _grantAndRevokeRoles(admin);
         vm.stopBroadcast();
     }
 
-    function _testVaultWorks(BaseVault vault, uint256 amount, bool isOneClick) internal {
+    function deployAcross() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdt_ETHEREUM), "USDT");
+        vm.label(address(weth_ETHEREUM), "WETH");
+        vm.label(address(wbtc_ETHEREUM), "WBTC");
+        vm.label(address(usdc_ETHEREUM), "USDC");
+
+        // ACROSS WBTC
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 30, 100, 0);
+        vaults.push(
+            address(
+                _deployAcrossVault(
+                    DeployVault({
+                        asset: wbtc_ETHEREUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Across WBTC",
+                        symbol: "cyaWBTC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        console.log("\n================================================\n");
+
+        // ACROSS WETH
+        feeProvider = _deployFeeProvider(admin, 0, 30, 100, 0);
+        vaults.push(
+            address(
+                _deployAcrossVault(
+                    DeployVault({
+                        asset: weth_ETHEREUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Across WETH",
+                        symbol: "cyaWETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        console.log("\n================================================\n");
+
+        // ACROSS USDC (inside OneClickIndex)
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        vaults2.push(
+            address(
+                _deployAcrossVault(
+                    DeployVault({
+                        asset: usdc_ETHEREUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Across USDC",
+                        symbol: "cyaUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[0]);
+
+        console.log("\n================================================\n");
+
+        // ACROSS USDT (inside OneClickIndex)
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        vaults2.push(
+            address(
+                _deployAcrossVault(
+                    DeployVault({
+                        asset: usdt_ETHEREUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Across USDT",
+                        symbol: "cyaUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults2[1]);
+
+        console.log("\n================================================\n");
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 100, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdt_ETHEREUM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize,
+                        (admin, "Lending Index USDT/USDC", "usdtUsdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(3000);
+        lendingShares.push(7000);
+        fundLending.addLendingPools(vaults2);
+        fundLending.setLendingShares(vaults2, lendingShares);
+
+        fromSwap.push(address(usdc_ETHEREUM));
+        toSwap.push(address(usdt_ETHEREUM));
+        swapPools.push(pool_USDT_USDC_ETHEREUM);
+
+        tokens.push(address(usdt_ETHEREUM));
+        oracles.push(oracle_USDTUSD_ETHEREUM);
+        tokens.push(address(usdc_ETHEREUM));
+        oracles.push(oracle_USDCUSD_ETHEREUM);
+
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setMaxSlippage(10);
+        vaults.push(vaults2[0]);
+        vaults.push(vaults2[1]);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDT/USDC", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e7);
+        _testVaultWorks(BaseVault(vaults[1]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        _testVaultWorks(BaseVault(vaults2[0]), 1e9);
+        _testVaultWorks(BaseVault(vaults2[1]), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function _testVaultWorks(BaseVault vault, uint256 amount) internal {
         IERC20Metadata token = IERC20Metadata(vault.asset());
         address user = address(100);
         if (vault.asset() == address(usdb_BLAST)) {
@@ -1696,40 +1826,41 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
             deal(vault.asset(), user, amount);
         }
 
-        console.log("balance of user", token.balanceOf(user));
-
         vm.startPrank(user);
-        token.approve(address(vault), amount);
-        uint256 shares;
-        uint256 assets;
-        if (isOneClick) {
-            OneClickIndex lending = OneClickIndex(address(vault));
-            shares = lending.deposit(amount, user, 0);
-            assets = lending.redeem(shares, user, user, 0);
-        } else {
-            shares = vault.deposit(amount, user, 0);
-            assets = vault.redeem(shares, user, user, 0);
-        }
-        console.log("Vault name", vault.name());
-        console.log("Shares after deposit", shares);
-        console.log("Redeemed assets", assets);
+        token.forceApprove(address(vault), amount);
+        uint256 shares = vault.deposit(amount, user, 0);
+        uint256 assets = vault.redeem(shares, user, user, 0);
         vm.stopPrank();
+        console.log(vault.name());
+        console.log(" balance of user before", amount);
+        console.log(" Shares after deposit", shares, "Redeemed assets", assets);
     }
 
     function _grantAndRevokeRoles(address admin_) internal {
         for (uint256 i = 0; i < vaults.length; i++) {
-            BaseVault vault_ = BaseVault(vaults[i]);
-            vault_.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
-            vault_.grantRole(MANAGER_ROLE, cybroWallet);
-            vault_.grantRole(STRATEGIST_ROLE, cybroWallet);
-            vault_.revokeRole(MANAGER_ROLE, admin_);
-            vault_.revokeRole(DEFAULT_ADMIN_ROLE, admin_);
-            vm.assertTrue(vault_.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
-            vm.assertTrue(vault_.hasRole(MANAGER_ROLE, cybroWallet));
-            vm.assertTrue(vault_.hasRole(STRATEGIST_ROLE, cybroWallet));
-            vm.assertFalse(vault_.hasRole(DEFAULT_ADMIN_ROLE, admin_));
-            vm.assertFalse(vault_.hasRole(MANAGER_ROLE, admin_));
-            vm.assertFalse(vault_.hasRole(STRATEGIST_ROLE, admin_));
+            _grantAndRevokeBaseRoles(admin_, BaseVault(vaults[i]));
         }
+    }
+
+    function _setOneClickIndexRoles(address admin_, OneClickIndex vault_) internal {
+        vault_.grantRole(STRATEGIST_ROLE, cybroWallet);
+        vault_.revokeRole(STRATEGIST_ROLE, admin_);
+        _grantAndRevokeBaseRoles(admin_, vault_);
+        vm.assertTrue(vault_.hasRole(STRATEGIST_ROLE, cybroWallet));
+        vm.assertFalse(vault_.hasRole(STRATEGIST_ROLE, admin_));
+    }
+
+    function _grantAndRevokeBaseRoles(address admin_, BaseVault vault_) internal {
+        vault_.grantRole(DEFAULT_ADMIN_ROLE, cybroWallet);
+        vault_.grantRole(MANAGER_ROLE, cybroWallet);
+        if (!vault_.hasRole(MANAGER_ROLE, cybroManager)) {
+            vault_.grantRole(MANAGER_ROLE, cybroManager);
+        }
+        vault_.revokeRole(MANAGER_ROLE, admin_);
+        vault_.revokeRole(DEFAULT_ADMIN_ROLE, admin_);
+        vm.assertTrue(vault_.hasRole(DEFAULT_ADMIN_ROLE, cybroWallet));
+        vm.assertTrue(vault_.hasRole(MANAGER_ROLE, cybroWallet));
+        vm.assertFalse(vault_.hasRole(DEFAULT_ADMIN_ROLE, admin_));
+        vm.assertFalse(vault_.hasRole(MANAGER_ROLE, admin_));
     }
 }

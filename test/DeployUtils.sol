@@ -34,6 +34,9 @@ import {IAlgebraLPManager} from "../src/interfaces/jones/IAlgebraLPManager.sol";
 import {IRewardTracker} from "../src/interfaces/jones/IRewardTracker.sol";
 import {IAlgebraPool} from "../src/interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
+import {IHubPool} from "../src/interfaces/across/IHubPool.sol";
+import {AcrossVault} from "../src/vaults/AcrossVault.sol";
+import {IAcceleratingDistributor} from "../src/interfaces/across/IAcceleratingDistributor.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -82,6 +85,12 @@ contract DeployUtils {
     IERC20Metadata wbtc_BLAST = IERC20Metadata(address(0xF7bc58b8D8f97ADC129cfC4c9f45Ce3C0E1D2692));
     IERC20Metadata blast_BLAST = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
 
+    /* ETHEREUM */
+    IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
+    IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
+    IERC20Metadata usdc_ETHEREUM = IERC20Metadata(address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
+    IERC20Metadata wbtc_ETHEREUM = IERC20Metadata(address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599));
+
     /* ========== CHAINLINK ORACLES ========== */
 
     /* BLAST */
@@ -102,14 +111,26 @@ contract DeployUtils {
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
     IChainlinkOracle oracle_BTC_ARBITRUM = IChainlinkOracle(address(0x6ce185860a4963106506C203335A2910413708e9));
 
+    /* ETHEREUM */
+    IChainlinkOracle oracle_ETHUSD_ETHEREUM = IChainlinkOracle(address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419));
+    IChainlinkOracle oracle_USDTUSD_ETHEREUM = IChainlinkOracle(address(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D));
+    IChainlinkOracle oracle_BTCUSD_ETHEREUM = IChainlinkOracle(address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c));
+    IChainlinkOracle oracle_USDCUSD_ETHEREUM = IChainlinkOracle(address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6));
+
     /* ========== DEXES ========== */
 
     /* UNISWAP */
 
+    IUniswapV3Factory factory_UNI_ETHEREUM = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_ARB = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_BASE = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
     IUniswapV3Pool pool_USDC_WETH_BASE = IUniswapV3Pool(address(0xd0b53D9277642d899DF5C87A3966A349A798F224));
     IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
+    IUniswapV3Pool pool_ACX_WETH_ETHEREUM = IUniswapV3Pool(address(0x508acdC358be2ed126B1441F0Cff853dEc49d40F));
+    IUniswapV3Pool pool_USDT_WETH_ETHEREUM = IUniswapV3Pool(address(0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36));
+    IUniswapV3Pool pool_USDC_WETH_ETHEREUM = IUniswapV3Pool(address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640));
+    IUniswapV3Pool pool_WBTC_WETH_ETHEREUM = IUniswapV3Pool(address(0xCBCdF9626bC03E24f779434178A73a0B4bad62eD));
+    IUniswapV3Pool pool_USDT_USDC_ETHEREUM = IUniswapV3Pool(address(0x3416cF6C708Da44DB2624D63ea0AAef7113527C6));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -137,11 +158,17 @@ contract DeployUtils {
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
     address assetProvider_CBWBTC_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb); // 2,459 WBTC
 
+    address assetProvider_WETH_ETHEREUM = address(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
+    address assetProvider_USDT_ETHEREUM = address(0x2933782B5A8d72f2754103D1489614F29bfA4625);
+    address assetProvider_USDC_ETHEREUM = address(0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341);
+    address assetProvider_WBTC_ETHEREUM = address(0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8);
+
     /* ========== CACHED BLOCKIDS ========== */
 
     uint256 lastCachedBlockid_BLAST = 14284818;
     uint256 lastCachedBlockid_ARBITRUM = 300132227;
     uint256 lastCachedBlockid_BASE = 25292162;
+    uint256 lastCachedBlockid_ETHEREUM = 22052977;
 
     /* ========== POOLS ========== */
 
@@ -209,10 +236,17 @@ contract DeployUtils {
         ICamelotMultiPositionLiquidityManager(address(0x801B4184de0CDF298ce933b042911500FADA1de6));
     ICamelotMultiPositionLiquidityManager steer_usdcdai_ARBITRUM =
         ICamelotMultiPositionLiquidityManager(address(0x5f033d4d786eC5592FDbb5B289000A2B9A466D32));
+
     /* JONES */
 
     ICompounder compounder_jones_ARBITRUM = ICompounder(address(0xEE1ACCcf0d92814BECF74773B466Db68A0752d10));
     IAlgebraPool pool_jones_weethWeth_ARBITRUM = IAlgebraPool(address(0x293DFD996d5cd72Bed712B0EEAb96DBE400c0416));
+
+    /* ACROSS */
+
+    IHubPool across_hubPool_ETHEREUM = IHubPool(payable(address(0xc186fA914353c44b2E33eBE05f21846F1048bEda)));
+    IAcceleratingDistributor across_acceleratingDistributor_ETHEREUM =
+        IAcceleratingDistributor(address(0x9040e41eF5E8b281535a96D9a48aCb8cfaBD9a48));
 
     function _deployAave(VaultSetup memory vaultData) internal returns (IVault aaveVault_) {
         aaveVault_ = IVault(
@@ -472,6 +506,60 @@ contract DeployUtils {
                     abi.encodeCall(
                         JonesCamelotVault.initialize,
                         (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployAcross(VaultSetup memory vaultData) internal returns (IVault acrossVault_) {
+        address assetWethPool;
+        if (vaultData.asset == weth_ETHEREUM) {
+            assetWethPool = address(0);
+        } else if (vaultData.asset == usdc_ETHEREUM) {
+            assetWethPool = address(pool_USDC_WETH_ETHEREUM);
+        } else if (vaultData.asset == wbtc_ETHEREUM) {
+            assetWethPool = address(pool_WBTC_WETH_ETHEREUM);
+        } else if (vaultData.asset == usdt_ETHEREUM) {
+            assetWethPool = address(pool_USDT_WETH_ETHEREUM);
+        } else {
+            revert();
+        }
+        IChainlinkOracle assetOracle;
+        if (vaultData.asset == weth_ETHEREUM) {
+            assetOracle = IChainlinkOracle(address(0));
+        } else if (vaultData.asset == usdc_ETHEREUM) {
+            assetOracle = oracle_USDCUSD_ETHEREUM;
+        } else if (vaultData.asset == wbtc_ETHEREUM) {
+            assetOracle = oracle_BTCUSD_ETHEREUM;
+        } else if (vaultData.asset == usdt_ETHEREUM) {
+            assetOracle = oracle_USDTUSD_ETHEREUM;
+        } else {
+            revert();
+        }
+        acrossVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new AcrossVault(
+                                vaultData.asset,
+                                address(across_hubPool_ETHEREUM),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient,
+                                address(across_acceleratingDistributor_ETHEREUM),
+                                address(pool_ACX_WETH_ETHEREUM),
+                                assetWethPool,
+                                address(weth_ETHEREUM),
+                                vaultData.asset == weth_ETHEREUM ? IChainlinkOracle(address(0)) : oracle_ETHUSD_ETHEREUM,
+                                assetOracle
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            AcrossVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
                     )
                 )
             )

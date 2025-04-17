@@ -22,6 +22,19 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
 
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
+    error Slippage();
+    error InvalidSwapCallbackCaller();
+    error NoAvailablePools();
+    error DeviationNotPositive();
+    error DeviationNotNegative();
+    error InvalidFromPoolAddress();
+    error InvalidToPoolAddress();
+    error RebalanceFailedForFromPool();
+    error RebalanceFailedForToPool();
+    error StalePrice();
+    error RoundNotComplete();
+    error ChainlinkPriceReportingZero();
+
     /* ========== EVENTS ========== */
 
     /**
@@ -229,14 +242,14 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @param sharesToWithdraw The amount of shares to withdraw from the `from` pool
      */
     function rebalance(address from, address to, uint256 sharesToWithdraw) external onlyRole(MANAGER_ROLE) {
-        require(lendingPoolAddresses.contains(from), "OneClickIndex: Invalid 'from' pool address");
-        require(lendingPoolAddresses.contains(to), "OneClickIndex: Invalid 'to' pool address");
+        if (!lendingPoolAddresses.contains(from)) revert InvalidFromPoolAddress();
+        if (!lendingPoolAddresses.contains(to)) revert InvalidToPoolAddress();
 
         int256 deviationFrom = _computeDeviation(from);
         int256 deviationTo = _computeDeviation(to);
 
-        require(deviationFrom > 0, "OneClickIndex: Pool 'from' not deviated positively");
-        require(deviationTo <= 0, "OneClickIndex: Pool 'to' not deviated negatively");
+        if (deviationFrom <= 0) revert DeviationNotPositive();
+        if (deviationTo > 0) revert DeviationNotNegative();
 
         IVault(to).deposit(
             _swap(
@@ -251,8 +264,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         deviationFrom = _computeDeviation(from);
         deviationTo = _computeDeviation(to);
 
-        require(deviationFrom >= 0, "OneClickIndex: Rebalance failed for 'from' pool");
-        require(deviationTo <= 0, "OneClickIndex: Rebalance failed for 'to' pool");
+        if (deviationFrom < 0) revert RebalanceFailedForFromPool();
+        if (deviationTo > 0) revert RebalanceFailedForToPool();
     }
 
     /**
@@ -443,7 +456,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @return assets The amount of assets redeemed
      */
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        require(lendingPoolAddresses.length() > 0, "OneClickIndex: No lending pools available");
+        if (lendingPoolAddresses.length() == 0) revert NoAvailablePools();
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address poolAddress = lendingPoolAddresses.at(i);
@@ -495,10 +508,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _checkSlippage(address from, address to, uint256 amountIn, uint256 amountOut) internal view {
         uint256 amountInUsd = amountIn * _getPrice(from) / (10 ** IERC20Metadata(from).decimals());
         uint256 amountOutUsd = amountOut * _getPrice(to) / (10 ** IERC20Metadata(to).decimals());
-        require(
-            amountOutUsd >= amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision,
-            "OneClickIndex: Slippage"
-        );
+        if (amountOutUsd < amountInUsd * (slippagePrecision - maxSlippage) / slippagePrecision) {
+            revert Slippage();
+        }
     }
 
     /**
@@ -510,9 +522,9 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         IChainlinkOracle oracle = oracles[token];
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
 
-        require(answeredInRound >= roundID, "Stale price");
-        require(timestamp != 0, "Round not complete");
-        require(price > 0, "Chainlink price reporting 0");
+        if (answeredInRound < roundID) revert StalePrice();
+        if (timestamp == 0) revert RoundNotComplete();
+        if (price <= 0) revert ChainlinkPriceReportingZero();
 
         // returns price in the vault decimals
         return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
@@ -547,7 +559,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         require(amount0Delta > 0 || amount1Delta > 0);
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
 
-        require(address(swapPools[tokenIn][tokenOut]) == msg.sender, "OneClickIndex: invalid swap callback caller");
+        if (address(swapPools[tokenIn][tokenOut]) != msg.sender) revert InvalidSwapCallbackCaller();
 
         // Transfer the required amount back to the pool
         if (amount0Delta > 0) {

@@ -210,6 +210,59 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 _deployBuffer(VaultSetup(usdc_BASE, address(0), address(0), address(0), name, symbol, admin, admin))
             );
             vm.label(additionalVault, "AdditionalVault");
+        } else if (block.chainid == 1) {
+            // ethereum
+            asset = usdt_ETHEREUM;
+            amount = 1e9; // decimals = 6
+            fromSwap.push(address(usdc_ETHEREUM));
+            toSwap.push(address(usdt_ETHEREUM));
+            swapPools.push(pool_USDT_USDC_ETHEREUM);
+
+            lendingShares.push(lendingShare);
+            lendingShares.push(lendingShare2);
+
+            tokens.push(address(usdt_ETHEREUM));
+            oracles.push(oracle_USDTUSD_ETHEREUM);
+            tokens.push(address(usdc_ETHEREUM));
+            oracles.push(oracle_USDCUSD_ETHEREUM);
+
+            vaults.push(
+                address(
+                    _deployAcross(
+                        VaultSetup({
+                            asset: usdt_ETHEREUM,
+                            pool: address(0),
+                            feeProvider: address(0),
+                            feeRecipient: address(0),
+                            name: name,
+                            symbol: symbol,
+                            admin: admin,
+                            manager: admin
+                        })
+                    )
+                )
+            );
+            vaults.push(
+                address(
+                    _deployAcross(
+                        VaultSetup({
+                            asset: usdc_ETHEREUM,
+                            pool: address(0),
+                            feeProvider: address(0),
+                            feeRecipient: address(0),
+                            name: name,
+                            symbol: symbol,
+                            admin: admin,
+                            manager: admin
+                        })
+                    )
+                )
+            );
+            additionalVault = address(
+                _deployBuffer(VaultSetup(usdc_ETHEREUM, address(0), address(0), address(0), name, symbol, admin, admin))
+            );
+        } else {
+            revert("Unsupported chain");
         }
         vault = IVault(
             address(
@@ -297,6 +350,13 @@ contract OneClickIndexArbitrumTest is OneClickIndexBaseTest {
 contract OneClickIndexBlastTest is OneClickIndexBaseTest {
     function setUp() public override(OneClickIndexBaseTest) {
         vm.createSelectFork("blast", lastCachedBlockid_BLAST);
+        super.setUp();
+    }
+}
+
+contract OneClickIndexEthereumTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        vm.createSelectFork("ethereum", lastCachedBlockid_ETHEREUM);
         super.setUp();
     }
 }

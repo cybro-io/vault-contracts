@@ -165,6 +165,10 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
                 assetProvider_ = assetProvider_USDT_ETHEREUM;
             } else if (asset_ == weth_ETHEREUM) {
                 assetProvider_ = assetProvider_WETH_ETHEREUM;
+            } else if (asset_ == usdc_ETHEREUM) {
+                assetProvider_ = assetProvider_USDC_ETHEREUM;
+            } else if (asset_ == wbtc_ETHEREUM) {
+                assetProvider_ = assetProvider_WBTC_ETHEREUM;
             }
         }
     }
@@ -177,11 +181,11 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         if (needToProvide) {
             address assetProvider_ = _getAssetProvider(asset_);
             vm.startPrank(assetProvider_);
-            asset_.transfer(user, amount_);
-            asset_.transfer(user2, amount_);
-            asset_.transfer(user3, amount_);
-            asset_.transfer(user4, amount_);
-            asset_.transfer(admin, amount_);
+            asset_.safeTransfer(user, amount_);
+            asset_.safeTransfer(user2, amount_);
+            asset_.safeTransfer(user3, amount_);
+            asset_.safeTransfer(user4, amount_);
+            asset_.safeTransfer(admin, amount_);
             vm.stopPrank();
         }
         vm.startPrank(user);

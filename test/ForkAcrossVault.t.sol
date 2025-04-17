@@ -23,11 +23,8 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault = _deployAcross(
-            VaultSetup(
-                asset, address(across_hubPool_ETHEREUM), address(feeProvider), feeRecipient, name, symbol, admin, admin
-            )
-        );
+        vault =
+            _deployAcross(VaultSetup(asset, address(0), address(feeProvider), feeRecipient, name, symbol, admin, admin));
         AcrossVault across = AcrossVault(address(vault));
         console.log("sqrt acxPrice", across.getACXPrice());
         {
@@ -66,14 +63,25 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
     function test_usdt() public {
         asset = usdt_ETHEREUM;
         amount = 1e9;
-        vm.startPrank(assetProvider_USDT_ETHEREUM);
-        asset.safeTransfer(user, amount);
-        asset.safeTransfer(user2, amount);
-        asset.safeTransfer(user3, amount);
-        asset.safeTransfer(user4, amount);
-        asset.safeTransfer(admin, amount);
-        vm.stopPrank();
-        baseVaultTest(false);
+        baseVaultTest(true);
+        _testAfterBase();
+    }
+
+    function test_usdc() public {
+        asset = usdc_ETHEREUM;
+        amount = 1e9;
+        baseVaultTest(true);
+        _testAfterBase();
+    }
+
+    function test_wbtc() public {
+        asset = wbtc_ETHEREUM;
+        amount = 1e7;
+        baseVaultTest(true);
+        _testAfterBase();
+    }
+
+    function _testAfterBase() internal {
         vm.startPrank(admin);
         uint256 balanceBefore = asset.balanceOf(address(vault));
         console.log("balanceBefore", balanceBefore);

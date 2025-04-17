@@ -86,6 +86,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     IChainlinkOracle[] oracles;
     address[] fromSwap;
     address[] toSwap;
+    ProxyAdmin[] updateProxyAdmins;
 
     function _assertBaseVault(BaseVault vault, DeployVault memory vaultData) internal view {
         vm.assertEq(vault.asset(), address(vaultData.asset));
@@ -125,6 +126,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("    withdrawalFee", withdrawalFee);
         console.log("    performanceFee", performanceFee);
         console.log("    managementFee", managementFee);
+        updateProxyAdmins.push(_getProxyAdmin(address(feeProvider)));
         return feeProvider;
     }
 
@@ -436,6 +438,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("AcrossVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     // Examples for deploying other vaults
@@ -1808,6 +1811,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e7);
         _testVaultWorks(BaseVault(vaults[1]), 1e18);
@@ -1817,7 +1821,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.startBroadcast();
         _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
-        vaults.push(address(fundLending));
         _updateProxyAdminsOwners();
         vm.stopBroadcast();
         console.log("\nTESTS PASSED");
@@ -1828,10 +1831,9 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     }
 
     function _updateProxyAdminsOwners() internal {
-        for (uint256 i = 0; i < vaults.length; i++) {
-            ProxyAdmin proxyAdmin = _getProxyAdmin(vaults[i]);
-            proxyAdmin.transferOwnership(cybroWallet);
-            vm.assertEq(proxyAdmin.owner(), cybroWallet);
+        for (uint256 i = 0; i < updateProxyAdmins.length; i++) {
+            updateProxyAdmins[i].transferOwnership(cybroWallet);
+            vm.assertEq(updateProxyAdmins[i].owner(), cybroWallet);
         }
     }
 

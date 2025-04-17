@@ -39,6 +39,7 @@ import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
 import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
 import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     using SafeERC20 for IERC20Metadata;
@@ -1816,8 +1817,22 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.startBroadcast();
         _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);
+        vaults.push(address(fundLending));
+        _updateProxyAdminsOwners();
         vm.stopBroadcast();
         console.log("\nTESTS PASSED");
+    }
+
+    function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin) {
+        proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
+    }
+
+    function _updateProxyAdminsOwners() internal {
+        for (uint256 i = 0; i < vaults.length; i++) {
+            ProxyAdmin proxyAdmin = _getProxyAdmin(vaults[i]);
+            proxyAdmin.transferOwnership(cybroWallet);
+            vm.assertEq(proxyAdmin.owner(), cybroWallet);
+        }
     }
 
     function _testVaultWorks(BaseVault vault, uint256 amount) internal {

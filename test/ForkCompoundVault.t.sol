@@ -158,3 +158,144 @@ contract CompoundVaultArbitrumTest is AbstractBaseVaultTest {
         baseVaultTest(true);
     }
 }
+
+contract CompoundVaultOptimismTest is AbstractBaseVaultTest {
+    CErc20 pool_;
+
+    function setUp() public override {
+        forkId = vm.createSelectFork("optimism", lastCachedBlockid_OPTIMISM);
+        super.setUp();
+        amount = 1e9;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = _deployCompound(
+            VaultSetup({
+                asset: asset,
+                pool: address(pool_),
+                feeProvider: address(feeProvider),
+                feeRecipient: feeRecipient,
+                name: name,
+                symbol: symbol,
+                admin: admin,
+                manager: admin
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdc() public {
+        asset = usdc_OPTIMISM;
+        pool_ = compound_moonwellUSDC_OPTIMISM;
+        baseVaultTest(true);
+    }
+
+    function test_wsteth() public {
+        asset = wsteth_OPTIMISM;
+        pool_ = compound_moonwellWSTETH_OPTIMISM;
+        amount = 1e18;
+        baseVaultTest(true);
+    }
+
+    function test_usdt() public {
+        asset = usdt_OPTIMISM;
+        pool_ = compound_moonwellUSDT_OPTIMISM;
+        baseVaultTest(true);
+    }
+}
+
+contract CompoundVaultUnichainTest is AbstractBaseVaultTest {
+    function setUp() public override {
+        forkId = vm.createSelectFork("unichain", lastCachedBlockid_UNICHAIN);
+        super.setUp();
+        amount = 1e9;
+    }
+
+    function _initializeNewVault() internal override {
+        vm.startPrank(admin);
+        vault = _deployCompound(
+            VaultSetup({
+                asset: asset,
+                pool: address(compound_venusUSDC_UNICHAIN),
+                feeProvider: address(feeProvider),
+                feeRecipient: feeRecipient,
+                name: name,
+                symbol: symbol,
+                admin: admin,
+                manager: admin
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function _increaseVaultAssets() internal pure override returns (bool) {
+        return false;
+    }
+
+    function test_usdc() public {
+        asset = usdc_UNICHAIN;
+        baseVaultTest(true);
+    }
+}
+
+// contract CompoundVaultZksyncTest is AbstractBaseVaultTest {
+//     CErc20 pool_;
+
+//     function setUp() public override {
+//         forkId = vm.createSelectFork("zksync", lastCachedBlockid_ZKSYNC);
+//         super.setUp();
+//         amount = 1e9;
+//     }
+
+//     function _initializeNewVault() internal override {
+//         vm.startPrank(admin);
+//         vault = _deployCompound(
+//             VaultSetup({
+//                 asset: asset,
+//                 pool: address(pool_),
+//                 feeProvider: address(feeProvider),
+//                 feeRecipient: feeRecipient,
+//                 name: name,
+//                 symbol: symbol,
+//                 admin: admin,
+//                 manager: admin
+//             })
+//         );
+//         vm.stopPrank();
+//     }
+
+//     function _increaseVaultAssets() internal pure override returns (bool) {
+//         return false;
+//     }
+
+//     function test_usdc() public {
+//         asset = usdce_ZKSYNC;
+//         console.log("block.chainid", block.chainid);
+//         (bool success, bytes memory data) = address(asset).staticcall(
+//             abi.encodeWithSignature("name()")
+//         );
+//         console.log("Low-level call success:", success);
+
+//         if (success) {
+//             console.log("Data length:", data.length);
+//             console.logBytes(data);
+//             string memory name = abi.decode(data, (string));
+//             console.log("Name from low-level call:", name);
+//         }
+//         // console.log("decimals", asset.decimals());
+//         pool_ = compound_venusUSDCe_ZKSYNC;
+//         baseVaultTest(true);
+//     }
+
+//     function test_usdt() public {
+//         asset = usdt_ZKSYNC;
+//         console.log("decimals", asset.decimals());
+//         pool_ = compound_venusUSDT_ZKSYNC;
+//         baseVaultTest(true);
+//     }
+// }

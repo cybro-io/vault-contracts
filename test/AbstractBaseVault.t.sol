@@ -170,6 +170,64 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             } else if (asset_ == wbtc_ETHEREUM) {
                 assetProvider_ = assetProvider_WBTC_ETHEREUM;
             }
+        } else if (block.chainid == 43114) {
+            if (asset_ == frax_AVALANCHE) {
+                assetProvider_ = assetProvider_FRAX_AVALANCHE;
+            } else if (asset_ == weth_AVALANCHE) {
+                assetProvider_ = assetProvider_WETH_AVALANCHE;
+            }
+        } else if (block.chainid == 1088) {
+            if (asset_ == dai_METIS) {
+                assetProvider_ = assetProvider_DAI_METIS;
+            }
+        } else if (block.chainid == 146) {
+            if (asset_ == weth_SONIC) {
+                assetProvider_ = assetProvider_WETH_SONIC;
+            }
+        } else if (block.chainid == 56) {
+            if (asset_ == btcb_BSC) {
+                assetProvider_ = assetProvider_BTCB_BSC;
+            }
+        } else if (block.chainid == 10) {
+            if (asset_ == weth_OPTIMISM) {
+                assetProvider_ = assetProvider_WETH_OPTIMISM;
+            } else if (asset_ == usdc_OPTIMISM) {
+                assetProvider_ = assetProvider_USDC_OPTIMISM;
+            } else if (asset_ == wsteth_OPTIMISM) {
+                assetProvider_ = assetProvider_WSTETH_OPTIMISM;
+            } else if (asset_ == usdt_OPTIMISM) {
+                assetProvider_ = assetProvider_USDT_OPTIMISM;
+            }
+        } else if (block.chainid == 534352) {
+            if (asset_ == wsteth_SCROLL) {
+                assetProvider_ = assetProvider_WSTETH_SCROLL;
+            }
+        } else if (block.chainid == 223) {
+            if (asset_ == usdt_B2) {
+                assetProvider_ = assetProvider_USDT_B2;
+            }
+        } else if (block.chainid == 34443) {
+            if (asset_ == usdc_MODE) {
+                assetProvider_ = assetProvider_USDC_MODE;
+            }
+        } else if (block.chainid == 130) {
+            if (asset_ == usdc_UNICHAIN) {
+                assetProvider_ = assetProvider_USDC_UNICHAIN;
+            }
+        } else if (block.chainid == 324) {
+            if (asset_ == usdt_ZKSYNC) {
+                assetProvider_ = assetProvider_USDT_ZKSYNC;
+            } else if (asset_ == usdce_ZKSYNC) {
+                assetProvider_ = assetProvider_USDC_ZKSYNC;
+            }
+        } else if (block.chainid == 1116) {
+            if (asset_ == usdt_CORE) {
+                assetProvider_ = assetProvider_USDT_CORE;
+            } else if (asset_ == usdc_CORE) {
+                assetProvider_ = assetProvider_USDC_CORE;
+            } else if (asset_ == wbtc_CORE) {
+                assetProvider_ = assetProvider_WBTC_CORE;
+            }
         }
     }
 

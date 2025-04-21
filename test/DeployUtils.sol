@@ -124,10 +124,6 @@ contract DeployUtils {
     /* UNICHAIN */
     IERC20Metadata usdc_UNICHAIN = IERC20Metadata(address(0x078D782b760474a361dDA0AF3839290b0EF57AD6));
 
-    /* ZKSYNC */
-    IERC20Metadata usdce_ZKSYNC = IERC20Metadata(address(0x3355df6D4c9C3035724Fd0e3914dE96A5a83aaf4));
-    IERC20Metadata usdt_ZKSYNC = IERC20Metadata(address(0x493257fD37EDB34451f62EDf8D2a0C418852bA4C));
-
     /* CORE */
     IERC20Metadata wbtc_CORE = IERC20Metadata(address(0x5832f53d147b3d6Cd4578B9CBD62425C7ea9d0Bd));
     IERC20Metadata usdt_CORE = IERC20Metadata(address(0x900101d06A7426441Ae63e9AB3B9b0F63Be145F1));
@@ -163,6 +159,10 @@ contract DeployUtils {
     IChainlinkOracle oracle_USDCUSD_OPTIMISM = IChainlinkOracle(address(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3));
     IChainlinkOracle oracle_USDTUSD_OPTIMISM = IChainlinkOracle(address(0xECef79E109e997bCA29c1c0897ec9d7b03647F5E));
 
+    /* CORE */
+    IChainlinkOracle oracle_USDCUSD_CORE = IChainlinkOracle(address(0xD3C586Eec1C6C3eC41D276a23944dea080eDCf7f));
+    IChainlinkOracle oracle_USDTUSD_CORE = IChainlinkOracle(address(0x4eadC6ee74b7Ceb09A4ad90a33eA2915fbefcf76));
+
     /* ========== DEXES ========== */
 
     /* UNISWAP */
@@ -178,6 +178,7 @@ contract DeployUtils {
     IUniswapV3Pool pool_WBTC_WETH_ETHEREUM = IUniswapV3Pool(address(0xCBCdF9626bC03E24f779434178A73a0B4bad62eD));
     IUniswapV3Pool pool_USDT_USDC_ETHEREUM = IUniswapV3Pool(address(0x3416cF6C708Da44DB2624D63ea0AAef7113527C6));
     IUniswapV3Pool pool_USDC_USDT_OPTIMISM = IUniswapV3Pool(address(0xA73C628eaf6e283E26A7b1f8001CF186aa4c0E8E));
+    IUniswapV3Pool pool_USDC_USDT_CORE = IUniswapV3Pool(address(0x74B8d6eA8E0284C2619922FC0F5d872Fe32CEc2f));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -258,11 +259,6 @@ contract DeployUtils {
 
     address assetProvider_USDC_UNICHAIN = address(0xB5A2a236581dbd6BCECD8A25EeBFF140595f138C);
 
-    /* ZKSYNC */
-
-    address assetProvider_USDT_ZKSYNC = address(0x128C779E45893070219c1fF311499229F95Cac50);
-    address assetProvider_USDC_ZKSYNC = address(0xCad97616f91872C02BA3553dB315Db4015cBE850);
-
     /* CORE */
 
     address assetProvider_USDT_CORE = address(0xa8eC7b7b51DBaEd615Cb4fF495eeCFD949e1Afc0);
@@ -284,7 +280,6 @@ contract DeployUtils {
     uint256 lastCachedBlockid_MODE = 22540097;
     uint256 lastCachedBlockid_B2 = 16044183;
     uint256 lastCachedBlockid_UNICHAIN = 14499700;
-    uint256 lastCachedBlockid_ZKSYNC = 59438431;
     uint256 lastCachedBlockid_CORE = 23985246;
 
     /* ========== POOLS ========== */
@@ -328,8 +323,6 @@ contract DeployUtils {
     /* VENUS COMPOUND */
 
     CErc20 compound_venusUSDC_UNICHAIN = CErc20(address(0xB953f92B9f759d97d2F2Dec10A8A3cf75fcE3A95));
-    CErc20 compound_venusUSDCe_ZKSYNC = CErc20(address(0x1aF23bD57c62A99C59aD48236553D0Dd11e49D2D));
-    CErc20 compound_venusUSDT_ZKSYNC = CErc20(address(0x69cDA960E3b20DFD480866fFfd377Ebe40bd0A46));
 
     /* ASO (compound) */
 

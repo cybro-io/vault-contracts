@@ -214,12 +214,6 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             if (asset_ == usdc_UNICHAIN) {
                 assetProvider_ = assetProvider_USDC_UNICHAIN;
             }
-        } else if (block.chainid == 324) {
-            if (asset_ == usdt_ZKSYNC) {
-                assetProvider_ = assetProvider_USDT_ZKSYNC;
-            } else if (asset_ == usdce_ZKSYNC) {
-                assetProvider_ = assetProvider_USDC_ZKSYNC;
-            }
         } else if (block.chainid == 1116) {
             if (asset_ == usdt_CORE) {
                 assetProvider_ = assetProvider_USDT_CORE;

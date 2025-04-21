@@ -2169,7 +2169,100 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\nTESTS PASSED");
     }
 
-    function deployCoreIndexUSDC() public {}
+    function deployCoreIndexUSDC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_CORE), "USDC");
+        vm.label(address(usdt_CORE), "USDT");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdc_CORE,
+                        pool: address(aave_colendPool_CORE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Colend USDC",
+                        symbol: "cyColendUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdt_CORE,
+                        pool: address(aave_colendPool_CORE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Colend USDT",
+                        symbol: "cyColendUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_CORE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDC/USDT", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(5000);
+        lendingShares.push(5000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        fromSwap.push(address(usdc_CORE));
+        toSwap.push(address(usdt_CORE));
+        swapPools.push(pool_USDC_USDT_CORE);
+
+        tokens.push(address(usdt_CORE));
+        oracles.push(oracle_USDTUSD_CORE);
+        tokens.push(address(usdc_CORE));
+        oracles.push(oracle_USDCUSD_CORE);
+
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setMaxSlippage(10);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC/USDT", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(vaults[1]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
 
     function deployCoreIndexWBTC() public {
         vm.startBroadcast();
@@ -2186,8 +2279,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
                         pool: address(aave_colendPool_CORE),
                         feeProvider: feeProvider,
                         feeRecipient: feeRecipient,
-                        name: "Cybro Aave WBTC",
-                        symbol: "cyAaveWBTC",
+                        name: "Cybro Colend WBTC",
+                        symbol: "cyColendWBTC",
                         admin: admin,
                         manager: cybroManager
                     })
@@ -2230,8 +2323,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.stopBroadcast();
         console.log("\nTESTS PASSED");
     }
-
-    function deployZksyncIndexUSDT() public {}
 
     function deployUnichainIndexUSDC() public {
         vm.startBroadcast();

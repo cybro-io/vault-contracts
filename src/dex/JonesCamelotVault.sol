@@ -3,55 +3,59 @@
 pragma solidity 0.8.26;
 
 import {BaseVault} from "../BaseVault.sol";
-import {ICamelotMultiPositionLiquidityManager} from "../interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {IRouter, LRouter} from "../interfaces/jones/IRouter.sol";
+import {ICompounder} from "../interfaces/jones/ICompounder.sol";
+import {IAlgebraLPManager} from "../interfaces/jones/IAlgebraLPManager.sol";
+import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IRewardTracker} from "../interfaces/jones/IRewardTracker.sol";
 
 /**
- * @title SteerCamelotVault
- * @notice Vault that interacts with Camelot concentrated liquidity positions through Steer protocol
+ * @title JonesCamelotVault
+ * @notice Vault that interacts with Camelot concentrated liquidity positions through Jones protocol
  */
-contract SteerCamelotVault is BaseVault {
+contract JonesCamelotVault is BaseDexUniformVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
 
-    address public immutable token0;
-    address public immutable token1;
-    uint8 public immutable token0Decimals;
-    uint8 public immutable token1Decimals;
-    bool public immutable isToken0;
-
-    /// @notice Reference to the Steer protocol's liquidity manager contract
-    ICamelotMultiPositionLiquidityManager public immutable steerVault;
-
-    /// @notice Reference to the Camelot pool contract for the token pair
+    IRouter public immutable router;
     IAlgebraPool public immutable pool;
+    IAlgebraLPManager public immutable LPManager;
+    ICompounder public immutable compounder;
+    IRewardTracker public immutable tracker;
 
     /* ========== CONSTRUCTOR ========== */
 
-    /**
-     * @notice Constructs the SteerCamelotVault
-     * @param _asset The underlying asset of the vault
-     * @param _feeRecipient The address that receives fees
-     * @param _feeProvider The fee provider contract
-     * @param _steerVault Address of the Steer protocol's liquidity manager
-     */
-    constructor(IERC20Metadata _asset, address _feeRecipient, IFeeProvider _feeProvider, address _steerVault)
-        BaseVault(_asset, _feeProvider, _feeRecipient)
+    constructor(
+        IERC20Metadata _asset,
+        address _feeRecipient,
+        IFeeProvider _feeProvider,
+        address _compounder,
+        address _pool,
+        address _oracleToken0,
+        address _oracleToken1
+    )
+        BaseDexUniformVault(
+            ICompounder(_compounder).token0(),
+            ICompounder(_compounder).token1(),
+            _asset,
+            _feeProvider,
+            _feeRecipient,
+            _oracleToken0,
+            _oracleToken1
+        )
     {
-        steerVault = ICamelotMultiPositionLiquidityManager(_steerVault);
-        pool = IAlgebraPool(steerVault.pool());
-        // tokens are already sorted
-        token0 = steerVault.token0();
-        token1 = steerVault.token1();
-        isToken0 = token0 == address(_asset);
-        token0Decimals = IERC20Metadata(token0).decimals();
-        token1Decimals = IERC20Metadata(token1).decimals();
+        compounder = ICompounder(_compounder);
+        router = IRouter(compounder.router());
+        pool = IAlgebraPool(_pool);
+        LPManager = IAlgebraLPManager(compounder.manager());
+        tracker = IRewardTracker(compounder.tracker());
     }
 
     /* ========== INITIALIZER ========== */
@@ -67,37 +71,62 @@ contract SteerCamelotVault is BaseVault {
         external
         initializer
     {
-        IERC20Metadata(token0).forceApprove(address(steerVault), type(uint256).max);
-        IERC20Metadata(token1).forceApprove(address(steerVault), type(uint256).max);
+        IERC20Metadata(token0).forceApprove(address(router), type(uint256).max);
+        IERC20Metadata(token1).forceApprove(address(router), type(uint256).max);
+        IERC20Metadata(token0).forceApprove(address(LPManager), type(uint256).max);
+        IERC20Metadata(token1).forceApprove(address(LPManager), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseVault_init(admin, manager);
+        __BaseDexUniformVault_init(admin, manager);
     }
 
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseVault
     function totalAssets() public view override returns (uint256) {
-        (uint256 amount0, uint256 amount1) = steerVault.getTotalAmounts();
-        return steerVault.balanceOf(address(this)) * _calculateInBaseToken(amount0, amount1) / steerVault.totalSupply();
+        (uint256 amount0, uint256 amount1) = LPManager.aumWithoutCollect();
+        return compounder.previewRedeem(compounder.balanceOf(address(this))) * _calculateInBaseToken(amount0, amount1)
+            / LPManager.totalSupply();
     }
 
     /// @inheritdoc BaseVault
     function underlyingTVL() external view override returns (uint256) {
-        (uint256 amount0, uint256 amount1) = steerVault.getTotalAmounts();
+        (uint256 amount0, uint256 amount1) = LPManager.aumWithoutCollect();
         return _calculateInBaseToken(amount0, amount1);
+    }
+
+    /// @inheritdoc BaseDexUniformVault
+    function getCurrentSqrtPrice() public view override returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    function _observe(uint32[] memory secondsAgos) internal view override returns (int56[] memory tickCumulatives) {
+        (tickCumulatives,,,) = pool.getTimepoints(secondsAgos);
+    }
+
     /// @inheritdoc BaseVault
-    function _deposit(uint256 amount) internal override {
+    function _deposit(uint256 amount) internal override checkPriceManipulation {
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
         } else {
             amount0 = _swap(false, amount0);
         }
-        (, uint256 amount0Used, uint256 amount1Used) = steerVault.deposit(amount0, amount1, 0, 0, address(this));
+        (uint256 amount0Used, uint256 amount1Used,,) = router.deposit(
+            LRouter.DepositInput({
+                amount0: amount0,
+                amount1: amount1,
+                amount0Min: 0,
+                amount1Min: 0,
+                minPosition: 0,
+                minShares: 0,
+                receiver: address(this),
+                compound: true,
+                rewardOption: 0
+            })
+        );
 
         // Calculate remaining amounts after liquidity provision
         amount0 -= amount0Used;
@@ -120,9 +149,9 @@ contract SteerCamelotVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _redeem(uint256 shares) internal override returns (uint256 assets) {
+    function _redeem(uint256 shares) internal override checkPriceManipulation returns (uint256 assets) {
         (uint256 amount0, uint256 amount1) =
-            steerVault.withdraw(shares * steerVault.balanceOf(address(this)) / totalSupply(), 0, 0, address(this));
+            router.withdraw(shares * compounder.balanceOf(address(this)) / totalSupply(), address(this), 0, 0, true, 0);
         // Swap to return assets in terms of the base token
         if (isToken0) {
             assets = amount0 + _swap(false, amount1);
@@ -131,17 +160,10 @@ contract SteerCamelotVault is BaseVault {
         }
     }
 
-    /**
-     * @dev Converts amounts of token0 and token1 into equivalent amount in base asset.
-     * @param amount0 Amount of token0
-     * @param amount1 Amount of token1
-     * @return Equivalent amount in base token
-     */
-    function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = _getCurrentSqrtPrice();
-        return isToken0
-            ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
-            : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
+    /// @inheritdoc BaseVault
+    function _totalAssetsPrecise() internal override returns (uint256) {
+        router.claim(address(compounder), 0);
+        return totalAssets();
     }
 
     /**
@@ -151,21 +173,12 @@ contract SteerCamelotVault is BaseVault {
      * @return amountFor0 Amount used for token0
      * @return amountFor1 Amount used for token1
      */
-    function _getAmounts(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
-        (uint256 totalAmount0, uint256 totalAmount1) = steerVault.getTotalAmounts();
-        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, _getCurrentSqrtPrice() ** 2);
+    function _getAmounts(uint256 amount) internal override returns (uint256 amountFor0, uint256 amountFor1) {
+        (uint256 totalAmount0, uint256 totalAmount1) = LPManager.aum();
+        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, getCurrentSqrtPrice() ** 2);
 
         amountFor0 = amount * totalAmount0 / (totalAmount0 + amount1in0);
         amountFor1 = amount - amountFor0;
-    }
-
-    /**
-     * @dev Returns the current square root price for the pool.
-     * @return The current square root price
-     */
-    function _getCurrentSqrtPrice() internal view returns (uint256) {
-        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
-        return uint256(sqrtPriceX96);
     }
 
     /**
@@ -174,7 +187,7 @@ contract SteerCamelotVault is BaseVault {
      * @param amount The amount to swap
      * @return The amount received after swap
      */
-    function _swap(bool zeroForOne, uint256 amount) internal returns (uint256) {
+    function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
             zeroForOne,
@@ -187,7 +200,7 @@ contract SteerCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _validateTokenToRecover(address token) internal virtual override returns (bool) {
-        return token != address(steerVault);
+        return token != address(compounder) && token != address(LPManager);
     }
 
     /* ========== CALLBACK FUNCTIONS ========== */
@@ -202,7 +215,7 @@ contract SteerCamelotVault is BaseVault {
         // Validate that the swap callback was called by the correct pool
         require(amount0Delta > 0 || amount1Delta > 0);
         (address tokenIn, address tokenOut) = abi.decode(data, (address, address));
-        require(address(pool) == msg.sender, "SteerCamelot: invalid swap callback caller");
+        require(address(pool) == msg.sender, "JonesCamelot: invalid swap callback caller");
 
         // Handle the payment for the swap based on the direction of the swap
         (bool isExactInput, uint256 amountToPay) =
@@ -212,5 +225,23 @@ contract SteerCamelotVault is BaseVault {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
+    }
+
+    /* ========== NOT IMPLEMENTED ========== */
+
+    function _getTokenLiquidity() internal pure override returns (uint256) {
+        revert NotImplemented();
+    }
+
+    function _removeLiquidity(uint256) internal pure override returns (uint256, uint256) {
+        revert NotImplemented();
+    }
+
+    function _addLiquidity(uint256, uint256) internal pure override returns (uint256, uint256) {
+        revert NotImplemented();
+    }
+
+    function getPositionAmounts() public pure override returns (uint256, uint256) {
+        revert NotImplemented();
     }
 }

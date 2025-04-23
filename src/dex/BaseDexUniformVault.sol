@@ -7,6 +7,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 /**
  * @title BaseDexUniformVault
@@ -16,6 +18,17 @@ import {BaseVault} from "../BaseVault.sol";
 abstract contract BaseDexUniformVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
+    error StalePrice();
+    error RoundNotComplete();
+    error ChainlinkPriceReportingZero();
+    error PriceManipulation();
+
+    /// @notice Precision for slippage
+    uint32 public constant slippagePrecision = 10000;
+
+    /// @notice Maximum slippage
+    uint32 public constant maxSlippage = 200;
+
     /* ========== IMMUTABLE VARIABLES ========== */
 
     address public immutable token0;
@@ -23,6 +36,8 @@ abstract contract BaseDexUniformVault is BaseVault {
     uint8 public immutable token0Decimals;
     uint8 public immutable token1Decimals;
     bool public immutable isToken0;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
@@ -42,12 +57,16 @@ abstract contract BaseDexUniformVault is BaseVault {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
     ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         (token0, token1) = _token0 < _token1 ? (_token0, _token1) : (_token1, _token0);
         isToken0 = token0 == address(_asset);
         token0Decimals = IERC20Metadata(token0).decimals();
         token1Decimals = IERC20Metadata(token1).decimals();
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
     }
 
     /* ========== INITIALIZER ========== */
@@ -60,6 +79,14 @@ abstract contract BaseDexUniformVault is BaseVault {
      */
     function __BaseDexUniformVault_init(address admin, address manager) public onlyInitializing {
         __BaseVault_init(admin, manager);
+    }
+
+    modifier checkPriceManipulation() {
+        uint256 deviation = (getCurrentSqrtPrice() ** 2) * slippagePrecision / (getTrustedSqrtPrice() ** 2);
+        if ((deviation < slippagePrecision - maxSlippage) || (deviation > slippagePrecision + maxSlippage)) {
+            revert PriceManipulation();
+        }
+        _;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -79,6 +106,39 @@ abstract contract BaseDexUniformVault is BaseVault {
      */
     function getCurrentSqrtPrice() public view virtual returns (uint256);
 
+    function getTrustedSqrtPrice() public view virtual returns (uint256) {
+        if (address(oracleToken0) == address(0)) {
+            return getTwap();
+        } else {
+            return getSqrtPriceFromOracles();
+        }
+    }
+
+    /**
+     * @dev Calculates the square root of the price ratio between two tokens based on data from oracle.
+     */
+    function getSqrtPriceFromOracles() public view returns (uint256) {
+        return Math.sqrt(Math.mulDiv(_getPrice(token0), 2 ** 96, _getPrice(token1)))
+            * Math.sqrt(Math.mulDiv(10 ** token1Decimals, 2 ** 96, 10 ** token0Decimals));
+    }
+
+    function getTwap() public view virtual returns (uint256) {
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = 0;
+        secondsAgos[1] = 1800;
+
+        (int56[] memory tickCumulatives) = _observe(secondsAgos);
+        int56 tickCumulativeDelta = tickCumulatives[0] - tickCumulatives[1];
+        int56 timeElapsed = int56(uint56(secondsAgos[1]));
+
+        int24 averageTick = int24(tickCumulativeDelta / timeElapsed);
+        if (tickCumulativeDelta < 0 && (tickCumulativeDelta % timeElapsed != 0)) {
+            averageTick--;
+        }
+
+        return uint256(TickMath.getSqrtRatioAtTick(averageTick));
+    }
+
     /// @inheritdoc BaseVault
     function totalAssets() public view virtual override returns (uint256 totalValue) {
         (uint256 total0, uint256 total1) = getPositionAmounts();
@@ -86,6 +146,25 @@ abstract contract BaseDexUniformVault is BaseVault {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _observe(uint32[] memory secondsAgos) internal view virtual returns (int56[] memory tickCumulatives);
+
+    /**
+     * @notice Gets the latest price for a token using oracle
+     * @param token The address of the token
+     * @return The latest price from the oracle
+     */
+    function _getPrice(address token) internal view virtual returns (uint256) {
+        IChainlinkOracle oracle = token == token0 ? oracleToken0 : oracleToken1;
+        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
+
+        if (answeredInRound < roundID) revert StalePrice();
+        if (timestamp == 0) revert RoundNotComplete();
+        if (price <= 0) revert ChainlinkPriceReportingZero();
+
+        // returns price in the vault decimals
+        return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
+    }
 
     /**
      * @notice Retrieves the current liquidity of the Dex position
@@ -126,7 +205,7 @@ abstract contract BaseDexUniformVault is BaseVault {
      * @return amountFor0 The amount of token0 to be added
      * @return amountFor1 The amount of token1 to be added
      */
-    function _getAmounts(uint256 amount) internal view virtual returns (uint256 amountFor0, uint256 amountFor1);
+    function _getAmounts(uint256 amount) internal virtual returns (uint256 amountFor0, uint256 amountFor1);
 
     /**
      * @notice Calculates the amount of tokens in base token
@@ -142,7 +221,7 @@ abstract contract BaseDexUniformVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal virtual override checkPriceManipulation {
         (uint256 amount0, uint256 amount1) = _getAmounts(assets);
 
         if (isToken0) {
@@ -176,7 +255,7 @@ abstract contract BaseDexUniformVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _redeem(uint256 shares) internal virtual override returns (uint256 assets) {
+    function _redeem(uint256 shares) internal virtual override checkPriceManipulation returns (uint256 assets) {
         (uint256 amount0, uint256 amount1) = _removeLiquidity(shares * _getTokenLiquidity() / totalSupply());
 
         // Calculate the assets to return based on the desired output token

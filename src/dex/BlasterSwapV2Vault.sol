@@ -47,8 +47,10 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 
@@ -97,7 +99,15 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
             : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);
     }
 
+    function getTwap() public pure override returns (uint256) {
+        revert("BlasterSwapV2Vault: not implemented");
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _observe(uint32[] memory) internal pure override returns (int56[] memory) {
+        revert("BlasterSwapV2Vault: not implemented");
+    }
 
     /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {

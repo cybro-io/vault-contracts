@@ -47,8 +47,10 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {}
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {}
 
     /* ========== INITIALIZER ========== */
 

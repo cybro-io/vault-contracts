@@ -18,7 +18,7 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     bool zeroOrOne;
 
     function setUp() public virtual override(AbstractBaseVaultTest) {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
         amount = 3e21;
         amountEth = 5e18;

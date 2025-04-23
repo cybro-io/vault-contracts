@@ -27,7 +27,9 @@ abstract contract AbstractAlgebraVaultTest is AbstractDexVaultTest {
                             address(token1),
                             asset,
                             feeProvider,
-                            feeRecipient
+                            feeRecipient,
+                            address(oracle_USDB_BLAST),
+                            address(oracle_ETH_BLAST)
                         )
                     ),
                     admin,

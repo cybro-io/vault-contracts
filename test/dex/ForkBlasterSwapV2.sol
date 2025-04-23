@@ -26,7 +26,14 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
                 new TransparentUpgradeableProxy(
                     address(
                         new BlasterSwapV2Vault(
-                            payable(address(router)), address(token0), address(token1), asset, feeProvider, feeRecipient
+                            payable(address(router)),
+                            address(token0),
+                            address(token1),
+                            asset,
+                            feeProvider,
+                            feeRecipient,
+                            address(oracle_USDB_BLAST),
+                            address(oracle_ETH_BLAST)
                         )
                     ),
                     admin,

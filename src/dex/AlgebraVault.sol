@@ -38,8 +38,10 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         positionManager = INonfungiblePositionManager(_positionManager);
         pool = IAlgebraPool(IAlgebraFactory(positionManager.factory()).poolByPair(_token0, _token1));
         _disableInitializers();
@@ -60,6 +62,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         __ERC20_init(name, symbol);
         __BaseDexVault_init(admin, manager);
     }
+
+    /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint256) {
@@ -206,5 +210,11 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
+    }
+
+    /* ========== NOT IMPLEMENTED ========== */
+
+    function _observe(uint32[] memory) internal pure override returns (int56[] memory) {
+        revert NotImplemented();
     }
 }

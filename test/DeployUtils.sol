@@ -26,14 +26,14 @@ import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
 import {SparkVault} from "../src/vaults/SparkVault.sol";
-import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
+import {SteerCamelotVault} from "../src/dex/SteerCamelotVault.sol";
 import {ICamelotMultiPositionLiquidityManager} from "../src/interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
 import {IRouter} from "../src/interfaces/jones/IRouter.sol";
 import {ICompounder} from "../src/interfaces/jones/ICompounder.sol";
 import {IAlgebraLPManager} from "../src/interfaces/jones/IAlgebraLPManager.sol";
 import {IRewardTracker} from "../src/interfaces/jones/IRewardTracker.sol";
 import {IAlgebraPool} from "../src/interfaces/algebra/IAlgebraPoolV1_9.sol";
-import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
+import {JonesCamelotVault} from "../src/dex/JonesCamelotVault.sol";
 import {IHubPool} from "../src/interfaces/across/IHubPool.sol";
 import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {IAcceleratingDistributor} from "../src/interfaces/across/IAcceleratingDistributor.sol";
@@ -135,6 +135,8 @@ contract DeployUtils {
     IChainlinkOracle oracle_ETH_BLAST = IChainlinkOracle(address(0x0af23B08bcd8AD35D1e8e8f2D2B779024Bd8D24A));
     IChainlinkOracle oracle_USDB_BLAST = IChainlinkOracle(address(0x3A236F67Fce401D87D7215695235e201966576E4));
     IChainlinkOracle oracle_BTC_BLAST = IChainlinkOracle(address(0x7262c8C5872A4Aa0096A8817cF61f5fa3c537330));
+    // api3 oracle; not chainlink/redstone
+    IChainlinkOracle oracle_BLAST_BLAST = IChainlinkOracle(address(0x54E4aFa5084C347370e4D14a3b3d4191765115f2));
 
     /* BASE */
     IChainlinkOracle oracle_ETH_BASE = IChainlinkOracle(address(0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70));
@@ -609,7 +611,12 @@ contract DeployUtils {
                 new TransparentUpgradeableProxy(
                     address(
                         new SteerCamelotVault(
-                            vaultData.asset, vaultData.feeRecipient, IFeeProvider(vaultData.feeProvider), vaultData.pool
+                            vaultData.asset,
+                            vaultData.feeRecipient,
+                            IFeeProvider(vaultData.feeProvider),
+                            vaultData.pool,
+                            address(0),
+                            address(0)
                         )
                     ),
                     vaultData.admin,
@@ -632,7 +639,9 @@ contract DeployUtils {
                             vaultData.feeRecipient,
                             IFeeProvider(vaultData.feeProvider),
                             vaultData.pool, // compounder
-                            address(pool_jones_weethWeth_ARBITRUM) // pool
+                            address(pool_jones_weethWeth_ARBITRUM), // pool
+                            address(0),
+                            address(0)
                         )
                     ),
                     vaultData.admin,

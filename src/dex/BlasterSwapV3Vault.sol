@@ -40,8 +40,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         uint24 _fee,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         positionManager = INonfungiblePositionManager(_positionManager);
         fee = _fee;
         pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, fee));
@@ -83,6 +85,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _observe(uint32[] memory secondsAgos) internal view override returns (int56[] memory tickCumulatives) {
+        (tickCumulatives,) = pool.observe(secondsAgos);
+    }
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {

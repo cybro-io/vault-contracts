@@ -26,14 +26,14 @@ import {CEth} from "../src/interfaces/compound/IcETH.sol";
 import {GammaAlgebraVault, IUniProxy, IHypervisor} from "../src/vaults/GammaAlgebraVault.sol";
 import {IPSM3} from "../src/interfaces/spark/IPSM3.sol";
 import {SparkVault} from "../src/vaults/SparkVault.sol";
-import {SteerCamelotVault} from "../src/dex/SteerCamelotVault.sol";
+import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
 import {ICamelotMultiPositionLiquidityManager} from "../src/interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
 import {IRouter} from "../src/interfaces/jones/IRouter.sol";
 import {ICompounder} from "../src/interfaces/jones/ICompounder.sol";
 import {IAlgebraLPManager} from "../src/interfaces/jones/IAlgebraLPManager.sol";
 import {IRewardTracker} from "../src/interfaces/jones/IRewardTracker.sol";
 import {IAlgebraPool} from "../src/interfaces/algebra/IAlgebraPoolV1_9.sol";
-import {JonesCamelotVault} from "../src/dex/JonesCamelotVault.sol";
+import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
 import {IHubPool} from "../src/interfaces/across/IHubPool.sol";
 import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {IAcceleratingDistributor} from "../src/interfaces/across/IAcceleratingDistributor.sol";
@@ -568,7 +568,9 @@ contract DeployUtils {
                             uniProxy_,
                             vaultData.asset,
                             IFeeProvider(vaultData.feeProvider),
-                            vaultData.feeRecipient
+                            vaultData.feeRecipient,
+                            address(0),
+                            address(0)
                         )
                     ),
                     vaultData.admin,

@@ -12,6 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title AlgebraVault
@@ -82,6 +83,12 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {
@@ -210,11 +217,5 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
-    }
-
-    /* ========== NOT IMPLEMENTED ========== */
-
-    function _observe(uint32[] memory) internal pure override returns (int56[] memory) {
-        revert NotImplemented();
     }
 }

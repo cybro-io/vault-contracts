@@ -11,6 +11,8 @@ import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 
 /**
  * @title GammaAlgebraVault
@@ -27,6 +29,8 @@ contract GammaAlgebraVault is BaseVault {
     IAlgebraPool public immutable pool;
     IUniProxy public immutable uniProxy;
     IHypervisor public immutable hypervisor;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -43,7 +47,9 @@ contract GammaAlgebraVault is BaseVault {
         address _uniProxy,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
     ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         hypervisor = IHypervisor(_hypervisor);
         uniProxy = IUniProxy(_uniProxy);
@@ -54,6 +60,8 @@ contract GammaAlgebraVault is BaseVault {
         token0Decimals = IERC20Metadata(token0).decimals();
         token1Decimals = IERC20Metadata(token1).decimals();
         pool = IAlgebraPool(hypervisor.pool());
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
     }
 
     /* ========== INITIALIZER ========== */
@@ -86,10 +94,22 @@ contract GammaAlgebraVault is BaseVault {
         return _calculateInBaseToken(amount0, amount1);
     }
 
+    /**
+     * @dev Returns the current square root price for the pool.
+     * @return The current square root price
+     */
+    function getCurrentSqrtPrice() public view returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
 
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
@@ -105,6 +125,9 @@ contract GammaAlgebraVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
         // Withdraw assets from the hypervisor proportional to shares
         (uint256 amount0, uint256 amount1) = hypervisor.withdraw(
             shares * hypervisor.balanceOf(address(this)) / totalSupply(),
@@ -119,15 +142,6 @@ contract GammaAlgebraVault is BaseVault {
         } else {
             assets = amount1 + _swap(true, amount0);
         }
-    }
-
-    /**
-     * @dev Returns the current square root price for the pool.
-     * @return The current square root price
-     */
-    function _getCurrentSqrtPrice() internal view returns (uint256) {
-        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
-        return uint256(sqrtPriceX96);
     }
 
     /**
@@ -188,7 +202,7 @@ contract GammaAlgebraVault is BaseVault {
      */
     function _getAmountsInAsset(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
         (uint256 totalAmount0, uint256 totalAmount1) = hypervisor.getTotalAmounts();
-        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, _getCurrentSqrtPrice() ** 2);
+        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, getCurrentSqrtPrice() ** 2);
 
         amountFor0 = amount * totalAmount0 / (totalAmount0 + amount1in0);
         amountFor1 = amount - amountFor0;
@@ -201,7 +215,7 @@ contract GammaAlgebraVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = _getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

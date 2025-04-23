@@ -12,6 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BlasterSwapV3Vault
@@ -86,8 +87,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _observe(uint32[] memory secondsAgos) internal view override returns (int56[] memory tickCumulatives) {
-        (tickCumulatives,) = pool.observe(secondsAgos);
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, false, address(pool), getCurrentSqrtPrice()
+        );
     }
 
     /// @inheritdoc BaseDexVault

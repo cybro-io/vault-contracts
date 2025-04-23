@@ -3,7 +3,6 @@
 pragma solidity 0.8.26;
 
 import {BaseVault} from "../BaseVault.sol";
-import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
 import {ICamelotMultiPositionLiquidityManager} from "../interfaces/steer/ICamelotMultiPositionLiquidityManager.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -11,15 +10,25 @@ import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 
 /**
  * @title SteerCamelotVault
  * @notice Vault that interacts with Camelot concentrated liquidity positions through Steer protocol
  */
-contract SteerCamelotVault is BaseDexUniformVault {
+contract SteerCamelotVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     /* ========== IMMUTABLE VARIABLES ========== */
+
+    address public immutable token0;
+    address public immutable token1;
+    uint8 public immutable token0Decimals;
+    uint8 public immutable token1Decimals;
+    bool public immutable isToken0;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /// @notice Reference to the Steer protocol's liquidity manager contract
     ICamelotMultiPositionLiquidityManager public immutable steerVault;
@@ -35,8 +44,6 @@ contract SteerCamelotVault is BaseDexUniformVault {
      * @param _feeRecipient The address that receives fees
      * @param _feeProvider The fee provider contract
      * @param _steerVault Address of the Steer protocol's liquidity manager
-     * @param _oracleToken0 Address of the token0 of the pool
-     * @param _oracleToken1 Address of the token1 of the pool
      */
     constructor(
         IERC20Metadata _asset,
@@ -45,19 +52,17 @@ contract SteerCamelotVault is BaseDexUniformVault {
         address _steerVault,
         address _oracleToken0,
         address _oracleToken1
-    )
-        BaseDexUniformVault(
-            ICamelotMultiPositionLiquidityManager(_steerVault).token0(),
-            ICamelotMultiPositionLiquidityManager(_steerVault).token1(),
-            _asset,
-            _feeProvider,
-            _feeRecipient,
-            _oracleToken0,
-            _oracleToken1
-        )
-    {
+    ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         steerVault = ICamelotMultiPositionLiquidityManager(_steerVault);
         pool = IAlgebraPool(steerVault.pool());
+        // tokens are already sorted
+        token0 = steerVault.token0();
+        token1 = steerVault.token1();
+        isToken0 = token0 == address(_asset);
+        token0Decimals = IERC20Metadata(token0).decimals();
+        token1Decimals = IERC20Metadata(token1).decimals();
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
     }
 
     /* ========== INITIALIZER ========== */
@@ -76,7 +81,7 @@ contract SteerCamelotVault is BaseDexUniformVault {
         IERC20Metadata(token0).forceApprove(address(steerVault), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(steerVault), type(uint256).max);
         __ERC20_init(name, symbol);
-        __BaseDexUniformVault_init(admin, manager);
+        __BaseVault_init(admin, manager);
     }
 
     /* ========== VIEW FUNCTIONS ========== */
@@ -93,20 +98,22 @@ contract SteerCamelotVault is BaseDexUniformVault {
         return _calculateInBaseToken(amount0, amount1);
     }
 
-    /// @inheritdoc BaseDexUniformVault
-    function getCurrentSqrtPrice() public view override returns (uint256) {
+    /**
+     * @dev Returns the current square root price for the pool.
+     * @return The current square root price
+     */
+    function getCurrentSqrtPrice() public view returns (uint256) {
         (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
         return uint256(sqrtPriceX96);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _observe(uint32[] memory secondsAgos) internal view override returns (int56[] memory tickCumulatives) {
-        (tickCumulatives,,,) = pool.getTimepoints(secondsAgos);
-    }
-
     /// @inheritdoc BaseVault
-    function _deposit(uint256 amount) internal override checkPriceManipulation {
+    function _deposit(uint256 amount) internal override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -136,7 +143,10 @@ contract SteerCamelotVault is BaseDexUniformVault {
     }
 
     /// @inheritdoc BaseVault
-    function _redeem(uint256 shares) internal override checkPriceManipulation returns (uint256 assets) {
+    function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
         (uint256 amount0, uint256 amount1) =
             steerVault.withdraw(shares * steerVault.balanceOf(address(this)) / totalSupply(), 0, 0, address(this));
         // Swap to return assets in terms of the base token
@@ -148,13 +158,26 @@ contract SteerCamelotVault is BaseDexUniformVault {
     }
 
     /**
+     * @dev Converts amounts of token0 and token1 into equivalent amount in base asset.
+     * @param amount0 Amount of token0
+     * @param amount1 Amount of token1
+     * @return Equivalent amount in base token
+     */
+    function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
+        uint256 sqrtPrice = getCurrentSqrtPrice();
+        return isToken0
+            ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
+            : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
+    }
+
+    /**
      * @dev Calculates how much of each token to use in base assets.
      * Splits the input amount into amounts for token0 and token1 based on current ratios.
      * @param amount Total amount of the base token
      * @return amountFor0 Amount used for token0
      * @return amountFor1 Amount used for token1
      */
-    function _getAmounts(uint256 amount) internal view override returns (uint256 amountFor0, uint256 amountFor1) {
+    function _getAmounts(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
         (uint256 totalAmount0, uint256 totalAmount1) = steerVault.getTotalAmounts();
         uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, getCurrentSqrtPrice() ** 2);
 
@@ -168,7 +191,7 @@ contract SteerCamelotVault is BaseDexUniformVault {
      * @param amount The amount to swap
      * @return The amount received after swap
      */
-    function _swap(bool zeroForOne, uint256 amount) internal override returns (uint256) {
+    function _swap(bool zeroForOne, uint256 amount) internal returns (uint256) {
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
             zeroForOne,
@@ -206,23 +229,5 @@ contract SteerCamelotVault is BaseDexUniformVault {
         } else {
             IERC20Metadata(tokenOut).safeTransfer(msg.sender, amountToPay);
         }
-    }
-
-    /* ========== NOT IMPLEMENTED ========== */
-
-    function _getTokenLiquidity() internal pure override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function _removeLiquidity(uint256) internal pure override returns (uint256, uint256) {
-        revert NotImplemented();
-    }
-
-    function _addLiquidity(uint256, uint256) internal pure override returns (uint256, uint256) {
-        revert NotImplemented();
-    }
-
-    function getPositionAmounts() public pure override returns (uint256, uint256) {
-        revert NotImplemented();
     }
 }

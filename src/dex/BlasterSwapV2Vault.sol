@@ -10,6 +10,7 @@ import {IBlasterswapV2Pair} from "../interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BlasterSwapV2Vault
@@ -99,14 +100,12 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
             : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);
     }
 
-    function getTwap() public pure override returns (uint256) {
-        revert("BlasterSwapV2Vault: not implemented");
-    }
-
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _observe(uint32[] memory) internal pure override returns (int56[] memory) {
-        revert("BlasterSwapV2Vault: not implemented");
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, false, address(0), getCurrentSqrtPrice()
+        );
     }
 
     /// @inheritdoc BaseDexUniformVault

@@ -26,12 +26,14 @@ library DexPriceCheck {
     uint32 public constant maxSlippage = 200;
 
     /**
-     * @notice Modifier to check if the price of the Dex pool is being manipulated
+     * @notice Function to check if the price of the Dex pool is being manipulated
      * @param oracleToken0_ The address of the first token oracle
      * @param oracleToken1_ The address of the second token oracle
      * @param token0_ The address of the first token
      * @param token1_ The address of the second token
      * @param isAlgebra Whether the pool is an Algebra pool
+     * @param pool The address of the pool
+     * @param currentSqrtPrice The current square root price of the pool
      */
     function checkPriceManipulation(
         IChainlinkOracle oracleToken0_,
@@ -86,6 +88,8 @@ library DexPriceCheck {
     /**
      * @notice Calculates the TWAP (Time-Weighted Average Price) of the Dex pool
      * @dev This function calculates the average price of the Dex pool over a last 30 minutes
+     * @param pool The address of the pool
+     * @param isAlgebra Whether the pool is an Algebra pool
      * @return The TWAP of the Dex pool
      */
     function getTwap(address pool, bool isAlgebra) public view returns (uint256) {
@@ -110,6 +114,8 @@ library DexPriceCheck {
     /**
      * @notice Abstract function to observe the price of the Dex pool
      * @param secondsAgos The time periods to observe the price
+     * @param pool The address of the pool
+     * @param isAlgebra Whether the pool is an Algebra pool
      * @return tickCumulatives The observed price
      */
     function _observe(uint32[] memory secondsAgos, address pool, bool isAlgebra)

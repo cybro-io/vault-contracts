@@ -17,8 +17,6 @@ import {IVault} from "./interfaces/IVault.sol";
 abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessControlUpgradeable, IVault {
     using SafeERC20 for IERC20Metadata;
 
-    error NotImplemented();
-
     /// @custom:storage-location erc7201:cybro.storage.BaseVault
     struct BaseVaultStorage {
         mapping(address account => uint256) waterline;

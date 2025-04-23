@@ -95,6 +95,9 @@ abstract contract BaseDexUniformVault is BaseVault {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
+    /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
     function _checkPriceManipulation() internal view virtual;
 
     /**

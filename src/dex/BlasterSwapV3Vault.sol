@@ -89,8 +89,11 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
 
     /// @inheritdoc BaseDexUniformVault
     function _checkPriceManipulation() internal view override {
+        if (address(oracleToken0) == address(0) || address(oracleToken1) == address(0)) {
+            revert OracleNotSet();
+        }
         DexPriceCheck.checkPriceManipulation(
-            oracleToken0, oracleToken1, token0, token1, false, address(pool), getCurrentSqrtPrice()
+            oracleToken0, oracleToken1, token0, token1, false, address(0), getCurrentSqrtPrice()
         );
     }
 

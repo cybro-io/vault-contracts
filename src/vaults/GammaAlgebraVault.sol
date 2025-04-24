@@ -105,11 +105,18 @@ contract GammaAlgebraVault is BaseVault {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    /// @inheritdoc BaseVault
-    function _deposit(uint256 amount) internal override {
+    /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
+    function _checkPriceManipulation() internal view {
         DexPriceCheck.checkPriceManipulation(
             oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
         );
+    }
+    /// @inheritdoc BaseVault
+
+    function _deposit(uint256 amount) internal override {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
 
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
@@ -125,9 +132,7 @@ contract GammaAlgebraVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        DexPriceCheck.checkPriceManipulation(
-            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
-        );
+        _checkPriceManipulation();
         // Withdraw assets from the hypervisor proportional to shares
         (uint256 amount0, uint256 amount1) = hypervisor.withdraw(
             shares * hypervisor.balanceOf(address(this)) / totalSupply(),

@@ -38,7 +38,7 @@ contract JonesCamelotVaultTest is AbstractBaseVaultTest {
         return false;
     }
 
-    function test_wethusdc() public {
+    function test_wethWeeth() public {
         asset = weth_ARBITRUM;
         pool = address(compounder_jones_ARBITRUM);
         amount = 1e18;

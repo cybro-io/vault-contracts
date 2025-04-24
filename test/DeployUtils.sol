@@ -63,6 +63,28 @@ contract DeployUtils {
     uint256 internal constant baseAdminPrivateKey = 0xba132ce;
     address internal constant baseAdmin = address(0x4EaC6e0b2bFdfc22cD15dF5A8BADA754FeE6Ad00);
 
+    function _getOracleForToken(address token) internal view returns (IChainlinkOracle) {
+        if (token == address(weth_ARBITRUM)) {
+            return oracle_ETH_ARBITRUM;
+        } else if (token == address(usdt_ARBITRUM)) {
+            return oracle_USDT_ARBITRUM;
+        } else if (token == address(usdc_ARBITRUM)) {
+            return oracle_USDC_ARBITRUM;
+        } else if (token == address(wbtc_ARBITRUM)) {
+            return oracle_BTC_ARBITRUM;
+        } else if (token == address(dai_ARBITRUM)) {
+            return oracle_DAI_ARBITRUM;
+        } else if (token == address(weth_BLAST)) {
+            return oracle_ETH_BLAST;
+        } else if (token == address(wbtc_BLAST)) {
+            return oracle_BTC_BLAST;
+        } else if (token == address(usdb_BLAST)) {
+            return oracle_USDB_BLAST;
+        } else {
+            revert("Oracle not set for token");
+        }
+    }
+
     /* ========== ASSETS ========== */
 
     /* ARBITRUM */
@@ -150,6 +172,7 @@ contract DeployUtils {
     IChainlinkOracle oracle_USDC_ARBITRUM = IChainlinkOracle(address(0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3));
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
     IChainlinkOracle oracle_BTC_ARBITRUM = IChainlinkOracle(address(0x6ce185860a4963106506C203335A2910413708e9));
+    IChainlinkOracle oracle_DAI_ARBITRUM = IChainlinkOracle(address(0xc5C8E77B397E531B8EC06BFb0048328B30E9eCfB));
 
     /* ETHEREUM */
     IChainlinkOracle oracle_ETHUSD_ETHEREUM = IChainlinkOracle(address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419));
@@ -569,8 +592,8 @@ contract DeployUtils {
                             vaultData.asset,
                             IFeeProvider(vaultData.feeProvider),
                             vaultData.feeRecipient,
-                            address(0),
-                            address(0)
+                            address(_getOracleForToken(IHypervisor(vaultData.pool).token0())),
+                            address(_getOracleForToken(IHypervisor(vaultData.pool).token1()))
                         )
                     ),
                     vaultData.admin,
@@ -617,8 +640,8 @@ contract DeployUtils {
                             vaultData.feeRecipient,
                             IFeeProvider(vaultData.feeProvider),
                             vaultData.pool,
-                            address(0),
-                            address(0)
+                            address(_getOracleForToken(ICamelotMultiPositionLiquidityManager(vaultData.pool).token0())),
+                            address(_getOracleForToken(ICamelotMultiPositionLiquidityManager(vaultData.pool).token1()))
                         )
                     ),
                     vaultData.admin,

@@ -18,6 +18,8 @@ import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 abstract contract BaseDexUniformVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
+    error OracleNotSet();
+
     /* ========== IMMUTABLE VARIABLES ========== */
 
     address public immutable token0;

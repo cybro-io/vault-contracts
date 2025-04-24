@@ -109,11 +109,18 @@ contract SteerCamelotVault is BaseVault {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    /// @inheritdoc BaseVault
-    function _deposit(uint256 amount) internal override {
+    /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
+    function _checkPriceManipulation() internal view {
         DexPriceCheck.checkPriceManipulation(
             oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
         );
+    }
+
+    /// @inheritdoc BaseVault
+    function _deposit(uint256 amount) internal override {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -144,9 +151,7 @@ contract SteerCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        DexPriceCheck.checkPriceManipulation(
-            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
-        );
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) =
             steerVault.withdraw(shares * steerVault.balanceOf(address(this)) / totalSupply(), 0, 0, address(this));
         // Swap to return assets in terms of the base token

@@ -9,6 +9,10 @@ import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+/**
+ * @title DexPriceCheck
+ * @notice Library for checking if the price of a Dex pool is being manipulated
+ */
 library DexPriceCheck {
     /* ========== ERRORS ========== */
 
@@ -19,11 +23,11 @@ library DexPriceCheck {
 
     /* ========== CONSTANTS ========== */
 
-    /// @notice Precision for slippage
-    uint32 public constant slippagePrecision = 10000;
+    /// @notice Precision for deviation
+    uint32 public constant deviationPrecision = 10000;
 
-    /// @notice Maximum slippage
-    uint32 public constant maxSlippage = 200;
+    /// @notice Maximum deviation
+    uint32 public constant maxDeviation = 200;
 
     /**
      * @notice Function to check if the price of the Dex pool is being manipulated
@@ -50,8 +54,8 @@ library DexPriceCheck {
         } else {
             trustedSqrtPrice = getSqrtPriceFromOracles(oracleToken0_, oracleToken1_, token0_, token1_);
         }
-        uint256 deviation = (currentSqrtPrice ** 2) * slippagePrecision / (trustedSqrtPrice ** 2);
-        if ((deviation < slippagePrecision - maxSlippage) || (deviation > slippagePrecision + maxSlippage)) {
+        uint256 deviation = (currentSqrtPrice ** 2) * deviationPrecision / (trustedSqrtPrice ** 2);
+        if ((deviation < deviationPrecision - maxDeviation) || (deviation > deviationPrecision + maxDeviation)) {
             revert PriceManipulation();
         }
     }

@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BlasterSwapV2Vault, IBlasterswapV2Router02, IBlasterswapV2Factory} from "../../src/dex/BlasterSwapV2Vault.sol";
 import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
+import {VaultType} from "../libraries/Swapper.sol";
 
 contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
     IBlasterswapV2Factory factory;
@@ -17,6 +18,7 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
         router = IBlasterswapV2Router02(payable(address(0xc972FaE6b524E8A6e0af21875675bF58a3133e60)));
         amount = 1e18;
         amountEth = 1e16;
+        vaultType = VaultType.BlasterV2;
     }
 
     function _initializeNewVault() internal override {

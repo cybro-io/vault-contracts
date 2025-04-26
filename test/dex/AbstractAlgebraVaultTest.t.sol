@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {AlgebraVault, IAlgebraFactory, INonfungiblePositionManager} from "../../src/dex/AlgebraVault.sol";
 import {AbstractDexVaultTest, IVault} from "./AbstractDexVaultTest.t.sol";
+import {VaultType} from "../libraries/Swapper.sol";
 
 abstract contract AbstractAlgebraVaultTest is AbstractDexVaultTest {
     IAlgebraFactory factory;
@@ -13,6 +14,7 @@ abstract contract AbstractAlgebraVaultTest is AbstractDexVaultTest {
 
     function setUp() public virtual override(AbstractDexVaultTest) {
         super.setUp();
+        vaultType = VaultType.AlgebraV1;
     }
 
     function _initializeNewVault() internal override {

@@ -127,118 +127,17 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
     function _increaseVaultAssets() internal virtual returns (bool);
 
-    function _getAssetProvider(IERC20Metadata asset_) internal view returns (address assetProvider_) {
-        if (block.chainid == 81457) {
-            if (asset_ == usdb_BLAST) {
-                assetProvider_ = assetProvider_USDB_BLAST;
-            } else if (asset_ == weth_BLAST) {
-                assetProvider_ = assetProvider_WETH_BLAST;
-            } else if (asset_ == blast_BLAST) {
-                assetProvider_ = assetProvider_BLAST_BLAST;
-            } else {
-                assetProvider_ = assetProvider_WBTC_BLAST;
-            }
-        } else if (block.chainid == 42161) {
-            if (asset_ == usdt_ARBITRUM) {
-                assetProvider_ = assetProvider_USDT_ARBITRUM;
-            } else if (asset_ == usdc_ARBITRUM) {
-                assetProvider_ = assetProvider_USDC_ARBITRUM;
-            } else if (asset_ == weth_ARBITRUM) {
-                assetProvider_ = assetProvider_WETH_ARBITRUM;
-            } else if (asset_ == wbtc_ARBITRUM) {
-                assetProvider_ = assetProvider_WBTC_ARBITRUM;
-            } else if (asset_ == dai_ARBITRUM) {
-                assetProvider_ = assetProvider_DAI_ARBITRUM;
-            } else if (asset_ == weeth_ARBITRUM) {
-                assetProvider_ = assetProvider_WEETH_ARBITRUM;
-            }
-        } else if (block.chainid == 8453) {
-            if (asset_ == usdc_BASE) {
-                assetProvider_ = assetProvider_USDC_BASE;
-            } else if (asset_ == weth_BASE) {
-                assetProvider_ = assetProvider_WETH_BASE;
-            } else if (asset_ == cbwbtc_BASE) {
-                assetProvider_ = assetProvider_CBWBTC_BASE;
-            }
-        } else if (block.chainid == 1) {
-            if (asset_ == usdt_ETHEREUM) {
-                assetProvider_ = assetProvider_USDT_ETHEREUM;
-            } else if (asset_ == weth_ETHEREUM) {
-                assetProvider_ = assetProvider_WETH_ETHEREUM;
-            } else if (asset_ == usdc_ETHEREUM) {
-                assetProvider_ = assetProvider_USDC_ETHEREUM;
-            } else if (asset_ == wbtc_ETHEREUM) {
-                assetProvider_ = assetProvider_WBTC_ETHEREUM;
-            }
-        } else if (block.chainid == 43114) {
-            if (asset_ == frax_AVALANCHE) {
-                assetProvider_ = assetProvider_FRAX_AVALANCHE;
-            } else if (asset_ == weth_AVALANCHE) {
-                assetProvider_ = assetProvider_WETH_AVALANCHE;
-            }
-        } else if (block.chainid == 1088) {
-            if (asset_ == dai_METIS) {
-                assetProvider_ = assetProvider_DAI_METIS;
-            }
-        } else if (block.chainid == 146) {
-            if (asset_ == weth_SONIC) {
-                assetProvider_ = assetProvider_WETH_SONIC;
-            }
-        } else if (block.chainid == 56) {
-            if (asset_ == btcb_BSC) {
-                assetProvider_ = assetProvider_BTCB_BSC;
-            }
-        } else if (block.chainid == 10) {
-            if (asset_ == weth_OPTIMISM) {
-                assetProvider_ = assetProvider_WETH_OPTIMISM;
-            } else if (asset_ == usdc_OPTIMISM) {
-                assetProvider_ = assetProvider_USDC_OPTIMISM;
-            } else if (asset_ == wsteth_OPTIMISM) {
-                assetProvider_ = assetProvider_WSTETH_OPTIMISM;
-            } else if (asset_ == usdt_OPTIMISM) {
-                assetProvider_ = assetProvider_USDT_OPTIMISM;
-            }
-        } else if (block.chainid == 534352) {
-            if (asset_ == wsteth_SCROLL) {
-                assetProvider_ = assetProvider_WSTETH_SCROLL;
-            }
-        } else if (block.chainid == 223) {
-            if (asset_ == usdt_B2) {
-                assetProvider_ = assetProvider_USDT_B2;
-            }
-        } else if (block.chainid == 34443) {
-            if (asset_ == usdc_MODE) {
-                assetProvider_ = assetProvider_USDC_MODE;
-            }
-        } else if (block.chainid == 130) {
-            if (asset_ == usdc_UNICHAIN) {
-                assetProvider_ = assetProvider_USDC_UNICHAIN;
-            }
-        } else if (block.chainid == 1116) {
-            if (asset_ == usdt_CORE) {
-                assetProvider_ = assetProvider_USDT_CORE;
-            } else if (asset_ == usdc_CORE) {
-                assetProvider_ = assetProvider_USDC_CORE;
-            } else if (asset_ == wbtc_CORE) {
-                assetProvider_ = assetProvider_WBTC_CORE;
-            }
-        }
-    }
-
     function _setAssetProvider() internal {
         assetProvider = _getAssetProvider(asset);
     }
 
     function _provideAndApproveSpecific(bool needToProvide, IERC20Metadata asset_, uint256 amount_) internal {
         if (needToProvide) {
-            address assetProvider_ = _getAssetProvider(asset_);
-            vm.startPrank(assetProvider_);
-            asset_.safeTransfer(user, amount_);
-            asset_.safeTransfer(user2, amount_);
-            asset_.safeTransfer(user3, amount_);
-            asset_.safeTransfer(user4, amount_);
-            asset_.safeTransfer(admin, amount_);
-            vm.stopPrank();
+            dealTokens(asset_, user, amount_);
+            dealTokens(asset_, user2, amount_);
+            dealTokens(asset_, user3, amount_);
+            dealTokens(asset_, user4, amount_);
+            dealTokens(asset_, admin, amount_);
         }
         vm.startPrank(user);
         asset_.forceApprove(vaultAddress, amount_);

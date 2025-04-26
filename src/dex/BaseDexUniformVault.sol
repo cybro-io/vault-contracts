@@ -58,6 +58,9 @@ abstract contract BaseDexUniformVault is BaseVault {
         token1Decimals = IERC20Metadata(token1).decimals();
         oracleToken0 = IChainlinkOracle(_oracleToken0);
         oracleToken1 = IChainlinkOracle(_oracleToken1);
+        if (address(oracleToken0) == address(0) || address(oracleToken1) == address(0)) {
+            revert OracleNotSet();
+        }
     }
 
     /* ========== INITIALIZER ========== */

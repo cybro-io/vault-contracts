@@ -14,6 +14,11 @@ import {DeployUtils} from "./DeployUtils.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {BaseDexUniformVault} from "../src/dex/BaseDexUniformVault.sol";
+import {BlasterSwapV2Vault} from "../src/dex/BlasterSwapV2Vault.sol";
+import {BlasterSwapV3Vault} from "../src/dex/BlasterSwapV3Vault.sol";
+import {Swapper, VaultType} from "./libraries/Swapper.sol";
+import {DexPriceCheck} from "../src/libraries/DexPriceCheck.sol";
 
 abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     using MessageHashUtils for bytes32;
@@ -415,5 +420,25 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         }
         _checkEmergencyWithdraw(admin);
         _checkWithdrawFunds();
+    }
+
+    function _checkMovePrice(address token0_, address token1_, VaultType vaultType_) internal {
+        Swapper swapper = new Swapper();
+        uint256 currentPrice = BaseDexUniformVault(address(vault)).getCurrentSqrtPrice();
+        swapper.movePoolPrice(
+            vaultType_ == VaultType.BlasterV2
+                ? address(BlasterSwapV2Vault(address(vault)).lpToken())
+                : address(BlasterSwapV3Vault(address(vault)).pool()),
+            address(token0_),
+            address(token1_),
+            uint160(currentPrice * 105 / 100),
+            vaultType_
+        );
+        uint256 currentPriceAfterChange = BaseDexUniformVault(address(vault)).getCurrentSqrtPrice();
+        vm.assertGt(currentPriceAfterChange, currentPrice);
+        vm.startPrank(user4);
+        vm.expectRevert(DexPriceCheck.PriceManipulation.selector);
+        vault.deposit(amount, user4, 0);
+        vm.stopPrank();
     }
 }

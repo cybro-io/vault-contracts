@@ -5,6 +5,8 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {IFeeProvider} from "../src/FeeProvider.sol";
 import {AbstractBaseVaultTest, IVault} from "./AbstractBaseVault.t.sol";
+import {SteerCamelotVault} from "../src/vaults/SteerCamelotVault.sol";
+import {VaultType} from "./libraries/Swapper.sol";
 
 contract SteerCamelotVaultTest is AbstractBaseVaultTest {
     address pool;
@@ -37,11 +39,20 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
         return false;
     }
 
+    function checkMovePoolPrice() internal {
+        _checkMovePrice(
+            SteerCamelotVault(address(vault)).token0(),
+            SteerCamelotVault(address(vault)).token1(),
+            VaultType.AlgebraV1_9
+        );
+    }
+
     function test_wethusdc() public {
         asset = weth_ARBITRUM;
         pool = address(steer_wethusdc_ARBITRUM);
         amount = 1e16;
         baseVaultTest(true);
+        checkMovePoolPrice();
     }
 
     function test_usdcweth() public {
@@ -49,6 +60,7 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
         pool = address(steer_wethusdc_ARBITRUM);
         amount = 1e9;
         baseVaultTest(true);
+        checkMovePoolPrice();
     }
 
     function test_daiusdc() public {
@@ -56,6 +68,7 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
         pool = address(steer_usdcdai_ARBITRUM);
         amount = 1e20;
         baseVaultTest(true);
+        checkMovePoolPrice();
     }
 
     function test_usdcdai() public {
@@ -63,5 +76,6 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
         pool = address(steer_usdcdai_ARBITRUM);
         amount = 1e9;
         baseVaultTest(true);
+        checkMovePoolPrice();
     }
 }

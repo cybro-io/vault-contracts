@@ -19,11 +19,13 @@ import {DeployUtils} from "../DeployUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IBlasterswapV2Pair} from "../../src/interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IAlgebraPool as IAlgebraPoolV1_9} from "../../src/interfaces/algebra/IAlgebraPoolV1_9.sol";
 
 enum VaultType {
     UniV3,
     AlgebraV1,
-    BlasterV2
+    BlasterV2,
+    AlgebraV1_9
 }
 
 contract Swapper is IUniswapV3SwapCallback, IAlgebraSwapCallback, IBlasterswapV3SwapCallback, DeployUtils {
@@ -105,6 +107,20 @@ contract Swapper is IUniswapV3SwapCallback, IAlgebraSwapCallback, IBlasterswapV3
         }
     }
 
+    function _movePoolPriceAlgebraV1_9(
+        IAlgebraPoolV1_9 pool,
+        address token0,
+        address token1,
+        uint160 targetSqrtPriceX96
+    ) internal {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        if (sqrtPriceX96 > targetSqrtPriceX96) {
+            pool.swap(msg.sender, true, type(int256).max, targetSqrtPriceX96, abi.encode(token0, token1));
+        } else {
+            pool.swap(msg.sender, false, type(int256).max, targetSqrtPriceX96, abi.encode(token1, token0));
+        }
+    }
+
     function movePoolPrice(
         address pool,
         address token0,
@@ -118,6 +134,8 @@ contract Swapper is IUniswapV3SwapCallback, IAlgebraSwapCallback, IBlasterswapV3
             _movePoolPriceUniV3(IUniswapV3Pool(pool), token0, token1, targetSqrtPriceX96);
         } else if (vaultType_ == VaultType.BlasterV2) {
             _movePoolPriceBlasterV2(IBlasterswapV2Pair(pool), token0, token1, targetSqrtPriceX96);
+        } else if (vaultType_ == VaultType.AlgebraV1_9) {
+            _movePoolPriceAlgebraV1_9(IAlgebraPoolV1_9(pool), token0, token1, targetSqrtPriceX96);
         }
     }
 

@@ -5,6 +5,8 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {IFeeProvider} from "../src/FeeProvider.sol";
 import {AbstractBaseVaultTest, IVault} from "./AbstractBaseVault.t.sol";
+import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
+import {VaultType} from "./libraries/Swapper.sol";
 
 contract JonesCamelotVaultTest is AbstractBaseVaultTest {
     address pool;
@@ -43,5 +45,10 @@ contract JonesCamelotVaultTest is AbstractBaseVaultTest {
         pool = address(compounder_jones_ARBITRUM);
         amount = 1e18;
         baseVaultTest(true);
+        _checkMovePrice(
+            JonesCamelotVault(address(vault)).token0(),
+            JonesCamelotVault(address(vault)).token1(),
+            VaultType.AlgebraV1_9
+        );
     }
 }

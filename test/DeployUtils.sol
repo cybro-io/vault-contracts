@@ -37,6 +37,8 @@ import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
 import {IHubPool} from "../src/interfaces/across/IHubPool.sol";
 import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {IAcceleratingDistributor} from "../src/interfaces/across/IAcceleratingDistributor.sol";
+import {CompoundLayerbankVault} from "../src/vaults/CompoundLayerbankVault.sol";
+import {ILToken} from "../src/interfaces/layerbank/ILToken.sol";
 
 contract DeployUtils {
     struct StargateSetup {
@@ -91,6 +93,42 @@ contract DeployUtils {
     IERC20Metadata usdc_ETHEREUM = IERC20Metadata(address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
     IERC20Metadata wbtc_ETHEREUM = IERC20Metadata(address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599));
 
+    /* AVALANCHE */
+    IERC20Metadata frax_AVALANCHE = IERC20Metadata(address(0xD24C2Ad096400B6FBcd2ad8B24E7acBc21A1da64));
+    IERC20Metadata weth_AVALANCHE = IERC20Metadata(address(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB));
+
+    /* METIS */
+    IERC20Metadata dai_METIS = IERC20Metadata(address(0x4c078361FC9BbB78DF910800A991C7c3DD2F6ce0));
+
+    /* SONIC */
+    IERC20Metadata weth_SONIC = IERC20Metadata(address(0x50c42dEAcD8Fc9773493ED674b675bE577f2634b));
+
+    /* BSC */
+    IERC20Metadata btcb_BSC = IERC20Metadata(address(0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c));
+
+    /* OPTIMISM */
+    IERC20Metadata weth_OPTIMISM = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
+    IERC20Metadata usdc_OPTIMISM = IERC20Metadata(address(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85));
+    IERC20Metadata wsteth_OPTIMISM = IERC20Metadata(address(0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb));
+    IERC20Metadata usdt_OPTIMISM = IERC20Metadata(address(0x94b008aA00579c1307B0EF2c499aD98a8ce58e58));
+
+    /* SCROLL */
+    IERC20Metadata wsteth_SCROLL = IERC20Metadata(address(0xf610A9dfB7C89644979b4A0f27063E9e7d7Cda32));
+
+    /* MODE */
+    IERC20Metadata usdc_MODE = IERC20Metadata(address(0xd988097fb8612cc24eeC14542bC03424c656005f));
+
+    /* B2 */
+    IERC20Metadata usdt_B2 = IERC20Metadata(address(0x681202351a488040Fa4FdCc24188AfB582c9DD62));
+
+    /* UNICHAIN */
+    IERC20Metadata usdc_UNICHAIN = IERC20Metadata(address(0x078D782b760474a361dDA0AF3839290b0EF57AD6));
+
+    /* CORE */
+    IERC20Metadata wbtc_CORE = IERC20Metadata(address(0x5832f53d147b3d6Cd4578B9CBD62425C7ea9d0Bd));
+    IERC20Metadata usdt_CORE = IERC20Metadata(address(0x900101d06A7426441Ae63e9AB3B9b0F63Be145F1));
+    IERC20Metadata usdc_CORE = IERC20Metadata(address(0xa4151B2B3e269645181dCcF2D426cE75fcbDeca9));
+
     /* ========== CHAINLINK ORACLES ========== */
 
     /* BLAST */
@@ -117,6 +155,14 @@ contract DeployUtils {
     IChainlinkOracle oracle_BTCUSD_ETHEREUM = IChainlinkOracle(address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c));
     IChainlinkOracle oracle_USDCUSD_ETHEREUM = IChainlinkOracle(address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6));
 
+    /* OPTIMISM */
+    IChainlinkOracle oracle_USDCUSD_OPTIMISM = IChainlinkOracle(address(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3));
+    IChainlinkOracle oracle_USDTUSD_OPTIMISM = IChainlinkOracle(address(0xECef79E109e997bCA29c1c0897ec9d7b03647F5E));
+
+    /* CORE */
+    IChainlinkOracle oracle_USDCUSD_CORE = IChainlinkOracle(address(0xD3C586Eec1C6C3eC41D276a23944dea080eDCf7f));
+    IChainlinkOracle oracle_USDTUSD_CORE = IChainlinkOracle(address(0x4eadC6ee74b7Ceb09A4ad90a33eA2915fbefcf76));
+
     /* ========== DEXES ========== */
 
     /* UNISWAP */
@@ -131,6 +177,8 @@ contract DeployUtils {
     IUniswapV3Pool pool_USDC_WETH_ETHEREUM = IUniswapV3Pool(address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640));
     IUniswapV3Pool pool_WBTC_WETH_ETHEREUM = IUniswapV3Pool(address(0xCBCdF9626bC03E24f779434178A73a0B4bad62eD));
     IUniswapV3Pool pool_USDT_USDC_ETHEREUM = IUniswapV3Pool(address(0x3416cF6C708Da44DB2624D63ea0AAef7113527C6));
+    IUniswapV3Pool pool_USDC_USDT_OPTIMISM = IUniswapV3Pool(address(0xA73C628eaf6e283E26A7b1f8001CF186aa4c0E8E));
+    IUniswapV3Pool pool_USDC_USDT_CORE = IUniswapV3Pool(address(0x74B8d6eA8E0284C2619922FC0F5d872Fe32CEc2f));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -142,10 +190,14 @@ contract DeployUtils {
 
     /* ========== ASSET PROVIDERS ========== */
 
+    /* BLAST */
+
     address assetProvider_USDB_BLAST = address(0x4BeD2A922654cAcC2Be974689619768FaBF24855);
     address assetProvider_WETH_BLAST = address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1);
     address assetProvider_BLAST_BLAST = address(0xeC1f5118d558050908122A7B84B10580818B68Da);
     address assetProvider_WBTC_BLAST = address(0x2D509190Ed0172ba588407D4c2df918F955Cc6E1);
+
+    /* ARBITRUM */
 
     address assetProvider_USDT_ARBITRUM = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
     address assetProvider_USDC_ARBITRUM = address(0x2Df1c51E09aECF9cacB7bc98cB1742757f163dF7);
@@ -154,14 +206,64 @@ contract DeployUtils {
     address assetProvider_DAI_ARBITRUM = address(0x82E64f49Ed5EC1bC6e43DAD4FC8Af9bb3A2312EE);
     address assetProvider_WEETH_ARBITRUM = address(0x8437d7C167dFB82ED4Cb79CD44B7a32A1dd95c77);
 
+    /* BASE */
+
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
     address assetProvider_CBWBTC_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb); // 2,459 WBTC
+
+    /* ETHEREUM */
 
     address assetProvider_WETH_ETHEREUM = address(0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E);
     address assetProvider_USDT_ETHEREUM = address(0x2933782B5A8d72f2754103D1489614F29bfA4625);
     address assetProvider_USDC_ETHEREUM = address(0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341);
     address assetProvider_WBTC_ETHEREUM = address(0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8);
+
+    /* AVALANCHE */
+
+    address assetProvider_FRAX_AVALANCHE = address(0x65BAB4f268286b9005D6053a177948dDdC29BAD3);
+    address assetProvider_WETH_AVALANCHE = address(0xB510DAFC381524d391855F7386f2A2d05E9a7E65);
+
+    /* METIS */
+
+    address assetProvider_DAI_METIS = address(0x0CAd02c4c6fB7c0d403aF74Ba9adA3bf40df6478);
+
+    /* SONIC */
+
+    address assetProvider_WETH_SONIC = address(0xC291CA0a0a0e793dC6A0442a34E1607Ce1905389);
+
+    /* BSC */
+
+    address assetProvider_BTCB_BSC = address(0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C);
+
+    /* OPTIMISM */
+
+    address assetProvider_WETH_OPTIMISM = address(0x73B14a78a0D396C521f954532d43fd5fFe385216);
+    address assetProvider_USDC_OPTIMISM = address(0x8aF3827a41c26C7F32C81E93bb66e837e0210D5c);
+    address assetProvider_WSTETH_OPTIMISM = address(0xbb0b4642492b275F154e415fc52Dacc931103fD9);
+    address assetProvider_USDT_OPTIMISM = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
+
+    /* SCROLL */
+
+    address assetProvider_WSTETH_SCROLL = address(0x2A0dc9044bf0A455568019D741130A87e74eE888);
+
+    /* MODE */
+
+    address assetProvider_USDC_MODE = address(0xF043AF653c1c770433C7c6f8123ece51d79496F7);
+
+    /* B2 */
+
+    address assetProvider_USDT_B2 = address(0x9683826a04DB8Ae2e256e6a14b87d440C7105824);
+
+    /* UNICHAIN */
+
+    address assetProvider_USDC_UNICHAIN = address(0xB5A2a236581dbd6BCECD8A25EeBFF140595f138C);
+
+    /* CORE */
+
+    address assetProvider_USDT_CORE = address(0xa8eC7b7b51DBaEd615Cb4fF495eeCFD949e1Afc0);
+    address assetProvider_USDC_CORE = address(0xB9EFb3ABfd12649faF03D360818D66e62592262c);
+    address assetProvider_WBTC_CORE = address(0x1305ec07e6fa94aF76fD15C02747e1FeB17951EA);
 
     /* ========== CACHED BLOCKIDS ========== */
 
@@ -169,6 +271,16 @@ contract DeployUtils {
     uint256 lastCachedBlockid_ARBITRUM = 300132227;
     uint256 lastCachedBlockid_BASE = 25292162;
     uint256 lastCachedBlockid_ETHEREUM = 22052977;
+    uint256 lastCachedBlockid_AVALANCHE = 60675615;
+    uint256 lastCachedBlockid_METIS = 20244437;
+    uint256 lastCachedBlockid_SONIC = 21383387;
+    uint256 lastCachedBlockid_BSC = 48554343;
+    uint256 lastCachedBlockid_OPTIMISM = 134823726;
+    uint256 lastCachedBlockid_SCROLL = 14892975;
+    uint256 lastCachedBlockid_MODE = 22540097;
+    uint256 lastCachedBlockid_B2 = 16044183;
+    uint256 lastCachedBlockid_UNICHAIN = 14499700;
+    uint256 lastCachedBlockid_CORE = 23985246;
 
     /* ========== POOLS ========== */
 
@@ -186,10 +298,31 @@ contract DeployUtils {
     IAavePool aave_zerolendPool_BLAST = IAavePool(address(0xa70B0F3C2470AbBE104BdB3F3aaa9C7C54BEA7A8));
     IAavePool aave_pool_ARBITRUM = IAavePool(address(0x794a61358D6845594F94dc1DB02A252b5b4814aD));
     IAavePool aave_pool_BASE = IAavePool(address(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5));
+    IAavePool aave_pool_AVALANCHE = IAavePool(address(0x794a61358D6845594F94dc1DB02A252b5b4814aD));
+    IAavePool aave_pool_METIS = IAavePool(address(0x90df02551bB792286e8D4f13E0e357b4Bf1D6a57));
+    IAavePool aave_pool_SONIC = IAavePool(address(0x5362dBb1e601abF3a4c14c22ffEdA64042E5eAA3));
+    IAavePool aave_avalonPool_BSC = IAavePool(address(0xf9278C7c4AEfAC4dDfd0D496f7a1C39cA6BCA6d4));
+
+    /* COLEND AAVE */
+
+    IAavePool aave_colendPool_CORE = IAavePool(address(0x0CEa9F0F49F30d376390e480ba32f903B43B19C5));
 
     /* MOONWELL COMPOUND */
 
     CErc20 compound_moonwellUSDC_BASE = CErc20(address(0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22));
+    CErc20 compound_moonwellUSDC_OPTIMISM = CErc20(address(0x8E08617b0d66359D73Aa11E11017834C29155525));
+    CErc20 compound_moonwellUSDT_OPTIMISM = CErc20(address(0xa3A53899EE8f9f6E963437C5B3f805FEc538BF84));
+    CErc20 compound_moonwellWSTETH_OPTIMISM = CErc20(address(0xbb3b1aB66eFB43B10923b87460c0106643B83f9d));
+
+    /* LAYERBANK COMPOUND */
+
+    ILToken compound_layerbankWSTETH_SCROLL = ILToken(payable(address(0xB6966083c7b68175B4BF77511608AEe9A80d2Ca4)));
+    ILToken compound_layerbankUSDC_MODE = ILToken(payable(address(0xBa6e89c9cDa3d72B7D8D5B05547a29f9BdBDBaec)));
+    ILToken compound_layerbankUSDT_B2 = ILToken(payable(address(0xA9Be5906974698A9C743E881B0ACc2954399ff2a)));
+
+    /* VENUS COMPOUND */
+
+    CErc20 compound_venusUSDC_UNICHAIN = CErc20(address(0xB953f92B9f759d97d2F2Dec10A8A3cf75fcE3A95));
 
     /* ASO (compound) */
 
@@ -558,6 +691,78 @@ contract DeployUtils {
                         vaultData.admin,
                         abi.encodeCall(
                             AcrossVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployCompound(VaultSetup memory vaultData) internal returns (IVault compoundVault_) {
+        compoundVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new CompoundVault(
+                                vaultData.asset,
+                                CErc20(vaultData.pool),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            CompoundVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployCompoundETH(VaultSetup memory vaultData) internal returns (IVault compoundVault_) {
+        compoundVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new CompoundVaultETH(
+                                vaultData.asset,
+                                CEth(vaultData.pool),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            CompoundVaultETH.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployCompoundLayerbank(VaultSetup memory vaultData) internal returns (IVault compoundVault_) {
+        compoundVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new CompoundLayerbankVault(
+                                vaultData.asset,
+                                ILToken(payable(vaultData.pool)),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            CompoundLayerbankVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
                     )

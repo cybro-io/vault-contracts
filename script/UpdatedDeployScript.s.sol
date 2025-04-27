@@ -40,6 +40,7 @@ import {JonesCamelotVault} from "../src/vaults/JonesCamelotVault.sol";
 import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {CompoundLayerbankVault} from "../src/vaults/CompoundLayerbankVault.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     using SafeERC20 for IERC20Metadata;
@@ -161,7 +162,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(AaveVault(address(vault)), vaultData);
         vm.assertEq(address(vault.pool()), vaultData.pool);
         console.log("AaveVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployJuiceVault(DeployVault memory vaultData) internal returns (JuiceVault vault) {
@@ -185,7 +187,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(JuiceVault(address(vault)), vaultData);
         vm.assertEq(address(vault.pool()), vaultData.pool);
         console.log("JuiceVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployYieldStakingVault(DeployVault memory vaultData) internal returns (YieldStakingVault vault) {
@@ -209,46 +212,49 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         vm.assertEq(address(vault.staking()), address(vaultData.pool));
         console.log("YieldStakingVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployCompoundVault(DeployVault memory vaultData) internal returns (CompoundVault vault) {
         vault = CompoundVault(
             address(
-                new TransparentUpgradeableProxy(
-                    address(
-                        new CompoundVault(
-                            vaultData.asset, CErc20(vaultData.pool), vaultData.feeProvider, vaultData.feeRecipient
-                        )
-                    ),
-                    vaultData.admin,
-                    abi.encodeCall(
-                        CompoundVault.initialize, (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
-                    )
+                _deployCompound(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
                 )
             )
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("CompoundVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployCompoundVaultETH(DeployVault memory vaultData) internal returns (CompoundVaultETH vault) {
         vault = CompoundVaultETH(
             payable(
                 address(
-                    new TransparentUpgradeableProxy(
-                        address(
-                            new CompoundVaultETH(
-                                vaultData.asset, CEth(vaultData.pool), vaultData.feeProvider, vaultData.feeRecipient
-                            )
-                        ),
-                        vaultData.admin,
-                        abi.encodeCall(
-                            CompoundVaultETH.initialize,
-                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
-                        )
+                    _deployCompoundETH(
+                        VaultSetup({
+                            asset: vaultData.asset,
+                            pool: vaultData.pool,
+                            feeProvider: address(vaultData.feeProvider),
+                            feeRecipient: vaultData.feeRecipient,
+                            name: vaultData.name,
+                            symbol: vaultData.symbol,
+                            admin: vaultData.admin,
+                            manager: vaultData.manager
+                        })
                     )
                 )
             )
@@ -256,7 +262,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("CompoundVaultETH", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployInitVault(DeployVault memory vaultData) internal returns (InitVault vault) {
@@ -280,7 +287,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("InitVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployStargateVault(DeployVault memory vaultData) internal returns (StargateVault vault) {
@@ -304,7 +312,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("StargateVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
@@ -326,7 +335,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("BufferVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployGammaAlgebraVault(DeployVault memory vaultData) internal returns (GammaAlgebraVault vault) {
@@ -348,7 +358,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("GammaAlgebraVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deploySparkVault(DeployVault memory vaultData) internal returns (SparkVault vault) {
@@ -371,7 +382,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("SparkVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deploySteerCamelotVault(DeployVault memory vaultData) internal returns (SteerCamelotVault vault) {
@@ -393,7 +405,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("SteerCamelotVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployJonesCamelotVault(DeployVault memory vaultData) internal returns (JonesCamelotVault vault) {
@@ -415,7 +428,8 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("JonesCamelotVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
     function _deployAcrossVault(DeployVault memory vaultData) internal returns (AcrossVault vault) {
@@ -437,7 +451,34 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         );
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("AcrossVault", address(vault));
-        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+    }
+
+    function _deployCompoundLayerbankVault(DeployVault memory vaultData)
+        internal
+        returns (CompoundLayerbankVault vault)
+    {
+        vault = CompoundLayerbankVault(
+            address(
+                _deployCompoundLayerbank(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("CompoundLayerbankVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
         updateProxyAdmins.push(_getProxyAdmin(address(vault)));
     }
 
@@ -1818,6 +1859,858 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _testVaultWorks(BaseVault(address(fundLending)), 1e9);
         _testVaultWorks(BaseVault(vaults2[0]), 1e9);
         _testVaultWorks(BaseVault(vaults2[1]), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployAvalancheIndexETH() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(weth_AVALANCHE), "WETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: weth_AVALANCHE,
+                        pool: address(aave_pool_AVALANCHE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave ETH",
+                        symbol: "cyAaveETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        console.log("\n================================================\n");
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(weth_AVALANCHE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index ETH", "ethLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex WETH", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e18);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployAvalancheIndexFRAX() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(frax_AVALANCHE), "FRAX");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: frax_AVALANCHE,
+                        pool: address(aave_pool_AVALANCHE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave FRAX",
+                        symbol: "cyAaveFRAX",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(frax_AVALANCHE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index FRAX", "fraxLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex FRAX", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e20);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e20);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deploySonicIndexETH() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(weth_SONIC), "WETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: weth_SONIC,
+                        pool: address(aave_pool_SONIC),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave ETH",
+                        symbol: "cyAaveETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(weth_SONIC, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index ETH", "ethLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex WETH", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e18);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployMetisIndexDAI() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(dai_METIS), "DAI");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: dai_METIS,
+                        pool: address(aave_pool_METIS),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave DAI",
+                        symbol: "cyAaveDAI",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(dai_METIS, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index DAI", "daiLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex DAI", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e20);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e20);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployBSCIndexBTCB() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(btcb_BSC), "BTCB");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: btcb_BSC,
+                        pool: address(aave_avalonPool_BSC),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Aave BTCB",
+                        symbol: "cyAaveBTCB",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(btcb_BSC, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index BTCB", "btcbLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex BTCB", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e17);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e17);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployCoreIndexUSDC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_CORE), "USDC");
+        vm.label(address(usdt_CORE), "USDT");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdc_CORE,
+                        pool: address(aave_colendPool_CORE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Colend USDC",
+                        symbol: "cyColendUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: usdt_CORE,
+                        pool: address(aave_colendPool_CORE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Colend USDT",
+                        symbol: "cyColendUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_CORE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDC/USDT", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(5000);
+        lendingShares.push(5000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        fromSwap.push(address(usdc_CORE));
+        toSwap.push(address(usdt_CORE));
+        swapPools.push(pool_USDC_USDT_CORE);
+
+        tokens.push(address(usdt_CORE));
+        oracles.push(oracle_USDTUSD_CORE);
+        tokens.push(address(usdc_CORE));
+        oracles.push(oracle_USDCUSD_CORE);
+
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setMaxSlippage(10);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC/USDT", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(vaults[1]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployCoreIndexWBTC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(wbtc_CORE), "WBTC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployAaveVault(
+                    DeployVault({
+                        asset: wbtc_CORE,
+                        pool: address(aave_colendPool_CORE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Colend WBTC",
+                        symbol: "cyColendWBTC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(wbtc_CORE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index WBTC", "wbtcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex WBTC", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e7);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e7);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployUnichainIndexUSDC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_UNICHAIN), "USDC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: usdc_UNICHAIN,
+                        pool: address(compound_venusUSDC_UNICHAIN),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Venus USDC",
+                        symbol: "cyVenusUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_UNICHAIN, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDC", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployOptimismIndexUSDC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_OPTIMISM), "USDC");
+        vm.label(address(usdt_OPTIMISM), "USDT");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: usdc_OPTIMISM,
+                        pool: address(compound_moonwellUSDC_OPTIMISM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Moonwell USDC",
+                        symbol: "cyMoonwellUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: usdt_OPTIMISM,
+                        pool: address(compound_moonwellUSDT_OPTIMISM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Moonwell USDT",
+                        symbol: "cyMoonwellUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[1]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_OPTIMISM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDC/USDT", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(5000);
+        lendingShares.push(5000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        fromSwap.push(address(usdc_OPTIMISM));
+        toSwap.push(address(usdt_OPTIMISM));
+        swapPools.push(pool_USDC_USDT_OPTIMISM);
+
+        tokens.push(address(usdt_OPTIMISM));
+        oracles.push(oracle_USDTUSD_OPTIMISM);
+        tokens.push(address(usdc_OPTIMISM));
+        oracles.push(oracle_USDCUSD_OPTIMISM);
+
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setMaxSlippage(10);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC/USDT", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(vaults[1]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployOptimismIndexWSTETH() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(wsteth_OPTIMISM), "wstETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundVault(
+                    DeployVault({
+                        asset: wsteth_OPTIMISM,
+                        pool: address(compound_moonwellWSTETH_OPTIMISM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Moonwell wstETH",
+                        symbol: "cyMoonwellwstETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(wsteth_OPTIMISM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index wstETH", "wstETHLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex wstETH", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e18);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployB2IndexUSDT() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdt_B2), "USDT");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundLayerbankVault(
+                    DeployVault({
+                        asset: usdt_B2,
+                        pool: address(compound_layerbankUSDT_B2),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Layerbank USDT",
+                        symbol: "cyLayerbankUSDT",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdt_B2, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDT", "usdtLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDT", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployScrollIndexWSTETH() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(wsteth_SCROLL), "wstETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundLayerbankVault(
+                    DeployVault({
+                        asset: wsteth_SCROLL,
+                        pool: address(compound_layerbankWSTETH_SCROLL),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Layerbank wstETH",
+                        symbol: "cyLayerbankwstETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(wsteth_SCROLL, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index wstETH", "wstETHLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex wstETH", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e18);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
+    function deployModeIndexUSDC() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(usdc_MODE), "USDC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployCompoundLayerbankVault(
+                    DeployVault({
+                        asset: usdc_MODE,
+                        pool: address(compound_layerbankUSDC_MODE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Layerbank USDC",
+                        symbol: "cyLayerbankUSDC",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 30, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_MODE, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index USDC", "usdcLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex USDC", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e9);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
         vm.startBroadcast();
         _setOneClickIndexRoles(admin, fundLending);
         _grantAndRevokeRoles(admin);

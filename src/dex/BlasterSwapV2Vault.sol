@@ -10,6 +10,7 @@ import {IBlasterswapV2Pair} from "../interfaces/blaster/IBlasterswapV2Pair.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BlasterSwapV2Vault
@@ -47,8 +48,10 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 
@@ -98,6 +101,13 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @inheritdoc BaseDexUniformVault
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, false, address(0), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseDexUniformVault
     function _getAmounts(uint256 amount) internal pure override returns (uint256 amountFor0, uint256 amountFor1) {

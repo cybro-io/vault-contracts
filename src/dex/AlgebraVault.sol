@@ -12,6 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title AlgebraVault
@@ -38,8 +39,10 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         positionManager = INonfungiblePositionManager(_positionManager);
         pool = IAlgebraPool(IAlgebraFactory(positionManager.factory()).poolByPair(_token0, _token1));
         _disableInitializers();
@@ -61,6 +64,8 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         __BaseDexVault_init(admin, manager);
     }
 
+    /* ========== VIEW FUNCTIONS ========== */
+
     /// @inheritdoc BaseDexUniformVault
     function getCurrentSqrtPrice() public view override returns (uint256) {
         (uint160 sqrtPriceX96,,,,,) = pool.globalState();
@@ -78,6 +83,13 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @inheritdoc BaseDexUniformVault
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(0), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {

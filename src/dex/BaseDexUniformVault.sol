@@ -7,6 +7,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BaseDexUniformVault
@@ -16,6 +18,8 @@ import {BaseVault} from "../BaseVault.sol";
 abstract contract BaseDexUniformVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
+    error OracleNotSet();
+
     /* ========== IMMUTABLE VARIABLES ========== */
 
     address public immutable token0;
@@ -23,6 +27,8 @@ abstract contract BaseDexUniformVault is BaseVault {
     uint8 public immutable token0Decimals;
     uint8 public immutable token1Decimals;
     bool public immutable isToken0;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
@@ -42,12 +48,19 @@ abstract contract BaseDexUniformVault is BaseVault {
         address _token1,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
     ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         (token0, token1) = _token0 < _token1 ? (_token0, _token1) : (_token1, _token0);
         isToken0 = token0 == address(_asset);
         token0Decimals = IERC20Metadata(token0).decimals();
         token1Decimals = IERC20Metadata(token1).decimals();
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
+        if (address(oracleToken0) == address(0) || address(oracleToken1) == address(0)) {
+            revert OracleNotSet();
+        }
     }
 
     /* ========== INITIALIZER ========== */
@@ -88,6 +101,11 @@ abstract contract BaseDexUniformVault is BaseVault {
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
+    function _checkPriceManipulation() internal view virtual;
+
+    /**
      * @notice Retrieves the current liquidity of the Dex position
      * @return liquidity The current liquidity of the position
      */
@@ -126,7 +144,7 @@ abstract contract BaseDexUniformVault is BaseVault {
      * @return amountFor0 The amount of token0 to be added
      * @return amountFor1 The amount of token1 to be added
      */
-    function _getAmounts(uint256 amount) internal view virtual returns (uint256 amountFor0, uint256 amountFor1);
+    function _getAmounts(uint256 amount) internal virtual returns (uint256 amountFor0, uint256 amountFor1);
 
     /**
      * @notice Calculates the amount of tokens in base token
@@ -142,7 +160,8 @@ abstract contract BaseDexUniformVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal virtual override {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(assets);
 
         if (isToken0) {
@@ -177,6 +196,7 @@ abstract contract BaseDexUniformVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal virtual override returns (uint256 assets) {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _removeLiquidity(shares * _getTokenLiquidity() / totalSupply());
 
         // Calculate the assets to return based on the desired output token

@@ -13,6 +13,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IRewardTracker} from "../interfaces/jones/IRewardTracker.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 
 /**
  * @title JonesCamelotVault
@@ -33,6 +35,8 @@ contract JonesCamelotVault is BaseVault {
     IAlgebraLPManager public immutable LPManager;
     ICompounder public immutable compounder;
     IRewardTracker public immutable tracker;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -41,7 +45,9 @@ contract JonesCamelotVault is BaseVault {
         address _feeRecipient,
         IFeeProvider _feeProvider,
         address _compounder,
-        address _pool
+        address _pool,
+        address _oracleToken0,
+        address _oracleToken1
     ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         compounder = ICompounder(_compounder);
         router = IRouter(compounder.router());
@@ -54,6 +60,8 @@ contract JonesCamelotVault is BaseVault {
         isToken0 = token0 == address(_asset);
         token0Decimals = IERC20Metadata(token0).decimals();
         token1Decimals = IERC20Metadata(token1).decimals();
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
     }
 
     /* ========== INITIALIZER ========== */
@@ -92,10 +100,29 @@ contract JonesCamelotVault is BaseVault {
         return _calculateInBaseToken(amount0, amount1);
     }
 
+    /**
+     * @dev Returns the current square root price for the pool.
+     * @return The current square root price
+     */
+    function getCurrentSqrtPrice() public view returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
+    function _checkPriceManipulation() internal view {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -138,6 +165,7 @@ contract JonesCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) =
             router.withdraw(shares * compounder.balanceOf(address(this)) / totalSupply(), address(this), 0, 0, true, 0);
         // Swap to return assets in terms of the base token
@@ -161,7 +189,7 @@ contract JonesCamelotVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = _getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
@@ -176,19 +204,10 @@ contract JonesCamelotVault is BaseVault {
      */
     function _getAmounts(uint256 amount) internal returns (uint256 amountFor0, uint256 amountFor1) {
         (uint256 totalAmount0, uint256 totalAmount1) = LPManager.aum();
-        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, _getCurrentSqrtPrice() ** 2);
+        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, getCurrentSqrtPrice() ** 2);
 
         amountFor0 = amount * totalAmount0 / (totalAmount0 + amount1in0);
         amountFor1 = amount - amountFor0;
-    }
-
-    /**
-     * @dev Returns the current square root price for the pool.
-     * @return The current square root price
-     */
-    function _getCurrentSqrtPrice() internal view returns (uint256) {
-        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
-        return uint256(sqrtPriceX96);
     }
 
     /**

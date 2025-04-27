@@ -8,6 +8,7 @@ import {IVault} from "../../src/interfaces/IVault.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BaseDexUniformVault} from "../../src/dex/BaseDexUniformVault.sol";
 import {AbstractBaseVaultTest} from "../AbstractBaseVault.t.sol";
+import {VaultType} from "../libraries/Swapper.sol";
 
 abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     uint256 amountEth;
@@ -16,9 +17,10 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     IERC20Metadata token1;
 
     bool zeroOrOne;
+    VaultType vaultType;
 
     function setUp() public virtual override(AbstractBaseVaultTest) {
-        forkId = vm.createSelectFork("blast", 14284818);
+        forkId = vm.createSelectFork("blast", lastCachedBlockid_BLAST);
         super.setUp();
         amount = 3e21;
         amountEth = 5e18;
@@ -41,11 +43,13 @@ abstract contract AbstractDexVaultTest is AbstractBaseVaultTest {
     function test_vault() public fork {
         asset = token0;
         baseVaultTest(true);
+        _checkMovePrice(address(token0), address(token1), vaultType);
     }
 
     function test_vault2() public fork {
         asset = token1;
         amount = amountEth;
         baseVaultTest(true);
+        _checkMovePrice(address(token0), address(token1), vaultType);
     }
 }

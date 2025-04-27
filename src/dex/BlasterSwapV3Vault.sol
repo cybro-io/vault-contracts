@@ -12,6 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BlasterSwapV3Vault
@@ -40,8 +41,10 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
         uint24 _fee,
         IERC20Metadata _asset,
         IFeeProvider _feeProvider,
-        address _feeRecipient
-    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient) {
+        address _feeRecipient,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseDexVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
         positionManager = INonfungiblePositionManager(_positionManager);
         fee = _fee;
         pool = IUniswapV3Pool(IUniswapV3Factory(positionManager.factory()).getPool(_token0, _token1, fee));
@@ -83,6 +86,13 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @inheritdoc BaseDexUniformVault
+    function _checkPriceManipulation() internal view override {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, false, address(0), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseDexVault
     function _getTokenLiquidity(uint256 tokenId) internal view virtual override returns (uint128 liquidity) {

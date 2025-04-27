@@ -20,6 +20,7 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
         factory = IUniswapV3Factory(address(0x1A8027625C830aAC43aD82a3f7cD6D5fdCE89d78));
         positionManager = INonfungiblePositionManager(payable(address(0x1e60C4113C86231Ef4b5B0b1cbf689F1b30e7966)));
         amountEth = 1e17;
+        amount = 5e20;
     }
 
     function _initializeNewVault() internal override {
@@ -35,7 +36,9 @@ contract BlasterSwapV3VaultTest is AbstractDexVaultTest {
                             fee,
                             asset,
                             feeProvider,
-                            feeRecipient
+                            feeRecipient,
+                            address(oracle_USDB_BLAST),
+                            address(oracle_ETH_BLAST)
                         )
                     ),
                     admin,

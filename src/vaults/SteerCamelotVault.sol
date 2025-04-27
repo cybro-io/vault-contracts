@@ -10,6 +10,8 @@ import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
+import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 
 /**
  * @title SteerCamelotVault
@@ -25,6 +27,8 @@ contract SteerCamelotVault is BaseVault {
     uint8 public immutable token0Decimals;
     uint8 public immutable token1Decimals;
     bool public immutable isToken0;
+    IChainlinkOracle public immutable oracleToken0;
+    IChainlinkOracle public immutable oracleToken1;
 
     /// @notice Reference to the Steer protocol's liquidity manager contract
     ICamelotMultiPositionLiquidityManager public immutable steerVault;
@@ -41,9 +45,14 @@ contract SteerCamelotVault is BaseVault {
      * @param _feeProvider The fee provider contract
      * @param _steerVault Address of the Steer protocol's liquidity manager
      */
-    constructor(IERC20Metadata _asset, address _feeRecipient, IFeeProvider _feeProvider, address _steerVault)
-        BaseVault(_asset, _feeProvider, _feeRecipient)
-    {
+    constructor(
+        IERC20Metadata _asset,
+        address _feeRecipient,
+        IFeeProvider _feeProvider,
+        address _steerVault,
+        address _oracleToken0,
+        address _oracleToken1
+    ) BaseVault(_asset, _feeProvider, _feeRecipient) {
         steerVault = ICamelotMultiPositionLiquidityManager(_steerVault);
         pool = IAlgebraPool(steerVault.pool());
         // tokens are already sorted
@@ -52,6 +61,8 @@ contract SteerCamelotVault is BaseVault {
         isToken0 = token0 == address(_asset);
         token0Decimals = IERC20Metadata(token0).decimals();
         token1Decimals = IERC20Metadata(token1).decimals();
+        oracleToken0 = IChainlinkOracle(_oracleToken0);
+        oracleToken1 = IChainlinkOracle(_oracleToken1);
     }
 
     /* ========== INITIALIZER ========== */
@@ -87,10 +98,29 @@ contract SteerCamelotVault is BaseVault {
         return _calculateInBaseToken(amount0, amount1);
     }
 
+    /**
+     * @dev Returns the current square root price for the pool.
+     * @return The current square root price
+     */
+    function getCurrentSqrtPrice() public view returns (uint256) {
+        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
+        return uint256(sqrtPriceX96);
+    }
+
     /* ========== INTERNAL FUNCTIONS ========== */
+
+    /**
+     * @notice Function to check if the price of the Dex pool is being manipulated
+     */
+    function _checkPriceManipulation() internal view {
+        DexPriceCheck.checkPriceManipulation(
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
+        );
+    }
 
     /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -121,6 +151,7 @@ contract SteerCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
+        _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) =
             steerVault.withdraw(shares * steerVault.balanceOf(address(this)) / totalSupply(), 0, 0, address(this));
         // Swap to return assets in terms of the base token
@@ -138,7 +169,7 @@ contract SteerCamelotVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = _getCurrentSqrtPrice();
+        uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
@@ -153,19 +184,10 @@ contract SteerCamelotVault is BaseVault {
      */
     function _getAmounts(uint256 amount) internal view returns (uint256 amountFor0, uint256 amountFor1) {
         (uint256 totalAmount0, uint256 totalAmount1) = steerVault.getTotalAmounts();
-        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, _getCurrentSqrtPrice() ** 2);
+        uint256 amount1in0 = Math.mulDiv(totalAmount1, 2 ** 192, getCurrentSqrtPrice() ** 2);
 
         amountFor0 = amount * totalAmount0 / (totalAmount0 + amount1in0);
         amountFor1 = amount - amountFor0;
-    }
-
-    /**
-     * @dev Returns the current square root price for the pool.
-     * @return The current square root price
-     */
-    function _getCurrentSqrtPrice() internal view returns (uint256) {
-        (uint160 sqrtPriceX96,,,,,,,) = pool.globalState();
-        return uint256(sqrtPriceX96);
     }
 
     /**

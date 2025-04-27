@@ -49,7 +49,7 @@ library DexPriceCheck {
         bool isAlgebra,
         address pool,
         uint256 currentSqrtPrice
-    ) public view {
+    ) public {
         uint256 trustedSqrtPrice;
         if (address(oracleToken0_) == address(0)) {
             trustedSqrtPrice = getTwap(pool, isAlgebra);
@@ -99,7 +99,7 @@ library DexPriceCheck {
      * @param isAlgebra Whether the pool is an Algebra pool
      * @return The TWAP of the Dex pool
      */
-    function getTwap(address pool, bool isAlgebra) public view returns (uint256) {
+    function getTwap(address pool, bool isAlgebra) public returns (uint256) {
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = 0;
         secondsAgos[1] = 1800;
@@ -127,7 +127,6 @@ library DexPriceCheck {
      */
     function _observe(uint32[] memory secondsAgos, address pool, bool isAlgebra)
         internal
-        view
         returns (int56[] memory tickCumulatives)
     {
         if (isAlgebra) {

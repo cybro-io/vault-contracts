@@ -409,7 +409,9 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             blaster_vault.token1(),
             asset_,
             feeProvider,
-            feeRecipient
+            feeRecipient,
+            address(_getOracleForToken(blaster_vault.token0())),
+            address(_getOracleForToken(blaster_vault.token1()))
         );
         vm.stopBroadcast();
         _upgradeVault(
@@ -569,7 +571,14 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         vm.startBroadcast(admin);
         IFeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
         AlgebraVault newImpl = new AlgebraVault(
-            payable(address(vault.positionManager())), vault.token0(), vault.token1(), asset_, feeProvider, feeRecipient
+            payable(address(vault.positionManager())),
+            vault.token0(),
+            vault.token1(),
+            asset_,
+            feeProvider,
+            feeRecipient,
+            address(_getOracleForToken(vault.token0())),
+            address(_getOracleForToken(vault.token1()))
         );
         vm.stopBroadcast();
         _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
@@ -586,7 +595,14 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         vm.startBroadcast(admin);
         feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0, address(vault));
         newImpl = new AlgebraVault(
-            payable(address(vault.positionManager())), vault.token0(), vault.token1(), asset_, feeProvider, feeRecipient
+            payable(address(vault.positionManager())),
+            vault.token0(),
+            vault.token1(),
+            asset_,
+            feeProvider,
+            feeRecipient,
+            address(_getOracleForToken(vault.token0())),
+            address(_getOracleForToken(vault.token1()))
         );
         vm.stopBroadcast();
         _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
@@ -608,7 +624,9 @@ contract Upgrade is Script, StdCheats, DeployUtils {
             vault.token1(),
             asset_, // WETH
             feeProvider,
-            feeRecipient
+            feeRecipient,
+            address(0),
+            address(0)
         );
         vm.stopBroadcast();
         _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));

@@ -112,7 +112,7 @@ contract SteerCamelotVault is BaseVault {
     /**
      * @notice Function to check if the price of the Dex pool is being manipulated
      */
-    function _checkPriceManipulation() internal {
+    function _checkPriceManipulation() internal view {
         DexPriceCheck.checkPriceManipulation(
             oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
         );

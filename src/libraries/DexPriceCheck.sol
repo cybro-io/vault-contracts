@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
-import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
+import {IAlgebraPool as IAlgebraPoolV1_9} from "../interfaces/algebra/IAlgebraPoolV1_9.sol";
+import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPool.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IAlgebraBasePluginV1} from "../interfaces/algebra/IAlgebraBasePluginV1.sol";
 
 /**
  * @title DexPriceCheck
@@ -55,9 +57,10 @@ library DexPriceCheck {
             trustedSqrtPrice = getSqrtPriceFromOracles(oracleToken0_, oracleToken1_, token0_, token1_);
         }
         uint256 deviation = (currentSqrtPrice ** 2) * deviationPrecision / (trustedSqrtPrice ** 2);
-        if ((deviation < deviationPrecision - maxDeviation) || (deviation > deviationPrecision + maxDeviation)) {
-            revert PriceManipulation();
-        }
+        require(
+            (deviation > deviationPrecision - maxDeviation) && (deviation < deviationPrecision + maxDeviation),
+            PriceManipulation()
+        );
     }
 
     /**
@@ -120,7 +123,7 @@ library DexPriceCheck {
      * @param secondsAgos The time periods to observe the price
      * @param pool The address of the pool
      * @param isAlgebra Whether the pool is an Algebra pool
-     * @return tickCumulatives The observed price
+     * @return tickCumulatives The observed tick cumulative
      */
     function _observe(uint32[] memory secondsAgos, address pool, bool isAlgebra)
         internal
@@ -128,7 +131,13 @@ library DexPriceCheck {
         returns (int56[] memory tickCumulatives)
     {
         if (isAlgebra) {
-            (tickCumulatives,,,) = IAlgebraPool(pool).getTimepoints(secondsAgos);
+            (bool success, bytes memory data) =
+                address(pool).staticcall(abi.encodeCall(IAlgebraPoolV1_9.getTimepoints, secondsAgos));
+            if (success) {
+                (tickCumulatives,,,) = abi.decode(data, (int56[], uint160[], uint112[], uint256[]));
+            } else {
+                (tickCumulatives,) = IAlgebraBasePluginV1(IAlgebraPool(pool).plugin()).getTimepoints(secondsAgos);
+            }
         } else {
             (tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgos);
         }
@@ -142,9 +151,9 @@ library DexPriceCheck {
     function _getPrice(IChainlinkOracle oracle) internal view returns (uint256) {
         (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
 
-        if (answeredInRound < roundID) revert StalePrice();
-        if (timestamp == 0) revert RoundNotComplete();
-        if (price <= 0) revert ChainlinkPriceReportingZero();
+        require(answeredInRound >= roundID, StalePrice());
+        require(timestamp > 0, RoundNotComplete());
+        require(price > 0, ChainlinkPriceReportingZero());
 
         return uint256(price);
     }

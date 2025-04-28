@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity =0.8.26;
+pragma solidity 0.8.29;
 
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IFeeProvider} from "./interfaces/IFeeProvider.sol";
@@ -141,10 +141,11 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         uint32[] memory withdrawalFees,
         uint32[] memory performanceFees
     ) external onlyOwner {
-        if (
-            users.length != depositFees.length || users.length != withdrawalFees.length
-                || users.length != performanceFees.length
-        ) revert ArraysLengthMismatch();
+        require(
+            users.length == depositFees.length && users.length == withdrawalFees.length
+                && users.length == performanceFees.length,
+            ArraysLengthMismatch()
+        );
 
         for (uint256 i = 0; i < users.length; i++) {
             UserFees storage userFees = _users[users[i]];
@@ -221,10 +222,10 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @param signature The signature
      */
     function setStakedAmount(address user, uint256 stakedAmount, uint256 deadline, bytes memory signature) external {
-        if (block.timestamp > deadline) revert ExpiredSignature();
+        require(block.timestamp <= deadline, ExpiredSignature());
         address signer_ =
             keccak256(abi.encodePacked(user, stakedAmount, deadline)).toEthSignedMessageHash().recover(signature);
-        if (!signers[signer_]) revert InvalidSignature();
+        require(signers[signer_], InvalidSignature());
         _stakedAmounts[user] = StakedAmount({stakedAmount: stakedAmount, deadline: deadline});
     }
 
@@ -238,9 +239,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
         external
         onlyOwner
     {
-        if (users_.length != stakedAmounts_.length || users_.length != deadlines_.length) {
-            revert DifferentArraysLength();
-        }
+        require(users_.length == stakedAmounts_.length && users_.length == deadlines_.length, DifferentArraysLength());
         for (uint256 i = 0; i < users_.length; i++) {
             _stakedAmounts[users_[i]] = StakedAmount({stakedAmount: stakedAmounts_[i], deadline: deadlines_[i]});
         }
@@ -252,7 +251,7 @@ contract FeeProvider is IFeeProvider, OwnableUpgradeable {
      * @param isSigner_ Indicates whether users are signers
      */
     function setSigners(address[] memory signers_, bool[] memory isSigner_) external onlyOwner {
-        if (signers_.length != isSigner_.length) revert DifferentArraysLength();
+        require(signers_.length == isSigner_.length, DifferentArraysLength());
         for (uint256 i = 0; i < signers_.length; i++) {
             signers[signers_[i]] = isSigner_[i];
         }

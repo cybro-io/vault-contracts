@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity ^0.8.29;
 
 import {BaseVault, IERC20Metadata, ERC20Upgradeable} from "../BaseVault.sol";
 import {ERC20Mock} from "./ERC20Mock.sol";

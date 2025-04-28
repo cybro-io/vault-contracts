@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -56,7 +56,7 @@ contract Oracle is OwnableUpgradeable, IOracle {
      * @dev Reverts if the price has not been set or is incorrectly set to 0
      */
     function getPrice() external view returns (uint256) {
-        if (_price == 0) revert IncorrectPrice();
+        require(_price > 0, IncorrectPrice());
         return _price;
     }
 }

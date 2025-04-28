@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -58,9 +58,6 @@ abstract contract BaseDexUniformVault is BaseVault {
         token1Decimals = IERC20Metadata(token1).decimals();
         oracleToken0 = IChainlinkOracle(_oracleToken0);
         oracleToken1 = IChainlinkOracle(_oracleToken1);
-        if (address(oracleToken0) == address(0) || address(oracleToken1) == address(0)) {
-            revert OracleNotSet();
-        }
     }
 
     /* ========== INITIALIZER ========== */

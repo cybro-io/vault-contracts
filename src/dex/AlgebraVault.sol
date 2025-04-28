@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {BaseDexVault, BaseDexUniformVault, TickMath} from "./BaseDexVault.sol";
 import {IAlgebraFactory} from "../interfaces/algebra/IAlgebraFactory.sol";
@@ -87,7 +87,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     /// @inheritdoc BaseDexUniformVault
     function _checkPriceManipulation() internal view override {
         DexPriceCheck.checkPriceManipulation(
-            oracleToken0, oracleToken1, token0, token1, true, address(0), getCurrentSqrtPrice()
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
         );
     }
 

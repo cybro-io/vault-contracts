@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {BaseVault} from "./BaseVault.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -566,13 +566,12 @@ library VaultLogic {
         }
         // check slippage
         // we subtract 3 to avoid reverts caused by slippage with small values
-        if (
+        require(
             amountOut + 3
-                < oracles.convert(from, to, amount < 3 ? 0 : amount - 3) * (Constants.SLIPPAGE_PRECISION - maxSlippage)
-                    / Constants.SLIPPAGE_PRECISION
-        ) {
-            revert Slippage();
-        }
+                >= oracles.convert(from, to, amount < 3 ? 0 : amount - 3) * (Constants.SLIPPAGE_PRECISION - maxSlippage)
+                    / Constants.SLIPPAGE_PRECISION,
+            Slippage()
+        );
     }
 }
 
@@ -800,7 +799,7 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param token_ The address of the treasure token.
      */
     function setTreasureToken(address token_) external onlyRole(MANAGER_ROLE) {
-        if (token_ != address(token0) && token_ != address(token1)) revert InvalidTreasureToken(token_);
+        require(token_ == address(token0) || token_ == address(token1), InvalidTreasureToken(token_));
         tokenTreasure = IERC20Metadata(token_);
         isToken0 = tokenTreasure == token0;
         positions.recalculateTicks();

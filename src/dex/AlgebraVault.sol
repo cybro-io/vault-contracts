@@ -87,7 +87,7 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
     /// @inheritdoc BaseDexUniformVault
     function _checkPriceManipulation() internal view override {
         DexPriceCheck.checkPriceManipulation(
-            oracleToken0, oracleToken1, token0, token1, true, address(0), getCurrentSqrtPrice()
+            oracleToken0, oracleToken1, token0, token1, true, address(pool), getCurrentSqrtPrice()
         );
     }
 

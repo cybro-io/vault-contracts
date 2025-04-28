@@ -1,4 +1,4 @@
-// // SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 
 pragma solidity ^0.8.29;
 
@@ -15,5 +15,14 @@ contract ForkFenixVaultTest is AbstractAlgebraVaultTest {
         super.setUp();
         factory = IAlgebraFactory(address(0x7a44CD060afC1B6F4c80A2B9b37f4473E74E25Df));
         positionManager = INonfungiblePositionManager(payable(address(0x8881b3Fb762d1D50e6172f621F107E24299AA1Cd)));
+    }
+
+    function test_weethWeth() public fork {
+        token0 = weeth_BLAST;
+        token1 = weth_BLAST;
+        asset = weth_BLAST;
+        amount = amountEth;
+        baseVaultTest(true);
+        _checkMovePrice(address(token0), address(token1), vaultType);
     }
 }

@@ -28,6 +28,11 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         }
     }
 
+    error FailedToSendETH();
+    error MinAssets();
+    error MinShares();
+    error TransferNotAllowed();
+
     /* ========== EVENTS ========== */
 
     /**
@@ -189,7 +194,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
             ? increase
             : totalSupplyBefore * increase / totalAssetsBefore;
 
-        require(shares >= minShares, "minShares");
+        require(shares >= minShares, MinShares());
 
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         $.waterline[receiver] += increase;
@@ -238,7 +243,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
             _spendAllowance(owner, _msgSender(), shares);
         }
         assets = _redeemBaseVault(shares, receiver, owner);
-        require(assets >= minAssets, "CYBRO: minAssets");
+        require(assets >= minAssets, MinAssets());
     }
 
     /**
@@ -300,7 +305,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     function withdrawFunds(address token) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (token == address(0)) {
             (bool success,) = payable(msg.sender).call{value: address(this).balance}("");
-            require(success, "failed to send ETH");
+            require(success, FailedToSendETH());
         } else if (_validateTokenToRecover(token)) {
             IERC20Metadata(token).safeTransfer(msg.sender, IERC20Metadata(token).balanceOf(address(this)));
         } else {
@@ -553,9 +558,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param value The amount transferred
      */
     function _update(address from, address to, uint256 value) internal override {
-        if (from != address(0) && to != address(0)) {
-            revert("CYBRO: Transfer not allowed");
-        }
+        require(from == address(0) || to == address(0), TransferNotAllowed());
         super._update(from, to, value);
     }
 }

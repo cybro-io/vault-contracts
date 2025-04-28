@@ -52,6 +52,7 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
         address _oracleToken0,
         address _oracleToken1
     ) BaseDexUniformVault(_token0, _token1, _asset, _feeProvider, _feeRecipient, _oracleToken0, _oracleToken1) {
+        require(address(oracleToken0) != address(0) && address(oracleToken1) != address(0), OracleNotSet());
         router = IBlasterswapV2Router02(_router);
         lpToken = IBlasterswapV2Pair(IBlasterswapV2Factory(router.factory()).getPair(token0, token1));
 

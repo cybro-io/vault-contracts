@@ -30,8 +30,8 @@ abstract contract AbstractAlgebraVaultTest is AbstractDexVaultTest {
                             asset,
                             feeProvider,
                             feeRecipient,
-                            address(oracle_USDB_BLAST),
-                            address(oracle_ETH_BLAST)
+                            token0 == weeth_BLAST ? address(0) : address(_getOracleForToken(address(token0))),
+                            address(_getOracleForToken(address(token1)))
                         )
                     ),
                     admin,

@@ -56,7 +56,7 @@ contract Oracle is OwnableUpgradeable, IOracle {
      * @dev Reverts if the price has not been set or is incorrectly set to 0
      */
     function getPrice() external view returns (uint256) {
-        if (_price == 0) revert IncorrectPrice();
+        require(_price > 0, IncorrectPrice());
         return _price;
     }
 }

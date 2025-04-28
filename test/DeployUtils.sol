@@ -78,6 +78,8 @@ contract DeployUtils is StdCheats {
                 return oracle_BTC_BLAST;
             } else if (token == address(usdb_BLAST)) {
                 return oracle_USDB_BLAST;
+            } else if (token == address(blast_BLAST)) {
+                return oracle_BLAST_BLAST;
             }
         } else if (block.chainid == 42161) {
             if (token == address(weth_ARBITRUM)) {
@@ -174,6 +176,7 @@ contract DeployUtils is StdCheats {
     IERC20Metadata weth_BLAST = IERC20Metadata(address(0x4300000000000000000000000000000000000004));
     IERC20Metadata wbtc_BLAST = IERC20Metadata(address(0xF7bc58b8D8f97ADC129cfC4c9f45Ce3C0E1D2692));
     IERC20Metadata blast_BLAST = IERC20Metadata(address(0xb1a5700fA2358173Fe465e6eA4Ff52E36e88E2ad));
+    IERC20Metadata weeth_BLAST = IERC20Metadata(address(0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A));
 
     /* ETHEREUM */
     IERC20Metadata weth_ETHEREUM = IERC20Metadata(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
@@ -287,6 +290,7 @@ contract DeployUtils is StdCheats {
     address assetProvider_WETH_BLAST = address(0x66714DB8F3397c767d0A602458B5b4E3C0FE7dd1);
     address assetProvider_BLAST_BLAST = address(0xeC1f5118d558050908122A7B84B10580818B68Da);
     address assetProvider_WBTC_BLAST = address(0x2D509190Ed0172ba588407D4c2df918F955Cc6E1);
+    address assetProvider_WEETH_BLAST = address(0x0817b88a528E2F5F980d26e98fC950CbD6aE31Ef);
 
     /* ARBITRUM */
 

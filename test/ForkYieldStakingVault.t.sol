@@ -1,6 +1,6 @@
-// // SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity ^0.8.29;
 
 import {Test, console} from "forge-std/Test.sol";
 import {YieldStakingVault, IERC20Metadata, IYieldStaking, IFeeProvider} from "../src/vaults/YieldStakingVault.sol";

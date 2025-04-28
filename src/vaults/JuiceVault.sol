@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {BaseVault, IERC20Metadata} from "../BaseVault.sol";
 import {IJuicePool} from "../interfaces/juice/IJuicePool.sol";

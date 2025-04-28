@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.29;
 
 import {IBlasterswapV2Router02} from "../interfaces/blaster/IBlasterswapV2Router02.sol";
 import {IBlasterswapV2Factory} from "../interfaces/blaster/IBlasterswapV2Factory.sol";

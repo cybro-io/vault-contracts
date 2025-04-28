@@ -132,7 +132,7 @@ library DexPriceCheck {
     {
         if (isAlgebra) {
             (bool success, bytes memory data) =
-                address(pool).staticcall(abi.encodeWithSelector(IAlgebraPoolV1_9.getTimepoints.selector, secondsAgos));
+                address(pool).staticcall(abi.encodeCall(IAlgebraPoolV1_9.getTimepoints, secondsAgos));
             if (success) {
                 (tickCumulatives,,,) = abi.decode(data, (int56[], uint160[], uint112[], uint256[]));
             } else {

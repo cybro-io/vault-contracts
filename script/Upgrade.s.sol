@@ -270,6 +270,39 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         console.log("\n==============================================\n");
     }
 
+    function _beforeUpgrade_FixUnderlyingTVL(address vault)
+        internal
+        view
+        returns (ProxyAdmin, uint256, uint256, address)
+    {
+        (ProxyAdmin proxyAdmin, address admin_) = _getProxyAdmin(vault);
+        return (proxyAdmin, IVault(vault).totalAssets(), IERC20Metadata(vault).totalSupply(), admin_);
+    }
+
+    function _afterUpgrade_FixUnderlyingTVL(address vault, uint256 totalAssetsBefore, uint256 totalSupplyBefore)
+        internal
+    {
+        vm.assertEq(IERC20Metadata(vault).totalSupply(), totalSupplyBefore);
+        vm.assertEq(IVault(vault).totalAssets(), totalAssetsBefore);
+        uint256 underlyingTVL = IVault(vault).underlyingTVL();
+        uint256 decimals = 10 ** IERC20Metadata(vault).decimals();
+        vm.assertLt(underlyingTVL, 1e10 * decimals);
+        console.log("Underlying TVL", underlyingTVL, "div decimals", underlyingTVL / decimals);
+        _testVaultWorks(BaseVault(vault), decimals);
+        console.log("\nTESTS PASSED");
+        console.log("\n==============================================\n");
+    }
+
+    function _upgradeDEX_FixUnderlyingTVL(address vault, address newImpl) internal {
+        console.log("\n New implementation", address(newImpl), "\n");
+        (ProxyAdmin proxyAdmin, uint256 totalAssetsBefore, uint256 totalSupplyBefore, address admin_) =
+            _beforeUpgrade_FixUnderlyingTVL(address(vault));
+        vm.startBroadcast(admin_);
+        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), address(newImpl), bytes(""));
+        vm.stopBroadcast();
+        _afterUpgrade_FixUnderlyingTVL(address(vault), totalAssetsBefore, totalSupplyBefore);
+    }
+
     function _checkMigratedAccounts(address vault) internal {
         if (realAccountsToMigrate[vault].length == 0) {
             return;
@@ -630,6 +663,77 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         );
         vm.stopBroadcast();
         _upgradeDexVault(UpgradeParams({vault: address(vault), newImpl: address(newImpl), recalculateWaterline: false}));
+    }
+
+    function upgradeDex_FixUnderlyingTVL() public {
+        // upgrade 0xE9041d3483A760c7D5F8762ad407ac526fbe144f
+        // BladeSwap USDB/WETH
+
+        AlgebraVault vault = AlgebraVault(0xE9041d3483A760c7D5F8762ad407ac526fbe144f);
+        console.log("\nUpgrading BladeSwap USDB/WETH\n  ", address(vault), "\n");
+
+        address admin = _getAdmin(address(vault));
+        asset_ = IERC20Metadata(vault.token0()); // USDB
+        vm.startBroadcast(admin);
+        IFeeProvider feeProvider = vault.feeProvider();
+        AlgebraVault newImpl = new AlgebraVault(
+            payable(address(vault.positionManager())),
+            vault.token0(),
+            vault.token1(),
+            asset_,
+            feeProvider,
+            feeRecipient,
+            address(_getOracleForToken(vault.token0())),
+            address(_getOracleForToken(vault.token1()))
+        );
+        vm.stopBroadcast();
+        _upgradeDEX_FixUnderlyingTVL(address(vault), address(newImpl));
+
+        // upgrade 0x370498c028564de4491B8aA2df437fb772a39EC5
+        // Fenix Finance Blast/WETH
+
+        vault = AlgebraVault(0x370498c028564de4491B8aA2df437fb772a39EC5);
+        console.log("Upgrading Fenix Finance Blast/WETH\n  ", address(vault), "\n");
+
+        admin = _getAdmin(address(vault));
+        asset_ = IERC20Metadata(vault.token0()); // WETH
+        vm.startBroadcast(admin);
+        feeProvider = vault.feeProvider();
+        newImpl = new AlgebraVault(
+            payable(address(vault.positionManager())),
+            vault.token0(),
+            vault.token1(),
+            asset_,
+            feeProvider,
+            feeRecipient,
+            address(_getOracleForToken(vault.token0())),
+            address(_getOracleForToken(vault.token1()))
+        );
+        vm.stopBroadcast();
+        _upgradeDEX_FixUnderlyingTVL(address(vault), address(newImpl));
+
+        // upgrade 0x66E1BEA0a5a934B96E2d7d54Eddd6580c485521b
+        // Fenix Finance WeETH/WETH
+
+        vault = AlgebraVault(0x66E1BEA0a5a934B96E2d7d54Eddd6580c485521b);
+        console.log("Upgrading Fenix Finance WeETH/WETH\n  ", address(vault), "\n");
+
+        admin = _getAdmin(address(vault));
+        asset_ = IERC20Metadata(vault.token1()); // WETH
+        vm.startBroadcast(admin);
+        feeProvider = vault.feeProvider();
+        newImpl = new AlgebraVault(
+            payable(address(vault.positionManager())),
+            vault.token0(),
+            vault.token1(),
+            asset_, // WETH
+            feeProvider,
+            feeRecipient,
+            address(0),
+            address(0)
+        );
+        vm.stopBroadcast();
+        _upgradeDEX_FixUnderlyingTVL(address(vault), address(newImpl));
     }
 
     function upgradeOneClick_Base() public {

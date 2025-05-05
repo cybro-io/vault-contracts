@@ -161,6 +161,7 @@ contract JonesCamelotVault is BaseVault {
                 IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
             }
         }
+        _checkPriceManipulation();
     }
 
     /// @inheritdoc BaseVault
@@ -174,6 +175,7 @@ contract JonesCamelotVault is BaseVault {
         } else {
             assets = amount1 + _swap(true, amount0);
         }
+        _checkPriceManipulation();
     }
 
     /// @inheritdoc BaseVault

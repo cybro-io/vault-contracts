@@ -29,7 +29,7 @@ library DexPriceCheck {
     uint32 public constant deviationPrecision = 10000;
 
     /// @notice Maximum deviation
-    uint32 public constant maxDeviation = 200;
+    uint32 public constant maxDeviation = 1000;
 
     /**
      * @notice Function to check if the price of the Dex pool is being manipulated

@@ -128,6 +128,7 @@ contract GammaAlgebraVault is BaseVault {
         if (unusedAmountToken1 > 0) {
             IERC20Metadata(token1).safeTransfer(msg.sender, unusedAmountToken1);
         }
+        _checkPriceManipulation();
     }
 
     /// @inheritdoc BaseVault
@@ -147,6 +148,7 @@ contract GammaAlgebraVault is BaseVault {
         } else {
             assets = amount1 + _swap(true, amount0);
         }
+        _checkPriceManipulation();
     }
 
     /**

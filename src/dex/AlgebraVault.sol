@@ -64,6 +64,19 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         __BaseDexVault_init(admin, manager);
     }
 
+    function initialize_upgradeStorage(
+        uint256 positionTokenId_,
+        int24 tickLower_,
+        int24 tickUpper_,
+        uint160 sqrtPriceLower_,
+        uint160 sqrtPriceUpper_,
+        address[] memory accountsToMigrate
+    ) public reinitializer(2) {
+        __BaseDexVault_upgradeStorage(
+            positionTokenId_, tickLower_, tickUpper_, sqrtPriceLower_, sqrtPriceUpper_, accountsToMigrate
+        );
+    }
+
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @inheritdoc BaseDexUniformVault

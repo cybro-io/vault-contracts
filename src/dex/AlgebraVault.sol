@@ -77,9 +77,9 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
         uint256 sqrtPrice = getCurrentSqrtPrice();
         return isToken0
             ? IERC20Metadata(token0).balanceOf(address(pool))
-                + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice)
+                + Math.mulDiv(IERC20Metadata(token1).balanceOf(address(pool)), 2 ** 192, sqrtPrice * sqrtPrice)
             : IERC20Metadata(token1).balanceOf(address(pool))
-                + Math.mulDiv(IERC20Metadata(token0).balanceOf(address(pool)), sqrtPrice, 2 ** 192);
+                + Math.mulDiv(IERC20Metadata(token0).balanceOf(address(pool)), sqrtPrice * sqrtPrice, 2 ** 192);
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */

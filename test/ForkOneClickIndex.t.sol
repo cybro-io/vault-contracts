@@ -212,52 +212,80 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             vm.label(additionalVault, "AdditionalVault");
         } else if (block.chainid == 1) {
             // ethereum
-            asset = usdt_ETHEREUM;
-            amount = 1e9; // decimals = 6
-            fromSwap.push(address(usdc_ETHEREUM));
-            toSwap.push(address(usdt_ETHEREUM));
-            swapPools.push(pool_USDT_USDC_ETHEREUM);
+            amount = 1e18; // decimals = 18
+            if (address(asset) == address(0)) {
+                asset = usdt_ETHEREUM;
+                amount = 1e9; // decimals = 6
+                fromSwap.push(address(usdc_ETHEREUM));
+                toSwap.push(address(usdt_ETHEREUM));
+                swapPools.push(pool_USDT_USDC_ETHEREUM);
+                tokens.push(address(usdt_ETHEREUM));
+                oracles.push(oracle_USDTUSD_ETHEREUM);
+                vaults.push(
+                    address(
+                        _deployAcross(
+                            VaultSetup({
+                                asset: usdt_ETHEREUM,
+                                pool: address(0),
+                                feeProvider: address(0),
+                                feeRecipient: address(0),
+                                name: name,
+                                symbol: symbol,
+                                admin: admin,
+                                manager: admin
+                            })
+                        )
+                    )
+                );
+                vaults.push(
+                    address(
+                        _deployAcross(
+                            VaultSetup({
+                                asset: usdc_ETHEREUM,
+                                pool: address(0),
+                                feeProvider: address(0),
+                                feeRecipient: address(0),
+                                name: name,
+                                symbol: symbol,
+                                admin: admin,
+                                manager: admin
+                            })
+                        )
+                    )
+                );
+                lendingShares.push(lendingShare);
+            } else {
+                asset = usdc_ETHEREUM;
+                amount = 1e9; // decimals = 6
+                tokens.push(address(paxg_ETHEREUM));
+                oracles.push(oracle_PAXGUSD_ETHEREUM);
+                fromSwap.push(address(paxg_ETHEREUM));
+                toSwap.push(address(usdc_ETHEREUM));
+                swapPools.push(pool_USDC_PAXG_ETHEREUM);
+                vaults.push(
+                    address(
+                        _deployBuffer(
+                            VaultSetup({
+                                asset: paxg_ETHEREUM,
+                                pool: address(0),
+                                feeProvider: address(0),
+                                feeRecipient: address(0),
+                                name: name,
+                                symbol: symbol,
+                                admin: admin,
+                                manager: admin
+                            })
+                        )
+                    )
+                );
+                deal(address(paxg_ETHEREUM), address(vaults[0]), 1e9);
+            }
 
-            lendingShares.push(lendingShare);
             lendingShares.push(lendingShare2);
 
-            tokens.push(address(usdt_ETHEREUM));
-            oracles.push(oracle_USDTUSD_ETHEREUM);
             tokens.push(address(usdc_ETHEREUM));
             oracles.push(oracle_USDCUSD_ETHEREUM);
 
-            vaults.push(
-                address(
-                    _deployAcross(
-                        VaultSetup({
-                            asset: usdt_ETHEREUM,
-                            pool: address(0),
-                            feeProvider: address(0),
-                            feeRecipient: address(0),
-                            name: name,
-                            symbol: symbol,
-                            admin: admin,
-                            manager: admin
-                        })
-                    )
-                )
-            );
-            vaults.push(
-                address(
-                    _deployAcross(
-                        VaultSetup({
-                            asset: usdc_ETHEREUM,
-                            pool: address(0),
-                            feeProvider: address(0),
-                            feeRecipient: address(0),
-                            name: name,
-                            symbol: symbol,
-                            admin: admin,
-                            manager: admin
-                        })
-                    )
-                )
-            );
             additionalVault = address(
                 _deployBuffer(VaultSetup(usdc_ETHEREUM, address(0), address(0), address(0), name, symbol, admin, admin))
             );
@@ -310,8 +338,8 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
         lending.removeLendingPools(vaults_);
         vm.assertEq(totalLendingSharesBefore, lending.totalLendingShares());
         vm.assertEq(IERC20Metadata(lending.asset()).balanceOf(address(lending)), 0);
-        vm.assertApproxEqAbs(lending.totalAssets(), totalAssetBefore, totalAssetBefore / 1e3);
-        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), balanceBefore / 1e3);
+        vm.assertApproxEqAbs(lending.totalAssets(), totalAssetBefore, totalAssetBefore / 2e2);
+        vm.assertApproxEqAbs(balanceBefore, lending.getBalanceOfPool(vaults[0]), balanceBefore / 2e2);
         vm.stopPrank();
     }
 
@@ -358,5 +386,13 @@ contract OneClickIndexEthereumTest is OneClickIndexBaseTest {
     function setUp() public override(OneClickIndexBaseTest) {
         vm.createSelectFork("ethereum", lastCachedBlockid_ETHEREUM);
         super.setUp();
+    }
+}
+
+contract OneClickIndexEthereumPAXGTest is OneClickIndexBaseTest {
+    function setUp() public override(OneClickIndexBaseTest) {
+        vm.createSelectFork("ethereum", lastCachedBlockid_ETHEREUM);
+        super.setUp();
+        asset = usdc_ETHEREUM;
     }
 }

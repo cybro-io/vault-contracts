@@ -2719,6 +2719,80 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\nTESTS PASSED");
     }
 
+    function deployEthereumIndexPAXG() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+
+        vm.label(address(paxg_ETHEREUM), "PAXG");
+        vm.label(address(usdc_ETHEREUM), "USDC");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployBufferVault(
+                    DeployVault({
+                        asset: paxg_ETHEREUM,
+                        pool: address(0),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro Buffer PAXG",
+                        symbol: "cyBPAXG",
+                        admin: admin,
+                        manager: admin
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+
+        feeProvider = _deployFeeProvider(admin, 0, 0, 0, 0);
+        OneClickIndex fundLending = OneClickIndex(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new OneClickIndex(usdc_ETHEREUM, feeProvider, feeRecipient)),
+                    admin,
+                    abi.encodeCall(
+                        OneClickIndex.initialize, (admin, "Lending Index PAXG/USDC", "paxgLendingIndex", admin, admin)
+                    )
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, address(fundLending));
+        lendingShares.push(10000);
+        fundLending.addLendingPools(vaults);
+        fundLending.setLendingShares(vaults, lendingShares);
+
+        fromSwap.push(address(paxg_ETHEREUM));
+        toSwap.push(address(usdc_ETHEREUM));
+        swapPools.push(pool_USDC_PAXG_ETHEREUM);
+
+        tokens.push(address(paxg_ETHEREUM));
+        oracles.push(oracle_PAXGUSD_ETHEREUM);
+        tokens.push(address(usdc_ETHEREUM));
+        oracles.push(oracle_USDCUSD_ETHEREUM);
+
+        fundLending.setOracles(tokens, oracles);
+        fundLending.setSwapPools(fromSwap, toSwap, swapPools);
+        fundLending.setMaxSlippage(80);
+        vm.stopBroadcast();
+
+        console.log("OneClickIndex PAXG", address(fundLending));
+
+        console.log("\n================================================\n");
+
+        console.log("TESTS\n");
+        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        _testVaultWorks(BaseVault(address(fundLending)), 1e9);
+        vm.startBroadcast();
+        _setOneClickIndexRoles(admin, fundLending);
+        _grantAndRevokeRoles(admin);
+        _updateProxyAdminsOwners();
+        vm.stopBroadcast();
+        console.log("\nTESTS PASSED");
+    }
+
     function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin) {
         proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
     }

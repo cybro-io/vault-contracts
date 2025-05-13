@@ -183,6 +183,7 @@ contract DeployUtils is StdCheats {
     IERC20Metadata usdt_ETHEREUM = IERC20Metadata(address(0xdAC17F958D2ee523a2206206994597C13D831ec7));
     IERC20Metadata usdc_ETHEREUM = IERC20Metadata(address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
     IERC20Metadata wbtc_ETHEREUM = IERC20Metadata(address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599));
+    IERC20Metadata paxg_ETHEREUM = IERC20Metadata(address(0x45804880De22913dAFE09f4980848ECE6EcbAf78));
 
     /* AVALANCHE */
     IERC20Metadata frax_AVALANCHE = IERC20Metadata(address(0xD24C2Ad096400B6FBcd2ad8B24E7acBc21A1da64));
@@ -248,6 +249,7 @@ contract DeployUtils is StdCheats {
     IChainlinkOracle oracle_USDTUSD_ETHEREUM = IChainlinkOracle(address(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D));
     IChainlinkOracle oracle_BTCUSD_ETHEREUM = IChainlinkOracle(address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c));
     IChainlinkOracle oracle_USDCUSD_ETHEREUM = IChainlinkOracle(address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6));
+    IChainlinkOracle oracle_PAXGUSD_ETHEREUM = IChainlinkOracle(address(0x9944D86CEB9160aF5C5feB251FD671923323f8C3));
 
     /* OPTIMISM */
     IChainlinkOracle oracle_USDCUSD_OPTIMISM = IChainlinkOracle(address(0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3));
@@ -273,6 +275,7 @@ contract DeployUtils is StdCheats {
     IUniswapV3Pool pool_USDT_USDC_ETHEREUM = IUniswapV3Pool(address(0x3416cF6C708Da44DB2624D63ea0AAef7113527C6));
     IUniswapV3Pool pool_USDC_USDT_OPTIMISM = IUniswapV3Pool(address(0xA73C628eaf6e283E26A7b1f8001CF186aa4c0E8E));
     IUniswapV3Pool pool_USDC_USDT_CORE = IUniswapV3Pool(address(0x74B8d6eA8E0284C2619922FC0F5d872Fe32CEc2f));
+    IUniswapV3Pool pool_USDC_PAXG_ETHEREUM = IUniswapV3Pool(address(0xB431c70f800100D87554ac1142c4A94C5Fe4C0C4));
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -313,6 +316,7 @@ contract DeployUtils is StdCheats {
     address assetProvider_USDT_ETHEREUM = address(0x2933782B5A8d72f2754103D1489614F29bfA4625);
     address assetProvider_USDC_ETHEREUM = address(0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341);
     address assetProvider_WBTC_ETHEREUM = address(0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8);
+    address assetProvider_PAXG_ETHEREUM = address(0xF977814e90dA44bFA03b6295A0616a897441aceC);
 
     /* AVALANCHE */
 

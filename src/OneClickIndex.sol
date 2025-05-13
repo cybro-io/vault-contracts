@@ -277,11 +277,12 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         address[maxPools] memory poolsToDeposit;
         uint256[maxPools] memory amountsToDeposit;
         uint256 count;
+        uint256 totalAssets_ = totalAssets();
 
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {
             address pool = lendingPoolAddresses.at(i);
             uint256 poolBalance = _getBalance(pool);
-            int256 deviation = int256(poolBalance) - int256(totalAssets() * lendingShares[pool] / totalLendingShares);
+            int256 deviation = int256(poolBalance) - int256(totalAssets_ * lendingShares[pool] / totalLendingShares);
 
             if (deviation > 0) {
                 uint256 redeemedAmount = IVault(pool).redeem(

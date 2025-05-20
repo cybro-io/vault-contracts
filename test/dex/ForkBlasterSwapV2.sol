@@ -34,8 +34,8 @@ contract BlasterSwapV2VaultTest is AbstractDexVaultTest {
                             asset,
                             feeProvider,
                             feeRecipient,
-                            address(oracle_USDB_BLAST),
-                            address(oracle_ETH_BLAST)
+                            address(_getMockOracleForToken(address(token0))),
+                            address(_getMockOracleForToken(address(token1)))
                         )
                     ),
                     admin,

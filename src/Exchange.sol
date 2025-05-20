@@ -8,6 +8,7 @@ import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/Own
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
+import {OracleData} from "./libraries/OracleData.sol";
 
 /**
  * @title Exchange Contract
@@ -294,12 +295,7 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
      * @return Current ETH price from oracle
      */
     function _getETHPrice() private view returns (uint256) {
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-        require(answeredInRound >= roundID, "Stale price");
-        require(timestamp != 0, "Round not complete");
-        require(price > 0, "Chainlink price reporting 0");
-
-        return uint256(price);
+        return OracleData.getPrice(oracle);
     }
 
     /**

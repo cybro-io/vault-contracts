@@ -23,8 +23,9 @@ contract AcrossVaultTest is AbstractBaseVaultTest {
 
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
-        vault =
-            _deployAcross(VaultSetup(asset, address(0), address(feeProvider), feeRecipient, name, symbol, admin, admin));
+        vault = _deployAcrossForTests(
+            VaultSetup(asset, address(0), address(feeProvider), feeRecipient, name, symbol, admin, admin)
+        );
         AcrossVault across = AcrossVault(address(vault));
         console.log("sqrt acxPrice", across.getACXPrice());
         {

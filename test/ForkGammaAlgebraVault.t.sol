@@ -22,7 +22,7 @@ contract GammaAlgebraVaultTest is AbstractBaseVaultTest {
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
         vault = IVault(
-            _deployGammaAlgebra(
+            _deployGammaAlgebraForTests(
                 VaultSetup({
                     asset: asset,
                     pool: hypervisor,

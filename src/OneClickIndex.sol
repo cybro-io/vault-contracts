@@ -20,6 +20,7 @@ import {OracleData} from "./libraries/OracleData.sol";
 contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using OracleData for IChainlinkOracle;
 
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
@@ -518,7 +519,7 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     function _getPrice(address token) internal view returns (uint256) {
         IChainlinkOracle oracle = oracles[token];
         // returns price in the vault decimals
-        return uint256(OracleData.getPrice(oracle)) * (10 ** decimals()) / 10 ** (oracle.decimals());
+        return uint256(oracle.getPrice()) * (10 ** decimals()) / 10 ** (oracle.decimals());
     }
 
     /**

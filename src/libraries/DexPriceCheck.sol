@@ -17,14 +17,13 @@ import {OracleData} from "./OracleData.sol";
  * @notice Library for checking if the price of a Dex pool is being manipulated
  */
 library DexPriceCheck {
+    using OracleData for IChainlinkOracle;
+
     /* ========== ERRORS ========== */
 
     error PriceManipulation();
 
     /* ========== CONSTANTS ========== */
-
-    /// @notice The threshold for stale prices
-    uint256 public constant PRICE_STALE_THRESHOLD = 6 hours;
 
     /// @notice Precision for deviation
     uint32 public constant deviationPrecision = 10000;
@@ -78,8 +77,8 @@ library DexPriceCheck {
         address token0_,
         address token1_
     ) public view returns (uint256) {
-        uint256 price0 = OracleData.getPrice(oracleToken0_);
-        uint256 price1 = OracleData.getPrice(oracleToken1_);
+        uint256 price0 = oracleToken0_.getPrice();
+        uint256 price1 = oracleToken1_.getPrice();
         uint8 decimals0 = oracleToken0_.decimals();
         uint8 decimals1 = oracleToken1_.decimals();
         if (decimals0 > decimals1) {

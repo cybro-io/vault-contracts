@@ -248,6 +248,7 @@ library PositionsLogic {
 
 library OraclesLogic {
     using OraclesLogic for OraclesLogic.Oracles;
+    using OracleData for IChainlinkOracle;
 
     struct Oracles {
         /// @notice Mapping of tokens to their oracles
@@ -255,7 +256,7 @@ library OraclesLogic {
     }
 
     function getPrice(Oracles storage self, address asset_) public view returns (uint256) {
-        return OracleData.getPrice(self.oracles[asset_]);
+        return self.oracles[asset_].getPrice();
     }
 
     /**

@@ -20,6 +20,7 @@ import {OracleData} from "../libraries/OracleData.sol";
  */
 contract AcrossVault is BaseVault {
     using SafeERC20 for IERC20Metadata;
+    using OracleData for IChainlinkOracle;
 
     /* ========== ERRORS ========== */
 
@@ -254,7 +255,7 @@ contract AcrossVault is BaseVault {
     function _getPrice(address token) internal view returns (uint256) {
         IChainlinkOracle oracle = token == address(weth) ? wethOracle : assetOracle;
         // returns price in the vault decimals
-        return uint256(OracleData.getPrice(oracle)) * (10 ** decimals()) / 10 ** (oracle.decimals());
+        return uint256(oracle.getPrice()) * (10 ** decimals()) / 10 ** (oracle.decimals());
     }
 
     /**

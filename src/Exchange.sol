@@ -16,6 +16,7 @@ import {OracleData} from "./libraries/OracleData.sol";
  */
 contract Exchange is OwnableUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20Metadata;
+    using OracleData for IChainlinkOracle;
 
     /* ========== EVENTS ========== */
 
@@ -295,7 +296,7 @@ contract Exchange is OwnableUpgradeable, PausableUpgradeable {
      * @return Current ETH price from oracle
      */
     function _getETHPrice() private view returns (uint256) {
-        return OracleData.getPrice(oracle);
+        return oracle.getPrice();
     }
 
     /**

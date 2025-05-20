@@ -19,7 +19,7 @@ contract SteerCamelotVaultTest is AbstractBaseVaultTest {
     function _initializeNewVault() internal override {
         vm.startPrank(admin);
         vault = IVault(
-            _deploySteerCamelot(
+            _deploySteerCamelotForTests(
                 VaultSetup({
                     asset: asset,
                     feeRecipient: feeRecipient,

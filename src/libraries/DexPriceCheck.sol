@@ -10,6 +10,7 @@ import {IAlgebraPool as IAlgebraPoolV1_9} from "../interfaces/algebra/IAlgebraPo
 import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPool.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IAlgebraBasePluginV1} from "../interfaces/algebra/IAlgebraBasePluginV1.sol";
+import {OracleData} from "./OracleData.sol";
 
 /**
  * @title DexPriceCheck
@@ -19,11 +20,11 @@ library DexPriceCheck {
     /* ========== ERRORS ========== */
 
     error PriceManipulation();
-    error StalePrice();
-    error RoundNotComplete();
-    error ChainlinkPriceReportingZero();
 
     /* ========== CONSTANTS ========== */
+
+    /// @notice The threshold for stale prices
+    uint256 public constant PRICE_STALE_THRESHOLD = 6 hours;
 
     /// @notice Precision for deviation
     uint32 public constant deviationPrecision = 10000;
@@ -77,8 +78,8 @@ library DexPriceCheck {
         address token0_,
         address token1_
     ) public view returns (uint256) {
-        uint256 price0 = _getPrice(oracleToken0_);
-        uint256 price1 = _getPrice(oracleToken1_);
+        uint256 price0 = OracleData.getPrice(oracleToken0_);
+        uint256 price1 = OracleData.getPrice(oracleToken1_);
         uint8 decimals0 = oracleToken0_.decimals();
         uint8 decimals1 = oracleToken1_.decimals();
         if (decimals0 > decimals1) {
@@ -141,20 +142,5 @@ library DexPriceCheck {
         } else {
             (tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgos);
         }
-    }
-
-    /**
-     * @notice Internal function to get the price from the oracle
-     * @param oracle The oracle to get the price from
-     * @return The price
-     */
-    function _getPrice(IChainlinkOracle oracle) internal view returns (uint256) {
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, StalePrice());
-        require(timestamp > 0, RoundNotComplete());
-        require(price > 0, ChainlinkPriceReportingZero());
-
-        return uint256(price);
     }
 }

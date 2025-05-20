@@ -12,6 +12,7 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {OracleData} from "../libraries/OracleData.sol";
 
 /**
  * @title AcrossVault
@@ -252,14 +253,8 @@ contract AcrossVault is BaseVault {
      */
     function _getPrice(address token) internal view returns (uint256) {
         IChainlinkOracle oracle = token == address(weth) ? wethOracle : assetOracle;
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, "Stale price");
-        require(timestamp != 0, "Round not complete");
-        require(price > 0, "Chainlink price reporting 0");
-
         // returns price in the vault decimals
-        return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
+        return uint256(OracleData.getPrice(oracle)) * (10 ** decimals()) / 10 ** (oracle.decimals());
     }
 
     /**

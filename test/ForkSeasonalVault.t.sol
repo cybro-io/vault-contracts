@@ -114,11 +114,11 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare2);
 
             tokens.push(address(usdb_BLAST));
-            oracles.push(oracle_USDB_BLAST);
+            oracles.push(_getMockOracleForToken(address(usdb_BLAST)));
             tokens.push(address(weth_BLAST));
-            oracles.push(oracle_ETH_BLAST);
+            oracles.push(_getMockOracleForToken(address(weth_BLAST)));
             tokens.push(address(wbtc_BLAST));
-            oracles.push(oracle_BTC_BLAST);
+            oracles.push(_getMockOracleForToken(address(wbtc_BLAST)));
 
             if (asset_ == usdb_BLAST) {
                 vaults.push(
@@ -223,13 +223,13 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare);
 
             tokens.push(address(usdt_ARBITRUM));
-            oracles.push(oracle_USDT_ARBITRUM);
+            oracles.push(_getMockOracleForToken(address(usdt_ARBITRUM)));
             tokens.push(address(weth_ARBITRUM));
-            oracles.push(oracle_ETH_ARBITRUM);
+            oracles.push(_getMockOracleForToken(address(weth_ARBITRUM)));
             tokens.push(address(usdc_ARBITRUM));
-            oracles.push(oracle_USDC_ARBITRUM);
+            oracles.push(_getMockOracleForToken(address(usdc_ARBITRUM)));
             tokens.push(address(wbtc_ARBITRUM));
-            oracles.push(oracle_BTC_ARBITRUM);
+            oracles.push(_getMockOracleForToken(address(wbtc_ARBITRUM)));
 
             if (asset_ == usdt_ARBITRUM) {
                 vaults.push(
@@ -304,13 +304,13 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare);
 
             tokens.push(address(usdc_BASE));
-            oracles.push(oracle_USDC_BASE);
+            oracles.push(_getMockOracleForToken(address(usdc_BASE)));
             tokens.push(address(weth_BASE));
-            oracles.push(oracle_ETH_BASE);
+            oracles.push(_getMockOracleForToken(address(weth_BASE)));
             tokens.push(address(wbtc_BASE));
-            oracles.push(oracle_BTC_BASE);
+            oracles.push(_getMockOracleForToken(address(wbtc_BASE)));
             tokens.push(address(cbwbtc_BASE));
-            oracles.push(oracle_CBWBTC_BASE);
+            oracles.push(_getMockOracleForToken(address(cbwbtc_BASE)));
 
             if (asset_ == usdc_BASE) {
                 vaults.push(

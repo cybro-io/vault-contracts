@@ -76,11 +76,11 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             // lendingShares.push(lendingShare2);
 
             tokens.push(address(usdb_BLAST));
-            oracles.push(oracle_USDB_BLAST);
+            oracles.push(_getMockOracleForToken(address(usdb_BLAST)));
             tokens.push(address(weth_BLAST));
-            oracles.push(oracle_ETH_BLAST);
+            oracles.push(_getMockOracleForToken(address(weth_BLAST)));
             tokens.push(address(wbtc_BLAST));
-            oracles.push(oracle_BTC_BLAST);
+            oracles.push(_getMockOracleForToken(address(wbtc_BLAST)));
 
             vaults.push(
                 address(
@@ -170,9 +170,9 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare2);
 
             tokens.push(address(usdc_BASE));
-            oracles.push(oracle_USDC_BASE);
+            oracles.push(_getMockOracleForToken(address(usdc_BASE)));
             tokens.push(address(weth_BASE));
-            oracles.push(oracle_ETH_BASE);
+            oracles.push(_getMockOracleForToken(address(weth_BASE)));
 
             vaults.push(
                 address(
@@ -220,7 +220,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 toSwap.push(address(usdt_ETHEREUM));
                 swapPools.push(pool_USDT_USDC_ETHEREUM);
                 tokens.push(address(usdt_ETHEREUM));
-                oracles.push(oracle_USDTUSD_ETHEREUM);
+                oracles.push(_getMockOracleForToken(address(usdt_ETHEREUM)));
                 vaults.push(
                     address(
                         _deployAcross(
@@ -258,7 +258,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
                 asset = usdc_ETHEREUM;
                 amount = 1e9; // decimals = 6
                 tokens.push(address(paxg_ETHEREUM));
-                oracles.push(oracle_PAXGUSD_ETHEREUM);
+                oracles.push(_getMockOracleForToken(address(paxg_ETHEREUM)));
                 fromSwap.push(address(paxg_ETHEREUM));
                 toSwap.push(address(usdc_ETHEREUM));
                 swapPools.push(pool_USDC_PAXG_ETHEREUM);
@@ -284,7 +284,7 @@ abstract contract OneClickIndexBaseTest is AbstractBaseVaultTest {
             lendingShares.push(lendingShare2);
 
             tokens.push(address(usdc_ETHEREUM));
-            oracles.push(oracle_USDCUSD_ETHEREUM);
+            oracles.push(_getMockOracleForToken(address(usdc_ETHEREUM)));
 
             additionalVault = address(
                 _deployBuffer(VaultSetup(usdc_ETHEREUM, address(0), address(0), address(0), name, symbol, admin, admin))

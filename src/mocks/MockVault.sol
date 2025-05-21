@@ -41,7 +41,8 @@ contract MockVault is BaseVault {
         _;
     }
 
-    function _deposit(uint256 assets) internal override _balanceIncrease {
+    function _deposit(uint256 assets) internal override _balanceIncrease returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = totalAssets() - assets;
         liquidityTokenBalance += assets;
     }
 

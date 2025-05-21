@@ -424,7 +424,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      * @notice Deposits assets into the lending pools proportionally to their shares
      * @param assets The amount of assets to deposit
      */
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         uint256 leftAssets = assets;
         uint256 leftShares = totalLendingShares;
         for (uint256 i = 0; i < lendingPoolAddresses.length(); i++) {

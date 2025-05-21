@@ -157,7 +157,8 @@ abstract contract BaseDexUniformVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal virtual override {
+    function _deposit(uint256 assets) internal virtual override returns (uint256 totalAssetsBefore) {
+        (uint256 total0, uint256 total1) = getPositionAmounts();
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(assets);
 
@@ -190,6 +191,7 @@ abstract contract BaseDexUniformVault is BaseVault {
             }
         }
         _checkPriceManipulation();
+        totalAssetsBefore = _calculateInBaseToken(total0, total1);
     }
 
     /// @inheritdoc BaseVault

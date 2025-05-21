@@ -179,13 +179,12 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         if (assets == 0) {
             return 0;
         }
-        uint256 totalAssetsBefore = _totalAssetsPrecise();
         uint256 totalSupplyBefore = totalSupply();
         _asset.safeTransferFrom(_msgSender(), address(this), assets);
         uint256 depositFee;
         (assets, depositFee) = address(feeProvider) == address(0) ? (assets, 0) : _applyDepositFee(assets);
 
-        _deposit(assets);
+        uint256 totalAssetsBefore = _deposit(assets);
 
         uint256 totalAssetsAfter = _totalAssetsPrecise();
         uint256 increase = totalAssetsAfter - totalAssetsBefore;
@@ -451,8 +450,9 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
     /**
      * @notice Internal function to deposit assets
      * @param assets The amount of assets to deposit
+     * @return totalAssetsBefore The total assets before the deposit
      */
-    function _deposit(uint256 assets) internal virtual;
+    function _deposit(uint256 assets) internal virtual returns (uint256 totalAssetsBefore);
 
     /**
      * @notice Internal function to redeem shares

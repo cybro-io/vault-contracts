@@ -137,7 +137,8 @@ contract StargateVault is BaseVault, IUniswapV3SwapCallback {
     /* ========== INTERNAL METHODS ========== */
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         if (asset() == address(weth)) {
             // if assets lower then convertRate assetToDeposit will be 0
             // And transaction will be reverted

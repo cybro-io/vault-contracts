@@ -48,7 +48,8 @@ contract CompoundVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         require(pool.mint(assets) == 0, "Pool Error");
     }
 

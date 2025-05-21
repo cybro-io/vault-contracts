@@ -45,7 +45,8 @@ contract AaveVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         pool.supply(asset(), assets, address(this), 0);
     }
 

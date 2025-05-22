@@ -121,9 +121,7 @@ contract SteerCamelotVault is BaseVault {
     /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
         _checkPriceManipulation();
-        (uint256 total0, uint256 total1) = steerVault.getTotalAmounts();
         uint256 steerBalance = steerVault.balanceOf(address(this));
-        uint256 steerTotalSupply = steerVault.totalSupply();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -151,7 +149,8 @@ contract SteerCamelotVault is BaseVault {
             }
         }
         _checkPriceManipulation();
-        totalAssetsBefore = steerBalance * _calculateInBaseToken(total0, total1) / steerTotalSupply;
+        (uint256 total0, uint256 total1) = steerVault.getTotalAmounts();
+        totalAssetsBefore = steerBalance * _calculateInBaseToken(total0, total1) / steerVault.totalSupply();
     }
 
     /// @inheritdoc BaseVault

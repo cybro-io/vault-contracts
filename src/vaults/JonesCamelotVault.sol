@@ -124,9 +124,7 @@ contract JonesCamelotVault is BaseVault {
     function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
         router.claim(address(compounder), 0);
         _checkPriceManipulation();
-        (uint256 total0, uint256 total1) = LPManager.aumWithoutCollect();
         uint256 compounderBalance = compounder.balanceOf(address(this));
-        uint256 lpTotalSupply = LPManager.totalSupply();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
             amount1 = _swap(true, amount1);
@@ -166,7 +164,8 @@ contract JonesCamelotVault is BaseVault {
             }
         }
         _checkPriceManipulation();
-        totalAssetsBefore = compounderBalance * _calculateInBaseToken(total0, total1) / lpTotalSupply;
+        (uint256 total0, uint256 total1) = LPManager.aumWithoutCollect();
+        totalAssetsBefore = compounderBalance * _calculateInBaseToken(total0, total1) / LPManager.totalSupply();
     }
 
     /// @inheritdoc BaseVault

@@ -117,9 +117,7 @@ contract GammaAlgebraVault is BaseVault {
 
     function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
         _checkPriceManipulation();
-        (uint256 total0, uint256 total1) = hypervisor.getTotalAmounts();
         uint256 hypervisorBalance = hypervisor.balanceOf(address(this));
-        uint256 hypervisorTotalSupply = hypervisor.totalSupply();
 
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
 
@@ -133,7 +131,8 @@ contract GammaAlgebraVault is BaseVault {
             IERC20Metadata(token1).safeTransfer(msg.sender, unusedAmountToken1);
         }
         _checkPriceManipulation();
-        totalAssetsBefore = hypervisorBalance * _calculateInBaseToken(total0, total1) / hypervisorTotalSupply;
+        (uint256 total0, uint256 total1) = hypervisor.getTotalAmounts();
+        totalAssetsBefore = hypervisorBalance * _calculateInBaseToken(total0, total1) / hypervisor.totalSupply();
     }
 
     /// @inheritdoc BaseVault

@@ -147,6 +147,45 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
         $.lastTimeManagementFeeCollected = block.timestamp;
     }
 
+    function __BaseVault_upgradeStorage(address[] memory accountsToMigrate, bool recalculateWaterline, bytes32 slot_)
+        internal
+        onlyInitializing
+    {
+        BaseVaultStorage storage $ = _getBaseVaultStorage();
+        $.lastTimeManagementFeeCollected = block.timestamp;
+        bytes32 ownableSlot = 0x9016d09d72d40fdae2fd8ceac6b6234c7706214fd39c1cd1e609a0528c199300;
+        address owner_;
+        assembly {
+            owner_ := sload(ownableSlot)
+        }
+        if (owner_ != address(0)) {
+            assembly {
+                sstore(ownableSlot, 0)
+            }
+            _grantRole(DEFAULT_ADMIN_ROLE, owner_);
+            _grantRole(MANAGER_ROLE, owner_);
+        }
+        if (accountsToMigrate.length > 0) {
+            if (recalculateWaterline) {
+                BaseVaultStorage storage oldVaultStorage;
+                assembly {
+                    oldVaultStorage.slot := slot_
+                }
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    address account = accountsToMigrate[i];
+                    $.waterline[account] = oldVaultStorage.waterline[account];
+                    delete oldVaultStorage.waterline[account];
+                }
+            } else {
+                uint256 sharePrice_ = sharePrice();
+                for (uint256 i = 0; i < accountsToMigrate.length; i++) {
+                    $.waterline[accountsToMigrate[i]] =
+                        balanceOf(accountsToMigrate[i]) * sharePrice_ / (10 ** decimals());
+                }
+            }
+        }
+    }
+
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /**

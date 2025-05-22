@@ -35,6 +35,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     error RoundNotComplete();
     error ChainlinkPriceReportingZero();
 
+    struct OldVaultStorage {
+        mapping(address => uint256) waterline;
+    }
+
     /* ========== EVENTS ========== */
 
     /**
@@ -118,6 +122,10 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
         __ERC20_init(name, symbol);
         __BaseVault_init(admin, manager);
         _grantRole(STRATEGIST_ROLE, strategist);
+    }
+
+    function initialize_upgrade(address[] memory accountsToMigrate, bool) public reinitializer(2) {
+        __BaseVault_upgradeStorage(accountsToMigrate, true, bytes32(uint256(4)));
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */

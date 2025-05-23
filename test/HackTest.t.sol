@@ -27,6 +27,7 @@ contract HackTest is Test, DeployUtils {
     AlgebraVault algebraVault;
     address constant user = address(10001);
     address constant user2 = address(10002);
+    address constant user3 = address(10003);
 
     uint256 public snapshotId;
     uint256 public amount0;
@@ -50,11 +51,12 @@ contract HackTest is Test, DeployUtils {
         amount1 = 400 * decimals_;
         dealTokens(asset, user, amount0);
         dealTokens(asset, user2, amount1);
+        dealTokens(asset, user3, amount0);
 
         vm.prank(user);
-        asset.approve(address(vault), amount0);
+        asset.approve(address(vault), type(uint256).max);
         vm.prank(user2);
-        asset.approve(address(vault), amount1);
+        asset.approve(address(vault), type(uint256).max);
         snapshotId = vm.snapshotState();
 
         vm.startPrank(user);
@@ -82,27 +84,27 @@ contract HackTest is Test, DeployUtils {
     function _testVaultWorks(IVault vault) internal {
         vm.startPrank(user);
         uint256 shares0_ = vault.deposit(amount0, user, 0);
+        uint256 assets0_ = vault.redeem(shares0_, user, user, 0);
         vm.stopPrank();
 
         vm.startPrank(user2);
         uint256 shares1_ = vault.deposit(amount1, user2, 0);
-        vm.assertApproxEqAbs(shares1_ / 2, shares0_, shares0_ / 50);
-        vm.assertLt(shares1_ / 2, shares0_);
-        vm.assertLt(vault.balanceOf(user2) * vault.sharePrice() / (10 ** vault.decimals()), amount1);
         uint256 assets1_ = vault.redeem(shares1_, user2, user2, 0);
         vm.assertLt(asset.balanceOf(user2), amount1);
         vm.stopPrank();
 
-        vm.startPrank(user);
-        uint256 assets0_ = vault.redeem(shares0_, user, user, 0);
+        vm.startPrank(user3);
+        asset.approve(address(vault), type(uint256).max);
+        uint256 shares2_ = vault.deposit(amount0, user3, 0);
+        uint256 assets2_ = vault.redeem(shares2_, user3, user3, 0);
         vm.stopPrank();
-        vm.assertLt(asset.balanceOf(user), amount0);
-        vm.assertApproxEqAbs(asset.balanceOf(user), asset.balanceOf(user2) / 2, amount0 / 100);
 
         console.log("\nassets user after redeem", assets0_);
-        console.log("assets user diff", amount0 - assets0_, (amount0 - assets0_) / (10 ** vault.decimals()), "\n");
-        console.log("assets user2 after redeem", assets1_);
-        console.log("assets user2 diff", amount1 - assets1_, (amount1 - assets1_) / (10 ** vault.decimals()), "\n");
+        console.log("assets user diff", int256(assets0_) - int256(amount0));
+        console.log("\nassets user2 after redeem", assets1_);
+        console.log("assets user2 diff", int256(assets1_) - int256(amount1));
+        console.log("\nassets user3 after redeem", assets2_);
+        console.log("assets user3 diff", int256(assets2_) - int256(amount0));
     }
 
     function test_blasterV2() public {

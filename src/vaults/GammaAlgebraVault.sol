@@ -119,7 +119,13 @@ contract GammaAlgebraVault is BaseVault {
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
         totalAssetsBefore = _totalAssetsPrecise();
+        (uint256 total0Before, uint256 total1Before) = hypervisor.getTotalAmounts();
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
+        (uint256 total0After, uint256 total1After) = hypervisor.getTotalAmounts();
+        (int256 fees0, int256 fees1) =
+            (int256(total0After - total0Before) - int256(amount0), int256(total1After - total1Before) - int256(amount1));
+
+        totalAssetsBefore += _calculateInBaseToken(fees0 < 0 ? 0 : uint256(fees0), fees1 < 0 ? 0 : uint256(fees1));
 
         // Return unused tokens back to sender
         if (unusedAmountToken0 > 0) {

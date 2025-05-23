@@ -50,17 +50,27 @@ library DexPriceCheck {
         address pool,
         uint256 currentSqrtPrice
     ) public view {
-        uint256 trustedSqrtPrice;
-        if (address(oracleToken0_) == address(0)) {
-            trustedSqrtPrice = getTwap(pool, isAlgebra);
-        } else {
-            trustedSqrtPrice = getSqrtPriceFromOracles(oracleToken0_, oracleToken1_, token0_, token1_);
-        }
+        uint256 trustedSqrtPrice = getTrustedSqrtPrice(oracleToken0_, oracleToken1_, token0_, token1_, isAlgebra, pool);
         uint256 deviation = (currentSqrtPrice ** 2) * deviationPrecision / (trustedSqrtPrice ** 2);
         require(
             (deviation > deviationPrecision - maxDeviation) && (deviation < deviationPrecision + maxDeviation),
             PriceManipulation()
         );
+    }
+
+    function getTrustedSqrtPrice(
+        IChainlinkOracle oracleToken0_,
+        IChainlinkOracle oracleToken1_,
+        address token0_,
+        address token1_,
+        bool isAlgebra,
+        address pool
+    ) public view returns (uint256 trustedSqrtPrice) {
+        if (address(oracleToken0_) == address(0)) {
+            trustedSqrtPrice = getTwap(pool, isAlgebra);
+        } else {
+            trustedSqrtPrice = getSqrtPriceFromOracles(oracleToken0_, oracleToken1_, token0_, token1_);
+        }
     }
 
     /**

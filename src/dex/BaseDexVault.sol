@@ -126,48 +126,6 @@ abstract contract BaseDexVault is BaseDexUniformVault, IERC721Receiver {
         }
     }
 
-    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
-        BaseDexVaultStorage storage $ = _getBaseDexVaultStorage();
-        _checkPriceManipulation();
-        (uint128 owed0, uint128 owed1) = _getTokensOwed();
-        uint128 liquidityBefore = uint128(_getTokenLiquidity());
-        (uint256 amount0, uint256 amount1) = _getAmounts(assets);
-
-        if (isToken0) {
-            amount0 = amount0;
-            amount1 = _swap(true, amount1);
-        } else {
-            amount0 = _swap(false, amount0);
-            amount1 = amount1;
-        }
-
-        (uint256 amount0Used, uint256 amount1Used) = _addLiquidity(amount0, amount1);
-
-        // Calculate remaining amounts after liquidity provision
-        amount0 -= amount0Used;
-        amount1 -= amount1Used;
-
-        // Handle remaining tokens and return them to the user if necessary
-        if (amount0 > 0 && !isToken0) {
-            amount1 += _swap(true, amount0);
-            IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
-        } else if (amount1 > 0 && isToken0) {
-            amount0 += _swap(false, amount1);
-            IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
-        } else {
-            if (isToken0 && amount0 > 0) {
-                IERC20Metadata(token0).safeTransfer(msg.sender, amount0);
-            } else if (amount1 > 0) {
-                IERC20Metadata(token1).safeTransfer(msg.sender, amount1);
-            }
-        }
-        _checkPriceManipulation();
-        (uint256 total0, uint256 total1) = LiquidityAmounts.getAmountsForLiquidity(
-            uint160(getCurrentSqrtPrice()), $.sqrtPriceLower, $.sqrtPriceUpper, liquidityBefore
-        );
-        totalAssetsBefore = _calculateInBaseToken(total0 + owed0, total1 + owed1);
-    }
-
     /**
      * @notice Abstract function to mint a new Dex liquidity position
      * @dev Must be implemented by the inheriting contract

@@ -117,10 +117,8 @@ contract GammaAlgebraVault is BaseVault {
 
     function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
         _checkPriceManipulation();
-        uint256 hypervisorBalance = hypervisor.balanceOf(address(this));
-
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
-
+        totalAssetsBefore = _totalAssetsPrecise();
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
 
         // Return unused tokens back to sender
@@ -131,8 +129,6 @@ contract GammaAlgebraVault is BaseVault {
             IERC20Metadata(token1).safeTransfer(msg.sender, unusedAmountToken1);
         }
         _checkPriceManipulation();
-        (uint256 total0, uint256 total1) = hypervisor.getTotalAmounts();
-        totalAssetsBefore = hypervisorBalance * _calculateInBaseToken(total0, total1) / hypervisor.totalSupply();
     }
 
     /// @inheritdoc BaseVault
@@ -226,7 +222,8 @@ contract GammaAlgebraVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice =
+            DexPriceCheck.getTrustedSqrtPrice(oracleToken0, oracleToken1, token0, token1, true, address(pool));
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

@@ -120,6 +120,7 @@ contract SteerCamelotVault is BaseVault {
 
     /// @inheritdoc BaseVault
     function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
+        steerVault.poke();
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {

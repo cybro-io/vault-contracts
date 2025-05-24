@@ -173,8 +173,9 @@ contract SteerCamelotVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice =
-            DexPriceCheck.getTrustedSqrtPrice(oracleToken0, oracleToken1, token0, token1, true, address(pool));
+        uint256 sqrtPrice = address(oracleToken0) == address(0)
+            ? getCurrentSqrtPrice()
+            : DexPriceCheck.getSqrtPriceFromOracles(oracleToken0, oracleToken1, token0, token1);
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

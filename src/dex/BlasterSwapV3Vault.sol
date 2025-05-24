@@ -87,10 +87,6 @@ contract BlasterSwapV3Vault is BaseDexVault, IBlasterswapV3SwapCallback {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _getTrustedSqrtPrice() internal view override returns (uint256) {
-        return DexPriceCheck.getTrustedSqrtPrice(oracleToken0, oracleToken1, token0, token1, false, address(pool));
-    }
-
     /// @inheritdoc BaseDexUniformVault
     function _checkPriceManipulation() internal view override {
         DexPriceCheck.checkPriceManipulation(

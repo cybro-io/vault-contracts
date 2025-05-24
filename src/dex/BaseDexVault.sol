@@ -12,6 +12,7 @@ import {LiquidityAmounts} from "@uniswap/v3-periphery/contracts/libraries/Liquid
 import {BaseDexUniformVault} from "./BaseDexUniformVault.sol";
 import {IFeeProvider} from "../interfaces/IFeeProvider.sol";
 import {BaseVault} from "../BaseVault.sol";
+import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title BaseDexVault

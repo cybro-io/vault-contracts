@@ -143,7 +143,17 @@ abstract contract BaseDexUniformVault is BaseVault {
      */
     function _getAmounts(uint256 amount) internal virtual returns (uint256 amountFor0, uint256 amountFor1);
 
-    function _getTrustedSqrtPrice() internal view virtual returns (uint256);
+    /**
+     * @notice Calculates the trusted sqrt price of the Dex pool.
+     * Function returns price from oracles if they are set,
+     * otherwise returns the current sqrt price of the pool.
+     * @return The trusted sqrt price
+     */
+    function _getTrustedSqrtPrice() internal view returns (uint256) {
+        return address(oracleToken0) == address(0)
+            ? getCurrentSqrtPrice()
+            : DexPriceCheck.getSqrtPriceFromOracles(oracleToken0, oracleToken1, token0, token1);
+    }
 
     /**
      * @notice Calculates the amount of tokens in base token

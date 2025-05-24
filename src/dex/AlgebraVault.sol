@@ -84,10 +84,6 @@ contract AlgebraVault is BaseDexVault, IAlgebraSwapCallback {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    function _getTrustedSqrtPrice() internal view override returns (uint256) {
-        return DexPriceCheck.getTrustedSqrtPrice(oracleToken0, oracleToken1, token0, token1, true, address(pool));
-    }
-
     /// @inheritdoc BaseDexUniformVault
     function _checkPriceManipulation() internal view override {
         DexPriceCheck.checkPriceManipulation(

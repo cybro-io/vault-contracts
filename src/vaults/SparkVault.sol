@@ -46,7 +46,8 @@ contract SparkVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         psm.swapExactIn(asset(), address(susds), assets, 0, address(this), 0);
     }
 

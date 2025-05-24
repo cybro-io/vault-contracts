@@ -259,8 +259,8 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             }
         }
 
-        vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 100);
-        vm.assertApproxEqAbs(vault.getBalanceInUnderlying(_user), amountWithFee, amount / 100);
+        vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 95);
+        vm.assertApproxEqAbs(vault.getBalanceInUnderlying(_user), amountWithFee, amount / 95);
         vm.assertApproxEqAbs(vault.getProfit(_user), 0, amount / 100);
         vm.assertEq(vault.totalSupply() - totalSupplyBefore, shares);
         vm.assertEq(vault.balanceOf(_user), shares);

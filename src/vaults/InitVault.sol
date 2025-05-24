@@ -96,7 +96,8 @@ contract InitVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         uint256 assetsUnderlying;
         if (asset() == address(underlying)) {
             assetsUnderlying = assets;

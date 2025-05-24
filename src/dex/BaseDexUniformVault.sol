@@ -144,20 +144,32 @@ abstract contract BaseDexUniformVault is BaseVault {
     function _getAmounts(uint256 amount) internal virtual returns (uint256 amountFor0, uint256 amountFor1);
 
     /**
+     * @notice Calculates the trusted sqrt price of the Dex pool.
+     * Function returns price from oracles if they are set,
+     * otherwise returns the current sqrt price of the pool.
+     * @return The trusted sqrt price
+     */
+    function _getTrustedSqrtPrice() internal view returns (uint256) {
+        return address(oracleToken0) == address(0)
+            ? getCurrentSqrtPrice()
+            : DexPriceCheck.getSqrtPriceFromOracles(oracleToken0, oracleToken1, token0, token1);
+    }
+
+    /**
      * @notice Calculates the amount of tokens in base token
      * @param amount0 The amount of token0
      * @param amount1 The amount of token1
      * @return The amount of tokens in base token
      */
-    function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = getCurrentSqrtPrice();
+    function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view virtual returns (uint256) {
+        uint256 sqrtPrice = _getTrustedSqrtPrice();
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal virtual override {
+    function _deposit(uint256 assets) internal virtual override returns (uint256 totalAssetsBefore) {
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(assets);
 
@@ -168,7 +180,7 @@ abstract contract BaseDexUniformVault is BaseVault {
             amount0 = _swap(false, amount0);
             amount1 = amount1;
         }
-
+        totalAssetsBefore = _totalAssetsPrecise();
         (uint256 amount0Used, uint256 amount1Used) = _addLiquidity(amount0, amount1);
 
         // Calculate remaining amounts after liquidity provision

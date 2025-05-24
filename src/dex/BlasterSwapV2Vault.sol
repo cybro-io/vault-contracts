@@ -95,7 +95,7 @@ contract BlasterSwapV2Vault is BaseDexUniformVault {
 
     function underlyingTVL() external view override returns (uint256) {
         (uint112 reserve0, uint112 reserve1,) = lpToken.getReserves();
-        uint256 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = _getTrustedSqrtPrice();
         return isToken0
             ? reserve0 + Math.mulDiv(reserve1, 2 ** 192, sqrtPrice * sqrtPrice)
             : reserve1 + Math.mulDiv(reserve0, sqrtPrice * sqrtPrice, 2 ** 192);

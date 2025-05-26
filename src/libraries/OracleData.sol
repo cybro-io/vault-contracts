@@ -5,7 +5,7 @@ import {IChainlinkOracle} from "../interfaces/IChainlinkOracle.sol";
 
 library OracleData {
     /// @notice The threshold for stale prices
-    uint256 public constant PRICE_STALE_THRESHOLD = 6 hours;
+    uint256 public constant PRICE_STALE_THRESHOLD = 1 hours;
 
     /// @notice Error thrown when a price is stale
     error StalePrice();

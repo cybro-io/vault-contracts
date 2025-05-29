@@ -42,6 +42,7 @@ import {ILToken} from "../src/interfaces/layerbank/ILToken.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
+import {MockOracle} from "../src/mocks/MockOracle.sol";
 
 contract DeployUtils is StdCheats {
     using SafeERC20 for IERC20Metadata;
@@ -93,8 +94,37 @@ contract DeployUtils is StdCheats {
             } else if (token == address(dai_ARBITRUM)) {
                 return oracle_DAI_ARBITRUM;
             }
+        } else if (block.chainid == 1) {
+            if (token == address(usdt_ETHEREUM)) {
+                return oracle_USDTUSD_ETHEREUM;
+            } else if (token == address(weth_ETHEREUM)) {
+                return oracle_ETHUSD_ETHEREUM;
+            } else if (token == address(usdc_ETHEREUM)) {
+                return oracle_USDCUSD_ETHEREUM;
+            } else if (token == address(wbtc_ETHEREUM)) {
+                return oracle_BTCUSD_ETHEREUM;
+            } else if (token == address(paxg_ETHEREUM)) {
+                return oracle_PAXGUSD_ETHEREUM;
+            }
+        } else if (block.chainid == 8453) {
+            if (token == address(usdc_BASE)) {
+                return oracle_USDC_BASE;
+            } else if (token == address(weth_BASE)) {
+                return oracle_ETH_BASE;
+            } else if (token == address(wbtc_BASE)) {
+                return oracle_BTC_BASE;
+            } else if (token == address(cbwbtc_BASE)) {
+                return oracle_CBWBTC_BASE;
+            }
         }
         revert("Oracle not set for token");
+    }
+
+    function _getMockOracleForToken(address token) internal returns (IChainlinkOracle) {
+        vm.stopPrank();
+        IChainlinkOracle oracle_ = IChainlinkOracle(address(new MockOracle(_getOracleForToken(token))));
+        vm.startPrank(baseAdmin);
+        return oracle_;
     }
 
     function _getAssetProvider(IERC20Metadata asset_) internal view returns (address assetProvider_) {
@@ -680,6 +710,38 @@ contract DeployUtils is StdCheats {
         );
     }
 
+    function _deployGammaAlgebraForTests(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
+        address uniProxy_;
+        if (block.chainid == 42161) {
+            // arbitrum
+            uniProxy_ = address(uniProxy_gamma_ARBITRUM);
+        } else {
+            revert();
+        }
+        gammaVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new GammaAlgebraVault(
+                            vaultData.pool,
+                            uniProxy_,
+                            vaultData.asset,
+                            IFeeProvider(vaultData.feeProvider),
+                            vaultData.feeRecipient,
+                            address(_getMockOracleForToken(IHypervisor(vaultData.pool).token0())),
+                            address(_getMockOracleForToken(IHypervisor(vaultData.pool).token1()))
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        GammaAlgebraVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                    )
+                )
+            )
+        );
+    }
+
     function _deploySpark(VaultSetup memory vaultData) internal returns (IVault sparkVault_) {
         sparkVault_ = IVault(
             payable(
@@ -728,6 +790,34 @@ contract DeployUtils is StdCheats {
         );
     }
 
+    function _deploySteerCamelotForTests(VaultSetup memory vaultData) internal returns (IVault steerCamelotVault_) {
+        steerCamelotVault_ = IVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(
+                        new SteerCamelotVault(
+                            vaultData.asset,
+                            vaultData.feeRecipient,
+                            IFeeProvider(vaultData.feeProvider),
+                            vaultData.pool,
+                            address(
+                                _getMockOracleForToken(ICamelotMultiPositionLiquidityManager(vaultData.pool).token0())
+                            ),
+                            address(
+                                _getMockOracleForToken(ICamelotMultiPositionLiquidityManager(vaultData.pool).token1())
+                            )
+                        )
+                    ),
+                    vaultData.admin,
+                    abi.encodeCall(
+                        SteerCamelotVault.initialize,
+                        (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                    )
+                )
+            )
+        );
+    }
+
     function _deployJonesCamelot(VaultSetup memory vaultData) internal returns (IVault jonesCamelotVault_) {
         jonesCamelotVault_ = IVault(
             address(
@@ -753,8 +843,10 @@ contract DeployUtils is StdCheats {
         );
     }
 
-    function _deployAcross(VaultSetup memory vaultData) internal returns (IVault acrossVault_) {
-        address assetWethPool;
+    function _acrossPreparation(VaultSetup memory vaultData, bool isTest)
+        private
+        returns (address assetWethPool, IChainlinkOracle assetOracle)
+    {
         if (vaultData.asset == weth_ETHEREUM) {
             assetWethPool = address(0);
         } else if (vaultData.asset == usdc_ETHEREUM) {
@@ -766,18 +858,19 @@ contract DeployUtils is StdCheats {
         } else {
             revert();
         }
-        IChainlinkOracle assetOracle;
         if (vaultData.asset == weth_ETHEREUM) {
             assetOracle = IChainlinkOracle(address(0));
-        } else if (vaultData.asset == usdc_ETHEREUM) {
-            assetOracle = oracle_USDCUSD_ETHEREUM;
-        } else if (vaultData.asset == wbtc_ETHEREUM) {
-            assetOracle = oracle_BTCUSD_ETHEREUM;
-        } else if (vaultData.asset == usdt_ETHEREUM) {
-            assetOracle = oracle_USDTUSD_ETHEREUM;
         } else {
-            revert();
+            assetOracle =
+                isTest ? _getMockOracleForToken(address(vaultData.asset)) : _getOracleForToken(address(vaultData.asset));
         }
+        return (assetWethPool, assetOracle);
+    }
+
+    function _deployAcross(VaultSetup memory vaultData) internal returns (IVault acrossVault_) {
+        address assetWethPool;
+        IChainlinkOracle assetOracle;
+        (assetWethPool, assetOracle) = _acrossPreparation(vaultData, false);
         acrossVault_ = IVault(
             payable(
                 address(
@@ -793,6 +886,41 @@ contract DeployUtils is StdCheats {
                                 assetWethPool,
                                 address(weth_ETHEREUM),
                                 vaultData.asset == weth_ETHEREUM ? IChainlinkOracle(address(0)) : oracle_ETHUSD_ETHEREUM,
+                                assetOracle
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            AcrossVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployAcrossForTests(VaultSetup memory vaultData) internal returns (IVault acrossVault_) {
+        address assetWethPool;
+        IChainlinkOracle assetOracle;
+        (assetWethPool, assetOracle) = _acrossPreparation(vaultData, true);
+        acrossVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new AcrossVault(
+                                vaultData.asset,
+                                address(across_hubPool_ETHEREUM),
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient,
+                                address(across_acceleratingDistributor_ETHEREUM),
+                                address(pool_ACX_WETH_ETHEREUM),
+                                assetWethPool,
+                                address(weth_ETHEREUM),
+                                vaultData.asset == weth_ETHEREUM
+                                    ? IChainlinkOracle(address(0))
+                                    : _getMockOracleForToken(address(weth_ETHEREUM)),
                                 assetOracle
                             )
                         ),

@@ -11,6 +11,7 @@ import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Po
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
+import {OracleData} from "./libraries/OracleData.sol";
 
 /**
  * @title OneClickIndex
@@ -19,6 +20,7 @@ import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     using SafeERC20 for IERC20Metadata;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using OracleData for IChainlinkOracle;
 
     error InvalidPoolAddress();
     error ArraysLengthMismatch();
@@ -31,9 +33,6 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
     error InvalidToPoolAddress();
     error RebalanceFailedForFromPool();
     error RebalanceFailedForToPool();
-    error StalePrice();
-    error RoundNotComplete();
-    error ChainlinkPriceReportingZero();
 
     /* ========== EVENTS ========== */
 
@@ -519,14 +518,8 @@ contract OneClickIndex is BaseVault, IUniswapV3SwapCallback {
      */
     function _getPrice(address token) internal view returns (uint256) {
         IChainlinkOracle oracle = oracles[token];
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, StalePrice());
-        require(timestamp != 0, RoundNotComplete());
-        require(price > 0, ChainlinkPriceReportingZero());
-
         // returns price in the vault decimals
-        return uint256(price) * (10 ** decimals()) / 10 ** (oracle.decimals());
+        return uint256(oracle.getPrice()) * (10 ** decimals()) / 10 ** (oracle.decimals());
     }
 
     /**

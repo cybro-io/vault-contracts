@@ -10,18 +10,18 @@ import {IAlgebraPool as IAlgebraPoolV1_9} from "../interfaces/algebra/IAlgebraPo
 import {IAlgebraPool} from "../interfaces/algebra/IAlgebraPool.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IAlgebraBasePluginV1} from "../interfaces/algebra/IAlgebraBasePluginV1.sol";
+import {OracleData} from "./OracleData.sol";
 
 /**
  * @title DexPriceCheck
  * @notice Library for checking if the price of a Dex pool is being manipulated
  */
 library DexPriceCheck {
+    using OracleData for IChainlinkOracle;
+
     /* ========== ERRORS ========== */
 
     error PriceManipulation();
-    error StalePrice();
-    error RoundNotComplete();
-    error ChainlinkPriceReportingZero();
 
     /* ========== CONSTANTS ========== */
 
@@ -77,8 +77,8 @@ library DexPriceCheck {
         address token0_,
         address token1_
     ) public view returns (uint256) {
-        uint256 price0 = _getPrice(oracleToken0_);
-        uint256 price1 = _getPrice(oracleToken1_);
+        uint256 price0 = oracleToken0_.getPrice();
+        uint256 price1 = oracleToken1_.getPrice();
         uint8 decimals0 = oracleToken0_.decimals();
         uint8 decimals1 = oracleToken1_.decimals();
         if (decimals0 > decimals1) {
@@ -141,20 +141,5 @@ library DexPriceCheck {
         } else {
             (tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgos);
         }
-    }
-
-    /**
-     * @notice Internal function to get the price from the oracle
-     * @param oracle The oracle to get the price from
-     * @return The price
-     */
-    function _getPrice(IChainlinkOracle oracle) internal view returns (uint256) {
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, StalePrice());
-        require(timestamp > 0, RoundNotComplete());
-        require(price > 0, ChainlinkPriceReportingZero());
-
-        return uint256(price);
     }
 }

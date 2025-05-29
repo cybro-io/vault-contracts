@@ -16,6 +16,7 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 import {IChainlinkOracle} from "./interfaces/IChainlinkOracle.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {OracleData} from "./libraries/OracleData.sol";
 
 library Constants {
     /// @notice The precision used for calculations involving percentages
@@ -247,30 +248,15 @@ library PositionsLogic {
 
 library OraclesLogic {
     using OraclesLogic for OraclesLogic.Oracles;
+    using OracleData for IChainlinkOracle;
 
     struct Oracles {
         /// @notice Mapping of tokens to their oracles
         mapping(address token => IChainlinkOracle oracle) oracles;
     }
 
-    /**
-     * @notice Gets the latest price for a asset using oracle
-     * @param asset_ The address of the asset
-     * @return The latest price from the oracle
-     */
-    function _getPrice(Oracles storage self, address asset_) private view returns (uint256) {
-        IChainlinkOracle oracle = self.oracles[asset_];
-        (uint80 roundID, int256 price,, uint256 timestamp, uint80 answeredInRound) = oracle.latestRoundData();
-
-        require(answeredInRound >= roundID, "Stale price");
-        require(timestamp != 0, "Round not complete");
-        require(price > 0, "Chainlink price reporting 0");
-
-        return uint256(price);
-    }
-
-    function getPrice(Oracles storage self, address asset_) external view returns (uint256) {
-        return _getPrice(self, asset_);
+    function getPrice(Oracles storage self, address asset_) public view returns (uint256) {
+        return self.oracles[asset_].getPrice();
     }
 
     /**
@@ -286,8 +272,8 @@ library OraclesLogic {
         returns (uint256)
     {
         if (assetIn != assetOut) {
-            return (amount * _getPrice(self, assetIn) / (10 ** IERC20Metadata(assetIn).decimals()))
-                * (10 ** IERC20Metadata(assetOut).decimals()) / _getPrice(self, assetOut);
+            return (amount * getPrice(self, assetIn) / (10 ** IERC20Metadata(assetIn).decimals()))
+                * (10 ** IERC20Metadata(assetOut).decimals()) / getPrice(self, assetOut);
         }
         return amount;
     }
@@ -300,8 +286,8 @@ library OraclesLogic {
         view
         returns (uint160)
     {
-        uint256 price0 = _getPrice(self, address(token0));
-        uint256 price1 = _getPrice(self, address(token1));
+        uint256 price0 = getPrice(self, address(token0));
+        uint256 price1 = getPrice(self, address(token1));
 
         return uint160(
             Math.sqrt(Math.mulDiv(price0, 2 ** 96, price1))

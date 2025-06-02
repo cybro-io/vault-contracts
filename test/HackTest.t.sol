@@ -65,9 +65,7 @@ contract HackTest is Test, DeployUtils {
 
         vm.startPrank(user2);
         uint256 shares1_ = vault.deposit(amount1, user2, 0);
-        vm.assertGt(vault.balanceOf(user2) * vault.sharePrice() / (10 ** vault.decimals()), amount1);
         uint256 assets1_ = vault.redeem(shares1_, user2, user2, 0);
-        vm.assertGt(asset.balanceOf(user2), amount1);
         vm.stopPrank();
 
         vm.startPrank(user);

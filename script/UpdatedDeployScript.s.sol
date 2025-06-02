@@ -127,7 +127,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("    withdrawalFee", withdrawalFee);
         console.log("    performanceFee", performanceFee);
         console.log("    managementFee", managementFee);
-        updateProxyAdmins.push(_getProxyAdmin(address(feeProvider)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(feeProvider)));
         return feeProvider;
     }
 
@@ -163,7 +163,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.pool()), vaultData.pool);
         console.log("AaveVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployJuiceVault(DeployVault memory vaultData) internal returns (JuiceVault vault) {
@@ -188,7 +188,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.pool()), vaultData.pool);
         console.log("JuiceVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployYieldStakingVault(DeployVault memory vaultData) internal returns (YieldStakingVault vault) {
@@ -213,7 +213,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.staking()), address(vaultData.pool));
         console.log("YieldStakingVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployCompoundVault(DeployVault memory vaultData) internal returns (CompoundVault vault) {
@@ -237,7 +237,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("CompoundVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployCompoundVaultETH(DeployVault memory vaultData) internal returns (CompoundVaultETH vault) {
@@ -263,7 +263,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("CompoundVaultETH", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployInitVault(DeployVault memory vaultData) internal returns (InitVault vault) {
@@ -288,7 +288,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         vm.assertEq(address(vault.pool()), address(vaultData.pool));
         console.log("InitVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployStargateVault(DeployVault memory vaultData) internal returns (StargateVault vault) {
@@ -313,7 +313,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("StargateVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployBufferVault(DeployVault memory vaultData) internal returns (BufferVault vault) {
@@ -336,7 +336,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("BufferVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployGammaAlgebraVault(DeployVault memory vaultData) internal returns (GammaAlgebraVault vault) {
@@ -359,7 +359,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("GammaAlgebraVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deploySparkVault(DeployVault memory vaultData) internal returns (SparkVault vault) {
@@ -383,7 +383,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("SparkVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deploySteerCamelotVault(DeployVault memory vaultData) internal returns (SteerCamelotVault vault) {
@@ -406,7 +406,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("SteerCamelotVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployJonesCamelotVault(DeployVault memory vaultData) internal returns (JonesCamelotVault vault) {
@@ -429,7 +429,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("JonesCamelotVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployAcrossVault(DeployVault memory vaultData) internal returns (AcrossVault vault) {
@@ -452,7 +452,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("AcrossVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     function _deployCompoundLayerbankVault(DeployVault memory vaultData)
@@ -479,7 +479,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("CompoundLayerbankVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(vault)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
 
     // Examples for deploying other vaults
@@ -1852,7 +1852,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e7);
         _testVaultWorks(BaseVault(vaults[1]), 1e18);
@@ -1917,7 +1917,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e18);
         _testVaultWorks(BaseVault(address(fundLending)), 1e18);
@@ -1977,7 +1977,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e20);
         _testVaultWorks(BaseVault(address(fundLending)), 1e20);
@@ -2037,7 +2037,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e18);
         _testVaultWorks(BaseVault(address(fundLending)), 1e18);
@@ -2097,7 +2097,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e20);
         _testVaultWorks(BaseVault(address(fundLending)), 1e20);
@@ -2157,7 +2157,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e17);
         _testVaultWorks(BaseVault(address(fundLending)), 1e17);
@@ -2251,7 +2251,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e9);
         _testVaultWorks(BaseVault(vaults[1]), 1e9);
@@ -2312,7 +2312,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e7);
         _testVaultWorks(BaseVault(address(fundLending)), 1e7);
@@ -2372,7 +2372,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e9);
         _testVaultWorks(BaseVault(address(fundLending)), 1e9);
@@ -2466,7 +2466,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e9);
         _testVaultWorks(BaseVault(vaults[1]), 1e9);
@@ -2527,7 +2527,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e18);
         _testVaultWorks(BaseVault(address(fundLending)), 1e18);
@@ -2587,7 +2587,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e9);
         _testVaultWorks(BaseVault(address(fundLending)), 1e9);
@@ -2647,7 +2647,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e18);
         _testVaultWorks(BaseVault(address(fundLending)), 1e18);
@@ -2707,7 +2707,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e9);
         _testVaultWorks(BaseVault(address(fundLending)), 1e9);
@@ -2781,7 +2781,7 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         console.log("\n================================================\n");
 
         console.log("TESTS\n");
-        updateProxyAdmins.push(_getProxyAdmin(address(fundLending)));
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(fundLending)));
 
         _testVaultWorks(BaseVault(vaults[0]), 1e18);
         _testVaultWorks(BaseVault(address(fundLending)), 1e9);
@@ -2791,10 +2791,6 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _updateProxyAdminsOwners();
         vm.stopBroadcast();
         console.log("\nTESTS PASSED");
-    }
-
-    function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin) {
-        proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
     }
 
     function _updateProxyAdminsOwners() internal {

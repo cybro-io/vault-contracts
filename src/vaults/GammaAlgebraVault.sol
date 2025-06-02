@@ -115,11 +115,17 @@ contract GammaAlgebraVault is BaseVault {
     }
     /// @inheritdoc BaseVault
 
-    function _deposit(uint256 amount) internal override {
+    function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1, uint256 unusedAmountToken0, uint256 unusedAmountToken1) = _getAmounts(amount);
-
+        totalAssetsBefore = _totalAssetsPrecise();
+        (uint256 total0Before, uint256 total1Before) = hypervisor.getTotalAmounts();
         uniProxy.deposit(amount0, amount1, address(this), address(hypervisor), [uint256(0), 0, 0, 0]);
+        (uint256 total0After, uint256 total1After) = hypervisor.getTotalAmounts();
+        (int256 fees0, int256 fees1) =
+            (int256(total0After - total0Before) - int256(amount0), int256(total1After - total1Before) - int256(amount1));
+
+        totalAssetsBefore += _calculateInBaseToken(fees0 < 0 ? 0 : uint256(fees0), fees1 < 0 ? 0 : uint256(fees1));
 
         // Return unused tokens back to sender
         if (unusedAmountToken0 > 0) {
@@ -222,7 +228,9 @@ contract GammaAlgebraVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = address(oracleToken0) == address(0)
+            ? getCurrentSqrtPrice()
+            : DexPriceCheck.getSqrtPriceFromOracles(oracleToken0, oracleToken1, token0, token1);
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

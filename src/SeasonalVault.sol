@@ -922,7 +922,8 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise() - assets;
         VaultLogic.deposit(
             assets,
             maxSlippage,

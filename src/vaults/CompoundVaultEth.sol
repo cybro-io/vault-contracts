@@ -67,7 +67,8 @@ contract CompoundVaultETH is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 assets) internal virtual override {
+    function _deposit(uint256 assets) internal virtual override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         _unwrapETH(assets);
         pool.mint{value: assets}();
     }

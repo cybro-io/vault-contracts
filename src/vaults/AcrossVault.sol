@@ -262,7 +262,8 @@ contract AcrossVault is BaseVault {
      * @notice Deposits assets into the Across pool and stakes the received LP tokens
      * @param assets The amount of assets to deposit
      */
-    function _deposit(uint256 assets) internal override {
+    function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
+        totalAssetsBefore = _totalAssetsPrecise();
         // Add liquidity to the Across pool and receive LP tokens
         pool.addLiquidity(asset(), assets);
         // Stake the LP tokens in the AcceleratingDistributor

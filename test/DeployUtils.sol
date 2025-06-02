@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.29;
 
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
 import {JuiceVault, IJuicePool} from "../src/vaults/JuiceVault.sol";
 import {YieldStakingVault, IYieldStaking} from "../src/vaults/YieldStakingVault.sol";
@@ -43,6 +42,12 @@ import {Vm} from "forge-std/Vm.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {MockOracle} from "../src/mocks/MockOracle.sol";
+import {
+    TransparentUpgradeableProxy,
+    ProxyAdmin,
+    ITransparentUpgradeableProxy
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 contract DeployUtils is StdCheats {
     using SafeERC20 for IERC20Metadata;
@@ -70,6 +75,19 @@ contract DeployUtils is StdCheats {
 
     uint256 internal constant baseAdminPrivateKey = 0xba132ce;
     address internal constant baseAdmin = address(0x4EaC6e0b2bFdfc22cD15dF5A8BADA754FeE6Ad00);
+
+    function _getOnlyProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin) {
+        proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
+    }
+
+    function _getProxyAdmin(address vault) internal view returns (ProxyAdmin proxyAdmin, address admin_) {
+        proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(vault), ERC1967Utils.ADMIN_SLOT)))));
+        admin_ = proxyAdmin.owner();
+    }
+
+    function _getAdmin(address vault) internal view returns (address admin_) {
+        (, admin_) = _getProxyAdmin(vault);
+    }
 
     function _getOracleForToken(address token) internal view returns (IChainlinkOracle) {
         if (block.chainid == 81457) {

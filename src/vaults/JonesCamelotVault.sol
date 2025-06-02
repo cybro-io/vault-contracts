@@ -121,7 +121,8 @@ contract JonesCamelotVault is BaseVault {
     }
 
     /// @inheritdoc BaseVault
-    function _deposit(uint256 amount) internal override {
+    function _deposit(uint256 amount) internal override returns (uint256 totalAssetsBefore) {
+        router.claim(address(compounder), 0);
         _checkPriceManipulation();
         (uint256 amount0, uint256 amount1) = _getAmounts(amount);
         if (isToken0) {
@@ -129,6 +130,7 @@ contract JonesCamelotVault is BaseVault {
         } else {
             amount0 = _swap(false, amount0);
         }
+        totalAssetsBefore = _totalAssetsPrecise();
         (uint256 amount0Used, uint256 amount1Used,,) = router.deposit(
             LRouter.DepositInput({
                 amount0: amount0,
@@ -191,7 +193,9 @@ contract JonesCamelotVault is BaseVault {
      * @return Equivalent amount in base token
      */
     function _calculateInBaseToken(uint256 amount0, uint256 amount1) internal view returns (uint256) {
-        uint256 sqrtPrice = getCurrentSqrtPrice();
+        uint256 sqrtPrice = address(oracleToken0) == address(0)
+            ? getCurrentSqrtPrice()
+            : DexPriceCheck.getSqrtPriceFromOracles(oracleToken0, oracleToken1, token0, token1);
         return isToken0
             ? Math.mulDiv(amount1, 2 ** 192, sqrtPrice * sqrtPrice) + amount0
             : Math.mulDiv(amount0, sqrtPrice * sqrtPrice, 2 ** 192) + amount1;

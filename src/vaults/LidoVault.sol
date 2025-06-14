@@ -11,7 +11,6 @@ import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {OracleData} from "../libraries/OracleData.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {DexPriceCheck} from "../libraries/DexPriceCheck.sol";
 
 /**
  * @title LidoVault
@@ -86,28 +85,15 @@ contract LidoVault is BaseVault, IUniswapV3SwapCallback {
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
-    /**
-     * @notice Function to check if the price of the Dex pool is being manipulated
-     */
-    function _checkPriceManipulation() internal view {
-        DexPriceCheck.checkPriceManipulation(
-            oracle, address(wstETH), asset(), false, address(pool), getCurrentSqrtPrice(), !isToken0
-        );
-    }
-
     /// @inheritdoc BaseVault
     function _deposit(uint256 assets) internal override returns (uint256 totalAssetsBefore) {
-        _checkPriceManipulation();
         totalAssetsBefore = _totalAssetsPrecise();
         _swap(isToken0, assets);
-        _checkPriceManipulation();
     }
 
     /// @inheritdoc BaseVault
     function _redeem(uint256 shares) internal override returns (uint256 assets) {
-        _checkPriceManipulation();
         assets = _swap(!isToken0, shares * wstETH.balanceOf(address(this)) / totalSupply());
-        _checkPriceManipulation();
     }
 
     /**

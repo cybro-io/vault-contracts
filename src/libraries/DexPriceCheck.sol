@@ -50,56 +50,24 @@ library DexPriceCheck {
         address pool,
         uint256 currentSqrtPrice
     ) public view {
-        uint256 trustedSqrtPrice =
-            getTrustedSqrtPrice(oracleToken0_, oracleToken1_, token0_, token1_, isAlgebra, pool, false);
-        _checkPriceManipulation(currentSqrtPrice, trustedSqrtPrice);
+        uint256 trustedSqrtPrice = getTrustedSqrtPrice(oracleToken0_, oracleToken1_, token0_, token1_, isAlgebra, pool);
+        uint256 deviation = Math.mulDiv(currentSqrtPrice ** 2, deviationPrecision, trustedSqrtPrice ** 2);
+        require(
+            (deviation > deviationPrecision - maxDeviation) && (deviation < deviationPrecision + maxDeviation),
+            PriceManipulation()
+        );
     }
 
-    /**
-     * @notice This function serves for cases where we have only Token0/Token1 oracle
-     * and we don't have Token0/USD and Token1/USD oracles.
-     * @param oracle_Token0ToToken1 The address of the oracle
-     * @param isAlgebra Whether the pool is an Algebra pool
-     * @param pool The address of the pool
-     * @param currentSqrtPrice The current square root price of the pool
-     */
-    function checkPriceManipulation(
-        IChainlinkOracle oracle_Token0ToToken1,
-        address token0_,
-        address token1_,
-        bool isAlgebra,
-        address pool,
-        uint256 currentSqrtPrice,
-        bool invertRate
-    ) public view {
-        uint256 trustedSqrtPrice =
-            getTrustedSqrtPrice(oracle_Token0ToToken1, IChainlinkOracle(address(0)), token0_, token1_, isAlgebra, pool, invertRate);
-        _checkPriceManipulation(currentSqrtPrice, trustedSqrtPrice);
-    }
-
-    /**
-     * @notice Calculates the trusted square root price of the asset from the oracle
-     * @param oracleToken0_ The address of the first token oracle
-     * @param oracleToken1_ The address of the second token oracle
-     * @param token0_ The address of the first token
-     * @param token1_ The address of the second token
-     * @param isAlgebra Whether the pool is an Algebra pool
-     * @param pool The address of the pool
-     * @return trustedSqrtPrice The trusted square root price of the asset
-     */
     function getTrustedSqrtPrice(
         IChainlinkOracle oracleToken0_,
         IChainlinkOracle oracleToken1_,
         address token0_,
         address token1_,
         bool isAlgebra,
-        address pool,
-        bool invertRate_
+        address pool
     ) public view returns (uint256 trustedSqrtPrice) {
         if (address(oracleToken0_) == address(0)) {
             trustedSqrtPrice = getTwap(pool, isAlgebra);
-        } else if (address(oracleToken1_) == address(0)) {
-            trustedSqrtPrice = getSqrtPriceFromOracle(oracleToken0_, token0_, token1_, invertRate_);
         } else {
             trustedSqrtPrice = getSqrtPriceFromOracles(oracleToken0_, oracleToken1_, token0_, token1_);
         }
@@ -135,32 +103,6 @@ library DexPriceCheck {
     }
 
     /**
-     * @notice Calculates the price of the asset from the oracle
-     * @dev For example if oracle returns price in ETH/wstETH but price in the pool is wstETH/ETH,
-     * we need to invert the rate to get the correct price.
-     * @param oracle_ The address of the oracle
-     * @param invertRate_ Whether to invert the rate
-     * @return The price of the asset
-     */
-    function getSqrtPriceFromOracle(IChainlinkOracle oracle_, address token0_, address token1_, bool invertRate_)
-        public
-        view
-        returns (uint256)
-    {
-        uint256 price = oracle_.getPrice();
-        uint256 decimals_ = 10 ** oracle_.decimals();
-        if (invertRate_) {
-            price = Math.mulDiv(price, 2 ** 96, decimals_);
-        } else {
-            price = Math.mulDiv(2 ** 96, decimals_, price);
-        }
-        return Math.sqrt(price)
-            * Math.sqrt(
-                Math.mulDiv(10 ** IERC20Metadata(token0_).decimals(), 2 ** 96, 10 ** IERC20Metadata(token1_).decimals())
-            );
-    }
-
-    /**
      * @notice Calculates the TWAP (Time-Weighted Average Price) of the Dex pool
      * @dev This function calculates the average price of the Dex pool over a last 30 minutes
      * @param pool The address of the pool
@@ -185,19 +127,6 @@ library DexPriceCheck {
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
-
-    /**
-     * @notice Internal function that check prices difference
-     * @param currentPrice The current price in the pool
-     * @param trustedPrice The trusted price
-     */
-    function _checkPriceManipulation(uint256 currentPrice, uint256 trustedPrice) internal pure {
-        uint256 deviation = Math.mulDiv(currentPrice ** 2, deviationPrecision, trustedPrice ** 2);
-        require(
-            (deviation > deviationPrecision - maxDeviation) && (deviation < deviationPrecision + maxDeviation),
-            PriceManipulation()
-        );
-    }
 
     /**
      * @notice Abstract function to observe the price of the Dex pool

@@ -249,7 +249,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @notice Collects performance fees for multiple accounts
      * @param accounts The addresses of the accounts to collect fees for
      */
-    function collectPerformanceFee(address[] memory accounts) external onlyRole(MANAGER_ROLE) {
+    function collectPerformanceFee(address[] memory accounts) external virtual onlyRole(MANAGER_ROLE) {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         for (uint256 i = 0; i < accounts.length; i++) {
             uint256 assets = getBalanceInUnderlying(accounts[i]);
@@ -353,7 +353,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The withdrawal fee
      */
-    function quoteWithdrawalFee(address account) external view returns (uint256) {
+    function quoteWithdrawalFee(address account) external view virtual returns (uint256) {
         if (address(feeProvider) == address(0)) {
             return 0;
         }
@@ -373,7 +373,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The waterline
      */
-    function getWaterline(address account) external view returns (uint256) {
+    function getWaterline(address account) external view virtual returns (uint256) {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         return $.waterline[account];
     }
@@ -392,7 +392,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param account The address of the account
      * @return The profit
      */
-    function getProfit(address account) external view returns (uint256) {
+    function getProfit(address account) external view virtual returns (uint256) {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         uint256 balance = getBalanceInUnderlying(account);
         return balance > $.waterline[account] ? balance - $.waterline[account] : 0;
@@ -529,7 +529,11 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param owner The owner of the shares
      * @return The amount of assets after fee and the fee amount
      */
-    function _applyPerformanceFee(uint256 assets, uint256 shares, address owner) internal returns (uint256, uint256) {
+    function _applyPerformanceFee(uint256 assets, uint256 shares, address owner)
+        internal
+        virtual
+        returns (uint256, uint256)
+    {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
         uint256 balancePortion = $.waterline[owner] * shares / balanceOf(owner);
         $.waterline[owner] -= balancePortion;
@@ -557,7 +561,7 @@ abstract contract BaseVault is ERC20Upgradeable, PausableUpgradeable, AccessCont
      * @param to The receiver address
      * @param value The amount transferred
      */
-    function _update(address from, address to, uint256 value) internal override {
+    function _update(address from, address to, uint256 value) internal virtual override {
         require(from == address(0) || to == address(0), TransferNotAllowed());
         super._update(from, to, value);
     }

@@ -41,6 +41,7 @@ import {AcrossVault} from "../src/vaults/AcrossVault.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {CompoundLayerbankVault} from "../src/vaults/CompoundLayerbankVault.sol";
+import {LidoVault} from "../src/vaults/LidoVault.sol";
 
 contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
     using SafeERC20 for IERC20Metadata;
@@ -478,6 +479,30 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
 
         _assertBaseVault(BaseVault(address(vault)), vaultData);
         console.log("CompoundLayerbankVault", address(vault));
+        console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
+        updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
+    }
+
+    function _deployLidoVault(DeployVault memory vaultData) internal returns (LidoVault vault) {
+        vault = LidoVault(
+            address(
+                _deployLido(
+                    VaultSetup({
+                        asset: vaultData.asset,
+                        pool: vaultData.pool,
+                        feeProvider: address(vaultData.feeProvider),
+                        feeRecipient: vaultData.feeRecipient,
+                        name: vaultData.name,
+                        symbol: vaultData.symbol,
+                        admin: vaultData.admin,
+                        manager: vaultData.manager
+                    })
+                )
+            )
+        );
+
+        _assertBaseVault(BaseVault(address(vault)), vaultData);
+        console.log("LidoVault", address(vault));
         console.log("  asset", vm.getLabel(address(vaultData.asset)), address(vaultData.asset), "\n");
         updateProxyAdmins.push(_getOnlyProxyAdmin(address(vault)));
     }
@@ -2791,6 +2816,68 @@ contract UpdatedDeployScript is Script, StdCheats, DeployUtils {
         _updateProxyAdminsOwners();
         vm.stopBroadcast();
         console.log("\nTESTS PASSED");
+    }
+
+    function deployBaseLido() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+        vm.label(address(wstETH_BASE), "wstETH");
+        vm.label(address(weth_BASE), "WETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 10, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployLidoVault(
+                    DeployVault({
+                        asset: weth_BASE,
+                        pool: address(pool_WETH_wstETH_BASE),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro wstETH",
+                        symbol: "cywstETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+        vm.stopBroadcast();
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
+    }
+
+    function deployArbitrumLido() public {
+        vm.startBroadcast();
+        (, address admin,) = vm.readCallers();
+        vm.label(address(wstETH_ARBITRUM), "wstETH");
+        vm.label(address(weth_ARBITRUM), "WETH");
+
+        FeeProvider feeProvider = _deployFeeProvider(admin, 10, 0, 0, 0);
+        vaults.push(
+            address(
+                _deployLidoVault(
+                    DeployVault({
+                        asset: weth_ARBITRUM,
+                        pool: address(pool_WETH_wstETH_ARBITRUM),
+                        feeProvider: feeProvider,
+                        feeRecipient: feeRecipient,
+                        name: "Cybro wstETH",
+                        symbol: "cywstETH",
+                        admin: admin,
+                        manager: cybroManager
+                    })
+                )
+            )
+        );
+        _updateFeeProviderWhitelistedAndOwnership(feeProvider, cybroWallet, vaults[0]);
+        vm.stopBroadcast();
+        _testVaultWorks(BaseVault(vaults[0]), 1e18);
+        vm.startBroadcast();
+        _grantAndRevokeRoles(admin);
+        vm.stopBroadcast();
     }
 
     function _updateProxyAdminsOwners() internal {

@@ -48,6 +48,7 @@ import {
     ITransparentUpgradeableProxy
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {LidoVault} from "../src/vaults/LidoVault.sol";
 
 contract DeployUtils is StdCheats {
     using SafeERC20 for IERC20Metadata;
@@ -90,7 +91,7 @@ contract DeployUtils is StdCheats {
     }
 
     function _getOracleForToken(address token) internal view returns (IChainlinkOracle) {
-        if (block.chainid == 81457) {
+        if (block.chainid == CHAIN_ID_BLAST) {
             if (token == address(weth_BLAST)) {
                 return oracle_ETH_BLAST;
             } else if (token == address(wbtc_BLAST)) {
@@ -100,7 +101,7 @@ contract DeployUtils is StdCheats {
             } else if (token == address(blast_BLAST)) {
                 return oracle_BLAST_BLAST;
             }
-        } else if (block.chainid == 42161) {
+        } else if (block.chainid == CHAIN_ID_ARBITRUM) {
             if (token == address(weth_ARBITRUM)) {
                 return oracle_ETH_ARBITRUM;
             } else if (token == address(usdt_ARBITRUM)) {
@@ -112,7 +113,7 @@ contract DeployUtils is StdCheats {
             } else if (token == address(dai_ARBITRUM)) {
                 return oracle_DAI_ARBITRUM;
             }
-        } else if (block.chainid == 1) {
+        } else if (block.chainid == CHAIN_ID_ETHEREUM) {
             if (token == address(usdt_ETHEREUM)) {
                 return oracle_USDTUSD_ETHEREUM;
             } else if (token == address(weth_ETHEREUM)) {
@@ -124,7 +125,7 @@ contract DeployUtils is StdCheats {
             } else if (token == address(paxg_ETHEREUM)) {
                 return oracle_PAXGUSD_ETHEREUM;
             }
-        } else if (block.chainid == 8453) {
+        } else if (block.chainid == CHAIN_ID_BASE) {
             if (token == address(usdc_BASE)) {
                 return oracle_USDC_BASE;
             } else if (token == address(weth_BASE)) {
@@ -146,7 +147,7 @@ contract DeployUtils is StdCheats {
     }
 
     function _getAssetProvider(IERC20Metadata asset_) internal view returns (address assetProvider_) {
-        if (block.chainid == 81457) {
+        if (block.chainid == CHAIN_ID_BLAST) {
             if (asset_ == usdb_BLAST) {
                 assetProvider_ = assetProvider_USDB_BLAST;
             } else if (asset_ == weth_BLAST) {
@@ -156,7 +157,7 @@ contract DeployUtils is StdCheats {
             } else {
                 assetProvider_ = assetProvider_WBTC_BLAST;
             }
-        } else if (block.chainid == 42161) {
+        } else if (block.chainid == CHAIN_ID_ARBITRUM) {
             if (asset_ == usdt_ARBITRUM) {
                 assetProvider_ = assetProvider_USDT_ARBITRUM;
             } else if (asset_ == usdc_ARBITRUM) {
@@ -169,16 +170,20 @@ contract DeployUtils is StdCheats {
                 assetProvider_ = assetProvider_DAI_ARBITRUM;
             } else if (asset_ == weeth_ARBITRUM) {
                 assetProvider_ = assetProvider_WEETH_ARBITRUM;
+            } else if (asset_ == wstETH_ARBITRUM) {
+                assetProvider_ = assetProvider_wstETH_ARBITRUM;
             }
-        } else if (block.chainid == 8453) {
+        } else if (block.chainid == CHAIN_ID_BASE) {
             if (asset_ == usdc_BASE) {
                 assetProvider_ = assetProvider_USDC_BASE;
             } else if (asset_ == weth_BASE) {
                 assetProvider_ = assetProvider_WETH_BASE;
             } else if (asset_ == cbwbtc_BASE) {
                 assetProvider_ = assetProvider_CBWBTC_BASE;
+            } else if (asset_ == wstETH_BASE) {
+                assetProvider_ = assetProvider_wstETH_BASE;
             }
-        } else if (block.chainid == 1) {
+        } else if (block.chainid == CHAIN_ID_ETHEREUM) {
             if (asset_ == usdt_ETHEREUM) {
                 assetProvider_ = assetProvider_USDT_ETHEREUM;
             } else if (asset_ == weth_ETHEREUM) {
@@ -192,7 +197,7 @@ contract DeployUtils is StdCheats {
     }
 
     function dealTokens(IERC20Metadata token, address to, uint256 amount) public {
-        if (token == weth_BLAST || token == usdb_BLAST) {
+        if (token == weth_BLAST || token == usdb_BLAST || token == wstETH_ARBITRUM || token == wstETH_BASE) {
             vm.startPrank(_getAssetProvider(token));
             token.safeTransfer(to, amount);
             vm.stopPrank();
@@ -200,6 +205,13 @@ contract DeployUtils is StdCheats {
             deal(address(token), to, amount);
         }
     }
+
+    /* ========== CHAIN IDs ========== */
+
+    uint256 internal constant CHAIN_ID_ARBITRUM = 42161;
+    uint256 internal constant CHAIN_ID_BASE = 8453;
+    uint256 internal constant CHAIN_ID_ETHEREUM = 1;
+    uint256 internal constant CHAIN_ID_BLAST = 81457;
 
     /* ========== ASSETS ========== */
 
@@ -210,6 +222,7 @@ contract DeployUtils is StdCheats {
     IERC20Metadata wbtc_ARBITRUM = IERC20Metadata(address(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f));
     IERC20Metadata dai_ARBITRUM = IERC20Metadata(address(0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1));
     IERC20Metadata weeth_ARBITRUM = IERC20Metadata(address(0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe));
+    IERC20Metadata wstETH_ARBITRUM = IERC20Metadata(address(0x5979D7b546E38E414F7E9822514be443A4800529));
 
     /* BASE */
     IERC20Metadata weth_BASE = IERC20Metadata(address(0x4200000000000000000000000000000000000006));
@@ -218,6 +231,7 @@ contract DeployUtils is StdCheats {
     // coinbase wrapped btc
     IERC20Metadata cbwbtc_BASE = IERC20Metadata(address(0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf));
     IERC20Metadata susds_BASE = IERC20Metadata(address(0x5875eEE11Cf8398102FdAd704C9E96607675467a));
+    IERC20Metadata wstETH_BASE = IERC20Metadata(address(0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452));
 
     /* BLAST */
     IERC20Metadata usdb_BLAST = IERC20Metadata(address(0x4300000000000000000000000000000000000003));
@@ -284,6 +298,7 @@ contract DeployUtils is StdCheats {
     IChainlinkOracle oracle_USDC_BASE = IChainlinkOracle(address(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B));
     IChainlinkOracle oracle_BTC_BASE = IChainlinkOracle(address(0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F));
     IChainlinkOracle oracle_CBWBTC_BASE = IChainlinkOracle(address(0x07DA0E54543a844a80ABE69c8A12F22B3aA59f9D));
+    IChainlinkOracle oracle_WSTETH_ETH_BASE = IChainlinkOracle(address(0x43a5C292A453A3bF3606fa856197f09D7B74251a));
 
     /* ARBITRUM */
     IChainlinkOracle oracle_ETH_ARBITRUM = IChainlinkOracle(address(0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612));
@@ -291,6 +306,7 @@ contract DeployUtils is StdCheats {
     IChainlinkOracle oracle_USDT_ARBITRUM = IChainlinkOracle(address(0x3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7));
     IChainlinkOracle oracle_BTC_ARBITRUM = IChainlinkOracle(address(0x6ce185860a4963106506C203335A2910413708e9));
     IChainlinkOracle oracle_DAI_ARBITRUM = IChainlinkOracle(address(0xc5C8E77B397E531B8EC06BFb0048328B30E9eCfB));
+    IChainlinkOracle oracle_WSTETH_ETH_ARBITRUM = IChainlinkOracle(address(0xb523AE262D20A936BC152e6023996e46FDC2A95D));
 
     /* ETHEREUM */
     IChainlinkOracle oracle_ETHUSD_ETHEREUM = IChainlinkOracle(address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419));
@@ -314,16 +330,27 @@ contract DeployUtils is StdCheats {
     IUniswapV3Factory factory_UNI_ETHEREUM = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_ARB = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
     IUniswapV3Factory factory_UNI_BASE = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
+
+    /*   BASE   */
     IUniswapV3Pool pool_USDC_WETH_BASE = IUniswapV3Pool(address(0xd0b53D9277642d899DF5C87A3966A349A798F224));
+    IUniswapV3Pool pool_WETH_wstETH_BASE = IUniswapV3Pool(address(0x20E068D76f9E90b90604500B84c7e19dCB923e7e));
+
+    /*    ARBITRUM    */
+    IUniswapV3Pool pool_WETH_wstETH_ARBITRUM = IUniswapV3Pool(address(0x35218a1cbaC5Bbc3E57fd9Bd38219D37571b3537));
     IUniswapV3Pool pool_USDC_USDT_ARBITRUM = IUniswapV3Pool(address(0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6));
+
+    /*   ETHEREUM   */
     IUniswapV3Pool pool_ACX_WETH_ETHEREUM = IUniswapV3Pool(address(0x508acdC358be2ed126B1441F0Cff853dEc49d40F));
     IUniswapV3Pool pool_USDT_WETH_ETHEREUM = IUniswapV3Pool(address(0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36));
     IUniswapV3Pool pool_USDC_WETH_ETHEREUM = IUniswapV3Pool(address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640));
     IUniswapV3Pool pool_WBTC_WETH_ETHEREUM = IUniswapV3Pool(address(0xCBCdF9626bC03E24f779434178A73a0B4bad62eD));
     IUniswapV3Pool pool_USDT_USDC_ETHEREUM = IUniswapV3Pool(address(0x3416cF6C708Da44DB2624D63ea0AAef7113527C6));
     IUniswapV3Pool pool_USDC_USDT_OPTIMISM = IUniswapV3Pool(address(0xA73C628eaf6e283E26A7b1f8001CF186aa4c0E8E));
-    IUniswapV3Pool pool_USDC_USDT_CORE = IUniswapV3Pool(address(0x74B8d6eA8E0284C2619922FC0F5d872Fe32CEc2f));
     IUniswapV3Pool pool_USDC_PAXG_ETHEREUM = IUniswapV3Pool(address(0xB431c70f800100D87554ac1142c4A94C5Fe4C0C4));
+
+    /*   CORE   */
+    IUniswapV3Pool pool_USDC_USDT_CORE = IUniswapV3Pool(address(0x74B8d6eA8E0284C2619922FC0F5d872Fe32CEc2f));
+
     INonfungiblePositionManager positionManager_UNI_BLAST =
         INonfungiblePositionManager(payable(address(0xB218e4f7cF0533d4696fDfC419A0023D33345F28)));
     INonfungiblePositionManager positionManager_UNI_ARB =
@@ -351,12 +378,14 @@ contract DeployUtils is StdCheats {
     address assetProvider_WBTC_ARBITRUM = address(0x078f358208685046a11C85e8ad32895DED33A249);
     address assetProvider_DAI_ARBITRUM = address(0x82E64f49Ed5EC1bC6e43DAD4FC8Af9bb3A2312EE);
     address assetProvider_WEETH_ARBITRUM = address(0x8437d7C167dFB82ED4Cb79CD44B7a32A1dd95c77);
+    address assetProvider_wstETH_ARBITRUM = address(0x513c7E3a9c69cA3e22550eF58AC1C0088e918FFf);
 
     /* BASE */
 
     address assetProvider_WETH_BASE = address(0x6446021F4E396dA3df4235C62537431372195D38);
     address assetProvider_USDC_BASE = address(0x0B0A5886664376F59C351ba3f598C8A8B4D0A6f3);
     address assetProvider_CBWBTC_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb); // 2,459 WBTC
+    address assetProvider_wstETH_BASE = address(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
 
     /* ETHEREUM */
 
@@ -640,7 +669,7 @@ contract DeployUtils is StdCheats {
 
     function _deployStargate(VaultSetup memory vaultData) internal returns (IVault stargateVault_) {
         StargateSetup memory stargateSetup;
-        if (block.chainid == 8453) {
+        if (block.chainid == CHAIN_ID_BASE) {
             // base
             IUniswapV3Factory factory = IUniswapV3Factory(address(0x33128a8fC17869897dcE68Ed026d694621f6FDfD));
             stargateSetup.stg = IERC20Metadata(address(0xE3B53AF74a4BF62Ae5511055290838050bf764Df));
@@ -652,7 +681,7 @@ contract DeployUtils is StdCheats {
                 stargateSetup.currentSwapPool =
                     IUniswapV3Pool(factory.getPool(address(usdc_BASE), address(weth_BASE), 500));
             }
-        } else if (block.chainid == 42161) {
+        } else if (block.chainid == CHAIN_ID_ARBITRUM) {
             // arbitrum
             IUniswapV3Factory factory = IUniswapV3Factory(address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
             stargateSetup.stg = IERC20Metadata(address(0x6694340fc020c5E6B96567843da2df01b2CE1eb6));
@@ -698,7 +727,7 @@ contract DeployUtils is StdCheats {
 
     function _deployGammaAlgebra(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
         address uniProxy_;
-        if (block.chainid == 42161) {
+        if (block.chainid == CHAIN_ID_ARBITRUM) {
             // arbitrum
             uniProxy_ = address(uniProxy_gamma_ARBITRUM);
         } else {
@@ -730,7 +759,7 @@ contract DeployUtils is StdCheats {
 
     function _deployGammaAlgebraForTests(VaultSetup memory vaultData) internal returns (IVault gammaVault_) {
         address uniProxy_;
-        if (block.chainid == 42161) {
+        if (block.chainid == CHAIN_ID_ARBITRUM) {
             // arbitrum
             uniProxy_ = address(uniProxy_gamma_ARBITRUM);
         } else {
@@ -1018,6 +1047,42 @@ contract DeployUtils is StdCheats {
                         abi.encodeCall(
                             CompoundLayerbankVault.initialize,
                             (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployLido(VaultSetup memory vaultData) internal returns (IVault lidoVault_) {
+        IERC20Metadata wstETH_;
+        IChainlinkOracle oracle_;
+        if (block.chainid == CHAIN_ID_ARBITRUM) {
+            wstETH_ = wstETH_ARBITRUM;
+            oracle_ = oracle_WSTETH_ETH_ARBITRUM;
+        } else if (block.chainid == CHAIN_ID_BASE) {
+            wstETH_ = wstETH_BASE;
+            oracle_ = oracle_WSTETH_ETH_BASE;
+        } else {
+            revert();
+        }
+        lidoVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new LidoVault(
+                                vaultData.asset,
+                                IUniswapV3Pool(vaultData.pool), // here pool is Uniswap V3 pool
+                                oracle_,
+                                wstETH_,
+                                IFeeProvider(vaultData.feeProvider),
+                                vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            LidoVault.initialize, (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
                         )
                     )
                 )

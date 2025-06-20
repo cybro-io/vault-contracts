@@ -51,7 +51,7 @@ library DexPriceCheck {
         uint256 currentSqrtPrice
     ) public view {
         uint256 trustedSqrtPrice = getTrustedSqrtPrice(oracleToken0_, oracleToken1_, token0_, token1_, isAlgebra, pool);
-        uint256 deviation = (currentSqrtPrice ** 2) * deviationPrecision / (trustedSqrtPrice ** 2);
+        uint256 deviation = Math.mulDiv(currentSqrtPrice ** 2, deviationPrecision, trustedSqrtPrice ** 2);
         require(
             (deviation > deviationPrecision - maxDeviation) && (deviation < deviationPrecision + maxDeviation),
             PriceManipulation()

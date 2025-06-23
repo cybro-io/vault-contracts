@@ -19,6 +19,8 @@ import {BlasterSwapV2Vault} from "../src/dex/BlasterSwapV2Vault.sol";
 import {BlasterSwapV3Vault} from "../src/dex/BlasterSwapV3Vault.sol";
 import {Swapper, VaultType} from "./libraries/Swapper.sol";
 import {DexPriceCheck} from "../src/libraries/DexPriceCheck.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {ERC4626Mixin} from "../src/ERC4626Mixin.sol";
 
 abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     using MessageHashUtils for bytes32;
@@ -35,6 +37,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     address user3;
     address user4;
     address user5;
+    address user6;
 
     address feeRecipient;
     IFeeProvider feeProvider;
@@ -62,6 +65,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
     uint256[] minAmounts;
     uint256 specialWarpTime;
 
+    bool is4626;
+    mapping(address user => uint256 balanceBeforeSmth) balancesBefore;
+
     function setUp() public virtual {
         adminPrivateKey = baseAdminPrivateKey;
         admin = vm.addr(baseAdminPrivateKey);
@@ -70,16 +76,18 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         user3 = address(1020202);
         user4 = address(1030303);
         user5 = address(1001001);
+        user6 = address(1004004);
         feeRecipient = address(102);
         vm.label(admin, "Admin");
         vm.label(user, "User");
         vm.label(user2, "User2");
         vm.label(user3, "User3");
         vm.label(user5, "User5");
+        vm.label(user6, "User6");
         vm.label(feeRecipient, "FeeRecipient");
         depositFee = 100;
         withdrawalFee = 200;
-        performanceFee = 300;
+        performanceFee = is4626 ? 0 : 300;
         managementFee = 1000;
         feePrecision = 1e5;
         name = "nameVault";
@@ -142,6 +150,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             dealTokens(asset_, user2, amount_);
             dealTokens(asset_, user3, amount_);
             dealTokens(asset_, user4, amount_);
+            dealTokens(asset_, user6, amount_);
             dealTokens(asset_, admin, amount_);
         }
         vm.startPrank(user);
@@ -154,6 +163,9 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(user4);
+        asset_.forceApprove(vaultAddress, amount_);
+        vm.stopPrank();
+        vm.startPrank(user6);
         asset_.forceApprove(vaultAddress, amount_);
         vm.stopPrank();
         vm.startPrank(admin);
@@ -259,9 +271,11 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             }
         }
 
-        vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 95);
+        if (!is4626) {
+            vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 95);
+            vm.assertApproxEqAbs(vault.getProfit(_user), 0, amount / 100);
+        }
         vm.assertApproxEqAbs(vault.getBalanceInUnderlying(_user), amountWithFee, amount / 95);
-        vm.assertApproxEqAbs(vault.getProfit(_user), 0, amount / 100);
         vm.assertEq(vault.totalSupply() - totalSupplyBefore, shares);
         vm.assertEq(vault.balanceOf(_user), shares);
         vm.assertApproxEqAbs(shares * vault.sharePrice() / (10 ** vault.decimals()), amountWithFee, amount / 100);
@@ -373,6 +387,84 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
 
     function _middleInteractions() internal virtual {}
 
+    function _test4626(uint256 amount_) internal virtual {
+        IERC4626 vault4626 = IERC4626(address(vault));
+
+        {
+            uint32 maxSlippage_ = ERC4626Mixin(address(vault)).getMaxSlippageForPreview();
+            console.log("maxSlippage", maxSlippage_);
+        }
+
+        // deposit
+        vm.startPrank(user6);
+        balancesBefore[user6] = vault4626.balanceOf(user6);
+        uint256 sharesPreview = vault4626.previewDeposit(amount_);
+        uint256 shares = vault4626.deposit(amount_, user6);
+        console.log("\nshares preview", sharesPreview);
+        console.log("shares", shares);
+        console.log("convertToAssets", vault4626.convertToAssets(shares));
+
+        vm.assertEq(vault4626.balanceOf(user6), balancesBefore[user6] + shares);
+        // if slippage loss is not applied, then sharesPreview will always be lower
+        vm.assertTrue(sharesPreview <= shares);
+
+        // redeem
+        uint256 assetsPreview = vault4626.previewRedeem(shares / 2);
+        uint256 assets = vault4626.redeem(shares / 2, user6, user6);
+        console.log("\nassets preview", assetsPreview);
+        console.log("assets", assets);
+        console.log("convertToShares", vault4626.convertToShares(assets));
+
+        vm.assertEq(assets, asset.balanceOf(user6));
+        vm.assertApproxEqAbs(vault4626.balanceOf(user6), shares / 2, shares / 100 + 1);
+        vm.assertApproxEqAbs(asset.balanceOf(user6), amount_ / 2, amount_ / 100);
+
+        vault4626.approve(user5, shares);
+        vm.stopPrank();
+
+        vm.startPrank(user5);
+        balancesBefore[user5] = vault.balanceOf(user5);
+        uint256 balanceOf6 = vault4626.balanceOf(user6);
+        vault4626.transferFrom(user6, user5, balanceOf6);
+        vm.assertEq(vault4626.balanceOf(user5), balancesBefore[user5] + balanceOf6);
+
+        balancesBefore[user5] = asset.balanceOf(user5);
+        uint256 assetsPreview2 = vault4626.previewRedeem(vault4626.balanceOf(user5));
+        uint256 assetsAdd = vault4626.redeem(vault4626.balanceOf(user5), user5, user5);
+        vm.assertTrue(assetsPreview2 <= assetsAdd);
+        console.log("\nassetsPreview2", assetsPreview2);
+        console.log("assetsAdd", assetsAdd, "\n");
+        vm.assertEq(balancesBefore[user5] + assetsAdd, asset.balanceOf(user5));
+
+        vm.stopPrank();
+
+        // check reverts
+
+        vm.startPrank(admin);
+        vm.expectRevert();
+        vault.collectPerformanceFee(new address[](0));
+        vm.expectRevert();
+        vault.getWaterline(user6);
+        vm.expectRevert();
+        vault.getProfit(user6);
+        vm.stopPrank();
+
+        vm.assertEq(vault4626.maxRedeem(user6), vault4626.balanceOf(user6));
+        vm.assertEq(vault4626.maxDeposit(user6), type(uint256).max);
+        vm.assertEq(vault4626.maxRedeem(user5), vault4626.balanceOf(user5));
+        vm.assertEq(vault4626.maxDeposit(user5), type(uint256).max);
+    }
+
+    function _checkPerformanceFee() internal {
+        vm.startPrank(admin);
+        uint256 depositedBalanceBefore = vault.getWaterline(admin);
+        address[] memory users = new address[](2);
+        users[0] = admin;
+        vault.collectPerformanceFee(users);
+        assert(vault.getWaterline(admin) >= depositedBalanceBefore);
+        vm.stopPrank();
+    }
+
     function baseVaultTest(bool needToProvide) public fork {
         _initializeNewVault();
         _provideAndApprove(needToProvide);
@@ -403,12 +495,8 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         _increaseVaultAssets();
 
         if (feeProvider != IFeeProvider(address(0))) {
+            if (!is4626) _checkPerformanceFee();
             vm.startPrank(admin);
-            uint256 depositedBalanceBefore = vault.getWaterline(admin);
-            address[] memory users = new address[](2);
-            users[0] = admin;
-            vault.collectPerformanceFee(users);
-            assert(vault.getWaterline(admin) >= depositedBalanceBefore);
             vm.warp(block.timestamp + specialWarpTime);
             uint256 totalSupplyBefore = vault.totalSupply();
             vault.collectManagementFee();
@@ -418,6 +506,7 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             vm.assertEq(vault.totalSupply(), totalSupplyBefore);
             vm.stopPrank();
         }
+        if (is4626) _test4626(amount);
         _checkEmergencyWithdraw(admin);
         _checkWithdrawFunds();
     }

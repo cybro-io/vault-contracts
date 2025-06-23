@@ -14,6 +14,7 @@ abstract contract ERC4626Mixin is BaseVault {
     using SafeERC20 for IERC20Metadata;
 
     error NotImplemented();
+    error PerformanceFeeNotZero();
 
     /// @custom:storage-location erc7201:cybro.storage.ERC4626Mixin
     struct ERC4626MixinStorage {
@@ -31,6 +32,12 @@ abstract contract ERC4626Mixin is BaseVault {
         0x6e11342261bfc2856d925166ae0cad24c6e018a9ba3525ef912dc39716e49200;
 
     uint32 public constant slippagePrecision = 10000;
+
+    function __ERC4626Mixin_init() internal view onlyInitializing {
+        if (address(feeProvider) != address(0)) {
+            require(feeProvider.getPerformanceFee(address(0)) == 0, PerformanceFeeNotZero());
+        }
+    }
 
     /* ========== VIEW FUNCTIONS ========== */
 
@@ -78,20 +85,6 @@ abstract contract ERC4626Mixin is BaseVault {
     }
 
     /**
-     * @notice This function is used to quote the withdrawal fee for an account.
-     * Unlike BaseVault, this only considers withdrawalFee since performanceFee should be 0 in these implementations.
-     * @param account The address of the account.
-     * @return The withdrawal fee.
-     */
-    function quoteWithdrawalFee(address account) public view virtual override returns (uint256) {
-        if (address(feeProvider) == address(0)) {
-            return 0;
-        }
-        uint256 assets = getBalanceInUnderlying(account);
-        return assets * feeProvider.getWithdrawalFee(account) / feePrecision;
-    }
-
-    /**
      * @notice This function is used to get the max slippage for preview functions.
      * For vaults that implement their own maxSlippage, this function returns the vault's maxSlippage value.
      * @return The max slippage for preview functions.
@@ -133,56 +126,11 @@ abstract contract ERC4626Mixin is BaseVault {
         assets = redeem(shares, receiver, owner, 0);
     }
 
-    /**
-     * @notice Overrides the BaseVault deposit function to avoid unnecessary waterline calculations.
-     * @dev See {BaseVault-deposit}.
-     */
-    function deposit(uint256 assets, address receiver, uint256 minShares)
-        public
-        virtual
-        override
-        whenNotPaused
-        returns (uint256 shares)
-    {
-        if (assets == 0) {
-            return 0;
-        }
-        uint256 totalSupplyBefore = totalSupply();
-        IERC20Metadata(asset()).safeTransferFrom(_msgSender(), address(this), assets);
-        uint256 depositFee;
-        (assets, depositFee) = address(feeProvider) == address(0) ? (assets, 0) : _applyDepositFee(assets);
-
-        uint256 totalAssetsBefore = _deposit(assets);
-
-        uint256 totalAssetsAfter = _totalAssetsPrecise();
-        uint256 increase = totalAssetsAfter - totalAssetsBefore;
-
-        shares = (totalAssetsBefore == 0 || totalSupplyBefore == 0)
-            ? increase
-            : totalSupplyBefore * increase / totalAssetsBefore;
-
-        require(shares >= minShares, MinShares());
-
-        _mint(receiver, shares);
-
-        emit Deposit(_msgSender(), receiver, increase, shares, depositFee, totalSupplyBefore, totalAssetsBefore);
-    }
-
     /* ========== INTERNAL FUNCTIONS ========== */
 
     /// @notice Overrides the BaseVault _update function to allow transfers.
     function _update(address from, address to, uint256 value) internal virtual override {
         ERC20Upgradeable._update(from, to, value);
-    }
-
-    function _applyPerformanceFee(uint256 assets, uint256, address)
-        internal
-        pure
-        virtual
-        override
-        returns (uint256, uint256)
-    {
-        return (assets, 0);
     }
 
     /**
@@ -193,19 +141,5 @@ abstract contract ERC4626Mixin is BaseVault {
     function _applySlippageLoss(uint256 assets) internal view virtual returns (uint256) {
         ERC4626MixinStorage storage $ = _getERC4626MixinStorage();
         return assets - (assets * $.maxSlippageForPreview) / slippagePrecision;
-    }
-
-    /* ========== NOT IMPLEMENTED FUNCTIONS ========== */
-
-    function getWaterline(address) public pure virtual override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function getProfit(address) public pure virtual override returns (uint256) {
-        revert NotImplemented();
-    }
-
-    function collectPerformanceFee(address[] memory) public pure virtual override {
-        revert NotImplemented();
     }
 }

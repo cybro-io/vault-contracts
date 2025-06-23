@@ -271,10 +271,8 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
             }
         }
 
-        if (!is4626) {
-            vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 95);
-            vm.assertApproxEqAbs(vault.getProfit(_user), 0, amount / 100);
-        }
+        vm.assertApproxEqAbs(vault.getWaterline(_user), amountWithFee, amount / 95);
+        vm.assertApproxEqAbs(vault.getProfit(_user), 0, amount / 100);
         vm.assertApproxEqAbs(vault.getBalanceInUnderlying(_user), amountWithFee, amount / 95);
         vm.assertEq(vault.totalSupply() - totalSupplyBefore, shares);
         vm.assertEq(vault.balanceOf(_user), shares);
@@ -436,17 +434,6 @@ abstract contract AbstractBaseVaultTest is Test, DeployUtils {
         console.log("assetsAdd", assetsAdd, "\n");
         vm.assertEq(balancesBefore[user5] + assetsAdd, asset.balanceOf(user5));
 
-        vm.stopPrank();
-
-        // check reverts
-
-        vm.startPrank(admin);
-        vm.expectRevert();
-        vault.collectPerformanceFee(new address[](0));
-        vm.expectRevert();
-        vault.getWaterline(user6);
-        vm.expectRevert();
-        vault.getProfit(user6);
         vm.stopPrank();
 
         vm.assertEq(vault4626.maxRedeem(user6), vault4626.balanceOf(user6));

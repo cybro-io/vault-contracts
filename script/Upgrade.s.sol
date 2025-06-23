@@ -48,7 +48,7 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         );
         proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(address(seasonalVault)), address(newImpl), bytes(""));
         vm.stopBroadcast();
-        vm.assertApproxEqAbs(seasonalVault.totalAssets(), totalAssetsBefore, totalAssetsBefore / 10000);
+        vm.assertEq(seasonalVault.totalAssets(), totalAssetsBefore);
         vm.assertEq(seasonalVault.getPerformanceFee(address(admin_)), 0);
         _testVaultWorks(BaseVault(address(seasonalVault)), 400 * (10 ** seasonalVault.decimals()));
     }

@@ -16,21 +16,6 @@ abstract contract ERC4626Mixin is BaseVault {
     error NotImplemented();
     error PerformanceFeeNotZero();
 
-    /// @custom:storage-location erc7201:cybro.storage.ERC4626Mixin
-    struct ERC4626MixinStorage {
-        uint32 maxSlippageForPreview;
-    }
-
-    function _getERC4626MixinStorage() private pure returns (ERC4626MixinStorage storage $) {
-        assembly {
-            $.slot := ERC4626_MIXIN_STORAGE_LOCATION
-        }
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("cybro.storage.ERC4626Mixin")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant ERC4626_MIXIN_STORAGE_LOCATION =
-        0x6e11342261bfc2856d925166ae0cad24c6e018a9ba3525ef912dc39716e49200;
-
     uint32 public constant slippagePrecision = 10000;
 
     function __ERC4626Mixin_init() internal view onlyInitializing {
@@ -89,21 +74,11 @@ abstract contract ERC4626Mixin is BaseVault {
      * For vaults that implement their own maxSlippage, this function returns the vault's maxSlippage value.
      * @return The max slippage for preview functions.
      */
-    function getMaxSlippageForPreview() external view virtual returns (uint32) {
-        ERC4626MixinStorage storage $ = _getERC4626MixinStorage();
-        return $.maxSlippageForPreview;
+    function getMaxSlippageForPreview() public view virtual returns (uint32) {
+        return 0;
     }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
-
-    /**
-     * @notice This function is used to set the max slippage for preview functions.
-     * @param maxSlippageForPreview_ The max slippage for preview functions.
-     */
-    function setMaxSlippageForPreview(uint32 maxSlippageForPreview_) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
-        ERC4626MixinStorage storage $ = _getERC4626MixinStorage();
-        $.maxSlippageForPreview = maxSlippageForPreview_;
-    }
 
     /**
      * @notice This is a wrapper function that implements the IERC4626 deposit interface.
@@ -139,7 +114,6 @@ abstract contract ERC4626Mixin is BaseVault {
      * @return The amount of assets after the slippage loss.
      */
     function _applySlippageLoss(uint256 assets) internal view virtual returns (uint256) {
-        ERC4626MixinStorage storage $ = _getERC4626MixinStorage();
-        return assets - (assets * $.maxSlippageForPreview) / slippagePrecision;
+        return assets - (assets * getMaxSlippageForPreview()) / slippagePrecision;
     }
 }

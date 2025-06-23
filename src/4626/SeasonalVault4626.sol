@@ -35,7 +35,7 @@ contract SeasonalVault4626 is SeasonalVault, ERC4626Mixin {
     /* ========== VIEW FUNCTIONS ========== */
 
     /// @notice This vault uses maxSlippage that is declared in SeasonalVault
-    function getMaxSlippageForPreview() external view override returns (uint32) {
+    function getMaxSlippageForPreview() public view override returns (uint32) {
         return maxSlippage;
     }
 
@@ -43,17 +43,5 @@ contract SeasonalVault4626 is SeasonalVault, ERC4626Mixin {
 
     function _update(address from, address to, uint256 value) internal override(BaseVault, ERC4626Mixin) {
         ERC4626Mixin._update(from, to, value);
-    }
-
-    /// @notice This vault uses maxSlippage that is declared in SeasonalVault
-    function _applySlippageLoss(uint256 assets) internal view override returns (uint256) {
-        return assets - (assets * maxSlippage) / slippagePrecision;
-    }
-
-    /* ========== NOT IMPLEMENTED FUNCTIONS ========== */
-
-    /// @notice This vault uses maxSlippage that is declared in SeasonalVault
-    function setMaxSlippageForPreview(uint32) external pure override {
-        revert NotImplemented();
     }
 }

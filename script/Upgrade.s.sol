@@ -84,7 +84,6 @@ contract Upgrade is Script, StdCheats, DeployUtils {
         if (success) {
             vm.assertEq(abi.decode(returnData, (uint32)), maxSlippageForPreview);
         }
-        console.log("\nmaximum slippage for preview functions", maxSlippageForPreview, "\n");
         if (maxSlippageForPreview > 0) {
             vm.assertLt(previewDeposit, shares2);
             vm.assertLt(previewRedeem, assets2);

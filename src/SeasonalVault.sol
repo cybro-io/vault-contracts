@@ -588,11 +588,11 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
 
     INonfungiblePositionManager public immutable positionManager;
 
-    /// @notice Maximum slippage tolerance
-    uint32 public maxSlippage;
-
     /* ========== STATE VARIABLES =========== */
     // Always add to the bottom! Contract is upgradeable
+
+    /// @notice Maximum slippage tolerance
+    uint32 public maxSlippage;
 
     PositionsLogic.Positions positions;
 
@@ -661,7 +661,18 @@ contract SeasonalVault is BaseVault, IUniswapV3SwapCallback, IERC721Receiver {
      * @param symbol Symbol of the vault token
      * @param manager Address managing the vault
      */
-    function initialize(address admin, string memory name, string memory symbol, address manager) public initializer {
+    function initialize(address admin, string memory name, string memory symbol, address manager)
+        public
+        virtual
+        initializer
+    {
+        __SeasonalVault_init(admin, name, symbol, manager);
+    }
+
+    function __SeasonalVault_init(address admin, string memory name, string memory symbol, address manager)
+        internal
+        onlyInitializing
+    {
         IERC20Metadata(token0).forceApprove(address(positionManager), type(uint256).max);
         IERC20Metadata(token1).forceApprove(address(positionManager), type(uint256).max);
         IERC20Metadata(token0).forceApprove(address(token0Vault), type(uint256).max);

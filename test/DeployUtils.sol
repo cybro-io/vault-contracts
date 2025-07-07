@@ -5,7 +5,6 @@ pragma solidity ^0.8.29;
 import {AaveVault, IERC20Metadata} from "../src/vaults/AaveVault.sol";
 import {JuiceVault, IJuicePool} from "../src/vaults/JuiceVault.sol";
 import {YieldStakingVault, IYieldStaking} from "../src/vaults/YieldStakingVault.sol";
-import {BufferVaultMock} from "../src/mocks/BufferVaultMock.sol";
 import {StargateVault, IStargateStaking, IERC20Metadata, IUniswapV3Pool} from "../src/vaults/StargateVault.sol";
 import {IVault} from "../src/interfaces/IVault.sol";
 import {IFeeProvider} from "../src/FeeProvider.sol";
@@ -49,6 +48,7 @@ import {
 } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {LidoVault} from "../src/vaults/LidoVault.sol";
+import {BufferVault} from "../src/vaults/BufferVault.sol";
 
 contract DeployUtils is StdCheats {
     using SafeERC20 for IERC20Metadata;
@@ -648,6 +648,27 @@ contract DeployUtils is StdCheats {
 
     function _deployBuffer(VaultSetup memory vaultData) internal returns (IVault bufferVault_) {
         bufferVault_ = IVault(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(
+                            new BufferVault(
+                                vaultData.asset, IFeeProvider(vaultData.feeProvider), vaultData.feeRecipient
+                            )
+                        ),
+                        vaultData.admin,
+                        abi.encodeCall(
+                            BufferVault.initialize,
+                            (vaultData.admin, vaultData.name, vaultData.symbol, vaultData.manager)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _deployBufferMock(VaultSetup memory vaultData) internal returns (IVault bufferMockVault_) {
+        bufferMockVault_ = IVault(
             payable(
                 address(
                     new TransparentUpgradeableProxy(

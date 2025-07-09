@@ -18,6 +18,7 @@ import {OneClickIndex} from "../src/OneClickIndex.sol";
 import {FeeProvider} from "../src/FeeProvider.sol";
 import {Swapper} from "./libraries/Swapper.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import {SeasonalVault4626} from "../src/4626/SeasonalVault4626.sol";
 
 abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
     IERC20Metadata token0;
@@ -412,16 +413,27 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
             address(
                 new TransparentUpgradeableProxy(
                     address(
-                        new SeasonalVault(
-                            payable(address(positionManager)),
-                            asset,
-                            address(token0),
-                            address(token1),
-                            feeProvider,
-                            feeRecipient,
-                            token0Vault,
-                            token1Vault
-                        )
+                        is4626
+                            ? new SeasonalVault4626(
+                                payable(address(positionManager)),
+                                asset,
+                                address(token0),
+                                address(token1),
+                                feeProvider,
+                                feeRecipient,
+                                token0Vault,
+                                token1Vault
+                            )
+                            : new SeasonalVault(
+                                payable(address(positionManager)),
+                                asset,
+                                address(token0),
+                                address(token1),
+                                feeProvider,
+                                feeRecipient,
+                                token0Vault,
+                                token1Vault
+                            )
                     ),
                     admin,
                     abi.encodeCall(SeasonalVault.initialize, (admin, name, symbol, admin))
@@ -603,7 +615,7 @@ abstract contract ForkSeasonalVaultBaseTest is AbstractBaseVaultTest {
 }
 
 contract ForkSeasonalVaultTestBaseChainWeth is ForkSeasonalVaultBaseTest {
-    function setUp() public override(ForkSeasonalVaultBaseTest) {
+    function setUp() public virtual override(ForkSeasonalVaultBaseTest) {
         forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
         super.setUp();
         positionManager = positionManager_UNI_BASE;
@@ -621,7 +633,7 @@ contract ForkSeasonalVaultTestBaseChainWeth is ForkSeasonalVaultBaseTest {
 }
 
 contract ForkSeasonalVaultTestBaseChainCBwbtcUSDC is ForkSeasonalVaultBaseTest {
-    function setUp() public override(ForkSeasonalVaultBaseTest) {
+    function setUp() public virtual override(ForkSeasonalVaultBaseTest) {
         forkId = vm.createSelectFork("base", lastCachedBlockid_BASE);
         super.setUp();
         positionManager = positionManager_UNI_BASE;
@@ -639,7 +651,7 @@ contract ForkSeasonalVaultTestBaseChainCBwbtcUSDC is ForkSeasonalVaultBaseTest {
 }
 
 contract ForkSeasonalVaultTestArbitrumBtc is ForkSeasonalVaultBaseTest {
-    function setUp() public override(ForkSeasonalVaultBaseTest) {
+    function setUp() public virtual override(ForkSeasonalVaultBaseTest) {
         vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
         positionManager = positionManager_UNI_ARB;
@@ -660,7 +672,7 @@ contract ForkSeasonalVaultTestArbitrumBtc is ForkSeasonalVaultBaseTest {
 // we haven't nice pools for BTCUSDC pair with uniswap v3 on arbitrum
 
 contract ForkSeasonalVaultTestArbitrumWeth is ForkSeasonalVaultBaseTest {
-    function setUp() public override(ForkSeasonalVaultBaseTest) {
+    function setUp() public virtual override(ForkSeasonalVaultBaseTest) {
         vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
         positionManager = positionManager_UNI_ARB;
@@ -677,7 +689,7 @@ contract ForkSeasonalVaultTestArbitrumWeth is ForkSeasonalVaultBaseTest {
 }
 
 contract ForkSeasonalVaultTestArbitrumWethUsdc is ForkSeasonalVaultBaseTest {
-    function setUp() public override(ForkSeasonalVaultBaseTest) {
+    function setUp() public virtual override(ForkSeasonalVaultBaseTest) {
         vm.createSelectFork("arbitrum", lastCachedBlockid_ARBITRUM);
         super.setUp();
         positionManager = positionManager_UNI_ARB;
@@ -694,3 +706,38 @@ contract ForkSeasonalVaultTestArbitrumWethUsdc is ForkSeasonalVaultBaseTest {
 }
 
 // on blast we haven't nice pools without huge slippage
+
+contract ForkSeasonalVaultTestBaseChainWeth4626 is ForkSeasonalVaultTestBaseChainWeth {
+    function setUp() public override(ForkSeasonalVaultTestBaseChainWeth) {
+        is4626 = true;
+        super.setUp();
+    }
+}
+
+contract ForkSeasonalVaultTestBaseChainCBwbtcUSDC4626 is ForkSeasonalVaultTestBaseChainCBwbtcUSDC {
+    function setUp() public override(ForkSeasonalVaultTestBaseChainCBwbtcUSDC) {
+        is4626 = true;
+        super.setUp();
+    }
+}
+
+contract ForkSeasonalVaultTestArbitrumBtc4626 is ForkSeasonalVaultTestArbitrumBtc {
+    function setUp() public override(ForkSeasonalVaultTestArbitrumBtc) {
+        is4626 = true;
+        super.setUp();
+    }
+}
+
+contract ForkSeasonalVaultTestArbitrumWeth4626 is ForkSeasonalVaultTestArbitrumWeth {
+    function setUp() public override(ForkSeasonalVaultTestArbitrumWeth) {
+        is4626 = true;
+        super.setUp();
+    }
+}
+
+contract ForkSeasonalVaultTestArbitrumWethUsdc4626 is ForkSeasonalVaultTestArbitrumWethUsdc {
+    function setUp() public override(ForkSeasonalVaultTestArbitrumWethUsdc) {
+        is4626 = true;
+        super.setUp();
+    }
+}
